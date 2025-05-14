@@ -156,7 +156,7 @@ struct CallProposal {
 
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
-        keccak256('Intent(uint8 op,address user,address settler,uint256 nonce,uint256 deadline,bytes data)');
+        keccak256('Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data)');
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
         keccak256('Proposal(bytes32 intent,address solver,uint256 deadline,bytes data)');
