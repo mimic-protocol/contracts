@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.20;
+
+import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/utils/Address.sol';
+import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+
+import './interfaces/ISmartAccount.sol';
+import './utils/ERC20Helpers.sol';
+
+/**
+ * @title SmartAccount
+ * @dev Provides the logic for managing assets, executing arbitrary calls, and controlling permissions
+ */
+contract SmartAccount is ISmartAccount, Ownable, ReentrancyGuard {
+    // Mimic settler reference
+    // solhint-disable-next-line immutable-vars-naming
+    address public immutable override settler;
+
+    // List of allowed accounts
+    mapping (address => bool) public override hasPermission;
+
+    /**
+     * @dev Reverts if the sender is not the owner or the settler
+     */
+    modifier onlyAuth() {
+        bool isAuthorized = msg.sender == owner() || msg.sender == settler;
+        if (!isAuthorized) revert SmartAccountUnauthorizedSender(msg.sender);
+        _;
+    }
+
+    /**
+     * @dev Creates a new SmartAccount contract
+     * @param _settler Address of the Mimic settler
+     * @param _owner Address that will own the contract
+     * @param _accounts List of allowed accounts
+     */
+    constructor(address _settler, address _owner, address[] memory _accounts) Ownable(_owner) {
+        settler = _settler;
+        for (uint256 i = 0; i < _accounts.length; i++) _setPermission(_accounts[i], true);
+    }
+
+    /**
+     * @dev It allows receiving native token transfers
+     */
+    receive() external payable {
+        // solhint-disable-previous-line no-empty-blocks
+    }
+
+    /**
+     * @dev Transfers ERC20 or native tokens to the recipient. Sender must be the owner or the settler.
+     * @param token Address of the token to be withdrawn
+     * @param recipient Address of the account receiving the tokens
+     * @param amount Amount of tokens to be withdrawn
+     */
+    function transfer(address token, address recipient, uint256 amount) external override onlyAuth nonReentrant {
+        ERC20Helpers.transfer(token, recipient, amount);
+        emit Transferred(token, recipient, amount);
+    }
+
+    /**
+     * @dev Executes an arbitrary call from the contract. Sender must be the owner or the settler.
+     * @param target Address where the call will be sent
+     * @param data Calldata to be sent to the target
+     * @param value Native token value to send along with the call
+     * @return result Call response if it was successful, otherwise it reverts
+     */
+    function call(address target, bytes memory data, uint256 value)
+        external
+        override
+        onlyAuth
+        nonReentrant
+        returns (bytes memory result)
+    {
+        result = Address.functionCallWithValue(target, data, value);
+        emit Called(target, data, value, result);
+    }
+
+    /**
+     * @dev Sets permissions for multiple accounts. Sender must be the owner.
+     * @param accounts List of account addresses
+     * @param alloweds List of permission statuses
+     */
+    function setPermissions(address[] memory accounts, bool[] memory alloweds) external override onlyOwner {
+        if (accounts.length != alloweds.length) revert SmartAccountInputInvalidLength();
+        for (uint256 i = 0; i < accounts.length; i++) _setPermission(accounts[i], alloweds[i]);
+    }
+
+    /**
+     * @dev Sets an account permission
+     * @param account Address of the account to be set
+     * @param allowed Permission status to be set
+     */
+    function _setPermission(address account, bool allowed) internal {
+        hasPermission[account] = allowed;
+        emit PermissionSet(account, allowed);
+    }
+}

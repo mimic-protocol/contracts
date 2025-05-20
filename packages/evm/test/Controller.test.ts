@@ -74,7 +74,7 @@ describe('Controller', () => {
     const getter = `is${titleCasedConfig}Allowed`
     const setter = `setAllowed${titleCasedConfig}s`
 
-    context('when the sender is allowed', () => {
+    context('when the sender is the owner', () => {
       beforeEach('set sender', () => {
         controller = controller.connect(owner)
       })
@@ -131,7 +131,7 @@ describe('Controller', () => {
       })
     })
 
-    context('when the sender is not allowed', () => {
+    context('when the sender is not the owner', () => {
       beforeEach('set sender', () => {
         controller = controller.connect(other)
       })
