@@ -74,6 +74,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev It allows receiving native token transfers
+     * Note: This method mainly allow supporting native tokes for swaps
      */
     receive() external payable {
         // solhint-disable-previous-line no-empty-blocks
@@ -173,11 +174,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 uint256 postBalanceOut = ERC20Helpers.balanceOf(tokenOut.token, address(this));
                 uint256 preBalanceOut = preBalancesOut[i];
                 if (postBalanceOut < preBalanceOut) revert SettlerPostBalanceOutLtPre(i, postBalanceOut, preBalanceOut);
+
                 uint256 amountOut = postBalanceOut - preBalanceOut;
                 uint256 proposedAmount = swapProposal.amountsOut[i];
                 if (amountOut < proposedAmount) revert SettlerAmountOutLtProposed(i, amountOut, proposedAmount);
-                uint256 minAmount = tokenOut.minAmount;
-                if (proposedAmount < minAmount) revert SettlerProposedAmountLtMinAmount(i, proposedAmount, minAmount);
+
                 ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, amountOut);
             }
         }
@@ -241,12 +242,18 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         bool isChainInvalid = intent.sourceChain != block.chainid && intent.destinationChain != block.chainid;
         if (isChainInvalid) revert SettlerInvalidChain(intent.sourceChain, intent.destinationChain);
 
-        for (uint256 i = 0; i < intent.tokensOut.length; i++) {
-            address recipient = intent.tokensOut[i].recipient;
-            if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
-        }
-
         if (proposal.amountsOut.length != intent.tokensOut.length) revert SettlerInvalidProposedAmounts();
+
+        for (uint256 i = 0; i < intent.tokensOut.length; i++) {
+            TokenOut memory tokenOut = intent.tokensOut[i];
+
+            address recipient = tokenOut.recipient;
+            if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
+
+            uint256 minAmount = tokenOut.minAmount;
+            uint256 proposedAmount = proposal.amountsOut[i];
+            if (proposedAmount < minAmount) revert SettlerProposedAmountLtMinAmount(i, proposedAmount, minAmount);
+        }
 
         if (intent.sourceChain != intent.destinationChain) {
             bool isExecutorInvalid = !IController(controller).isExecutorAllowed(proposal.executor);

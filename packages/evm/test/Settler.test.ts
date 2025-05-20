@@ -270,13 +270,14 @@ describe('Settler', () => {
                       const swapProposalParams: Partial<SwapProposal> = {}
                       let tokenIn: Contract, tokenOut: Contract, executor: Contract
 
-                      const amount = fp(1)
-                      const minAmount = fp(0.99999)
+                      const amountIn = fp(1)
+                      const proposedAmountOut = amountIn.sub(1)
+                      const minAmount = proposedAmountOut.sub(1)
 
                       beforeEach('set tokens', async () => {
                         tokenIn = await deployTokenMock('IN', 18)
                         tokenOut = await deployTokenMock('OUT', 18)
-                        swapIntentParams.tokensIn = [{ token: tokenIn, amount }]
+                        swapIntentParams.tokensIn = [{ token: tokenIn, amount: amountIn }]
                         swapIntentParams.tokensOut = [{ token: tokenOut, recipient: other, minAmount }]
                       })
 
@@ -286,8 +287,8 @@ describe('Settler', () => {
                       })
 
                       beforeEach('mint and approve tokens', async () => {
-                        await tokenIn.mint(user.address, amount)
-                        await tokenIn.connect(user).approve(settler.address, amount)
+                        await tokenIn.mint(user.address, amountIn)
+                        await tokenIn.connect(user).approve(settler.address, amountIn)
                       })
 
                       const itValidatesIntentsProperly = (sourceChain: number, destinationChain: number) => {
@@ -296,123 +297,132 @@ describe('Settler', () => {
                           swapIntentParams.destinationChain = destinationChain
                         })
 
-                        context('when no recipient is the settler', () => {
-                          beforeEach('set recipient', () => {
-                            toArray(swapIntentParams.tokensOut).forEach((tokenOut) => {
-                              tokenOut.recipient = other
-                            })
+                        context('when the proposed amounts length is correct', () => {
+                          beforeEach('set proposed amounts', () => {
+                            swapProposalParams.amountsOut = [proposedAmountOut]
                           })
 
-                          context('when the proposed amounts length is correct', () => {
-                            beforeEach('set proposed amounts', () => {
-                              swapProposalParams.amountsOut = [minAmount]
+                          context('when no recipient is the settler', () => {
+                            beforeEach('set recipient', () => {
+                              toArray(swapIntentParams.tokensOut).forEach((tokenOut) => {
+                                tokenOut.recipient = other
+                              })
                             })
 
-                            const itExecutesTheProposalSuccessfully = () => {
-                              const itExecutesSuccessfully = (executorAmount: BigNumber, amountsOut: BigNumber[]) => {
-                                beforeEach('set proposal amounts and data', async () => {
-                                  swapProposalParams.amountsOut = amountsOut
-                                  swapProposalParams.data = executor.interface.encodeFunctionData('mint', [
-                                    tokenOut.address,
-                                    executorAmount,
-                                  ])
+                            context('when the proposal amount is greater than the min amount', () => {
+                              beforeEach('set proposal amount', () => {
+                                swapProposalParams.amountsOut = [minAmount.add(1)]
+                              })
+
+                              const itExecutesTheProposalSuccessfully = () => {
+                                const itExecutesSuccessfully = (amountOut: BigNumber) => {
+                                  const amountsOut = [amountOut]
+
+                                  beforeEach('set proposal amounts and data', async () => {
+                                    swapProposalParams.amountsOut = amountsOut
+                                    swapProposalParams.data = executor.interface.encodeFunctionData('mint', [
+                                      tokenOut.address,
+                                      amountOut,
+                                    ])
+                                  })
+
+                                  it('executes successfully', async () => {
+                                    const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
+                                    const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
+                                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                                    const tx = await settler.execute(intent, proposal, signature)
+
+                                    await assertIndirectEvent(tx, executor.interface, 'Minted')
+                                    const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
+                                    await assertEvent(tx, 'Executed', { proposal: proposalHash })
+                                  })
+                                }
+
+                                const itReverts = (reason: string, amountOut: BigNumber) => {
+                                  beforeEach('set proposal amounts and data', async () => {
+                                    swapProposalParams.data = executor.interface.encodeFunctionData('mint', [
+                                      tokenOut.address,
+                                      amountOut,
+                                    ])
+                                  })
+
+                                  it('reverts', async () => {
+                                    const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
+                                    const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
+                                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                                    await expect(settler.execute(intent, proposal, signature)).to.be.revertedWith(
+                                      reason
+                                    )
+                                  })
+                                }
+
+                                context('when the amount out is greater than the proposal amount', () => {
+                                  const amountOut = proposedAmountOut.add(1)
+
+                                  itExecutesSuccessfully(amountOut)
                                 })
 
-                                it('executes successfully', async () => {
-                                  const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
-                                  const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
-                                  const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                                  const tx = await settler.execute(intent, proposal, signature)
-
-                                  await assertIndirectEvent(tx, executor.interface, 'Minted')
-                                  const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
-                                  await assertEvent(tx, 'Executed', { proposal: proposalHash })
-                                })
-                              }
-
-                              const itReverts = (
-                                reason: string,
-                                executorAmount: BigNumber,
-                                amountsOut: BigNumber[]
-                              ) => {
-                                beforeEach('set proposal amounts and data', async () => {
-                                  swapProposalParams.amountsOut = amountsOut
-                                  swapProposalParams.data = executor.interface.encodeFunctionData('mint', [
-                                    tokenOut.address,
-                                    executorAmount,
-                                  ])
-                                })
-
-                                it('reverts', async () => {
-                                  const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
-                                  const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
-                                  const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                                  await expect(settler.execute(intent, proposal, signature)).to.be.revertedWith(reason)
-                                })
-                              }
-
-                              context('when the amount out is greater than the proposal amount', () => {
-                                const executorAmount = minAmount
-
-                                context('when the proposal amount is greater than the min amount', () => {
-                                  const amountsOut = [minAmount]
-
-                                  itExecutesSuccessfully(executorAmount, amountsOut)
-                                })
-
-                                context('when the proposal amount is lower than the min amount', () => {
-                                  const amountsOut = [minAmount.sub(1)]
+                                context('when the amount out is lower than the proposal amount', () => {
+                                  const amountOut = proposedAmountOut.sub(1)
 
                                   if (destinationChain == 31337) {
-                                    itReverts('SettlerProposedAmountLtMinAmount', executorAmount, amountsOut)
-                                  } else itExecutesSuccessfully(executorAmount, amountsOut)
-                                })
-                              })
-
-                              context('when the amount out is lower than the proposal amount', () => {
-                                const executorAmount = minAmount.sub(1)
-                                const amountsOut = [minAmount]
-
-                                if (destinationChain == 31337) {
-                                  itReverts('SettlerAmountOutLtProposed', executorAmount, amountsOut)
-                                } else itExecutesSuccessfully(executorAmount, amountsOut)
-                              })
-                            }
-
-                            context('when the executor is allowed', () => {
-                              beforeEach('allow executor', async () => {
-                                await controller.connect(admin).setAllowedExecutors([executor.address], [true])
-                              })
-
-                              itExecutesTheProposalSuccessfully()
-                            })
-
-                            context('when the executor is not allowed', () => {
-                              beforeEach('disallow executor', async () => {
-                                await controller.connect(admin).setAllowedExecutors([executor.address], [false])
-                              })
-
-                              if (sourceChain == destinationChain) {
-                                itExecutesTheProposalSuccessfully()
-                              } else {
-                                it('reverts', async () => {
-                                  const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
-                                  const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
-                                  const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                                  await expect(settler.execute(intent, proposal, signature)).to.be.revertedWith(
-                                    'SettlerExecutorNotAllowed'
-                                  )
+                                    itReverts('SettlerAmountOutLtProposed', amountOut)
+                                  } else itExecutesSuccessfully(amountOut)
                                 })
                               }
+
+                              context('when the executor is allowed', () => {
+                                beforeEach('allow executor', async () => {
+                                  await controller.connect(admin).setAllowedExecutors([executor.address], [true])
+                                })
+
+                                itExecutesTheProposalSuccessfully()
+                              })
+
+                              context('when the executor is not allowed', () => {
+                                beforeEach('disallow executor', async () => {
+                                  await controller.connect(admin).setAllowedExecutors([executor.address], [false])
+                                })
+
+                                if (sourceChain == destinationChain) {
+                                  itExecutesTheProposalSuccessfully()
+                                } else {
+                                  it('reverts', async () => {
+                                    const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
+                                    const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
+                                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                                    await expect(settler.execute(intent, proposal, signature)).to.be.revertedWith(
+                                      'SettlerExecutorNotAllowed'
+                                    )
+                                  })
+                                }
+                              })
+                            })
+
+                            context('when the proposal amount is lower than the min amount', () => {
+                              beforeEach('set proposal amount', () => {
+                                swapProposalParams.amountsOut = [minAmount.sub(1)]
+                              })
+
+                              it('reverts', async () => {
+                                const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
+                                const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
+                                const signature = await signProposal(settler, intent, solver, proposal, admin)
+                                await expect(settler.execute(intent, proposal, signature)).to.be.revertedWith(
+                                  'SettlerProposedAmountLtMinAmount'
+                                )
+                              })
                             })
                           })
 
-                          context('when the proposed amounts length is not correct', () => {
-                            beforeEach('set proposed amounts', () => {
-                              swapProposalParams.amountsOut = [minAmount, minAmount]
+                          context('when a recipient is the settler', () => {
+                            beforeEach('set recipient', () => {
+                              toArray(swapIntentParams.tokensOut).forEach((tokenOut) => {
+                                tokenOut.recipient = settler
+                              })
                             })
 
                             it('reverts', async () => {
@@ -420,18 +430,15 @@ describe('Settler', () => {
                               const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
                               const signature = await signProposal(settler, intent, solver, proposal, admin)
                               await expect(settler.execute(intent, proposal, signature)).to.be.revertedWith(
-                                // eslint-disable-next-line no-secrets/no-secrets
-                                'SettlerInvalidProposedAmounts'
+                                'SettlerInvalidRecipient'
                               )
                             })
                           })
                         })
 
-                        context('when a recipient is the settler', () => {
-                          beforeEach('set recipient', () => {
-                            toArray(swapIntentParams.tokensOut).forEach((tokenOut) => {
-                              tokenOut.recipient = settler
-                            })
+                        context('when the proposed amounts length is not correct', () => {
+                          beforeEach('set proposed amounts', () => {
+                            swapProposalParams.amountsOut = [minAmount, minAmount]
                           })
 
                           it('reverts', async () => {
@@ -439,7 +446,8 @@ describe('Settler', () => {
                             const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
                             const signature = await signProposal(settler, intent, solver, proposal, admin)
                             await expect(settler.execute(intent, proposal, signature)).to.be.revertedWith(
-                              'SettlerInvalidRecipient'
+                              // eslint-disable-next-line no-secrets/no-secrets
+                              'SettlerInvalidProposedAmounts'
                             )
                           })
                         })

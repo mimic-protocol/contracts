@@ -1,7 +1,7 @@
 import { Account, BigNumberish, NAry, toAddress, toArray } from '@mimic-fi/helpers'
 import { ethers } from 'ethers'
 
-import { createIntent, Intent } from './base'
+import { createIntent, Intent, OpType } from './base'
 
 export type SwapIntent = Intent & {
   sourceChain: number
@@ -22,7 +22,7 @@ export interface TokenOut {
 }
 
 export function createSwapIntent(params?: Partial<SwapIntent>): Intent {
-  const intent = createIntent(params)
+  const intent = createIntent({ ...params, op: OpType.Swap })
   intent.data = encodeSwapIntent({ ...getDefaults(), ...params, ...intent })
   return intent
 }

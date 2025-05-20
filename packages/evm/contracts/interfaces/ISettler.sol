@@ -74,11 +74,6 @@ interface ISettler {
     error SettlerProposedAmountLtMinAmount(uint256 index, uint256 proposed, uint256 minAmount);
 
     /**
-     * @dev The intent user is not a contract
-     */
-    error SettlerIntentUserNotContract(address user);
-
-    /**
      * @dev The proposed amounts array and the tokens out array are not of equal length
      */
     error SettlerInvalidProposedAmounts();
@@ -102,11 +97,6 @@ interface ISettler {
      * @dev The rescue funds recipient is zero
      */
     error SettlerRescueFundsRecipientZero();
-
-    /**
-     * @dev The input arrays are not of equal length
-     */
-    error SettlerInputInvalidLength();
 
     /**
      * @dev Emitted every time an intent is fulfilled
