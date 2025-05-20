@@ -21,6 +21,8 @@ import {
   createProposal,
   createSwapIntent,
   createSwapProposal,
+  createTransferIntent,
+  createTransferProposal,
   currentTimestamp,
   encodeIntent,
   encodeProposal,
@@ -37,6 +39,8 @@ import {
   SwapProposal,
   toAddress,
   toArray,
+  TransferIntent,
+  TransferProposal,
   ZERO_ADDRESS,
   ZERO_BYTES32,
 } from './helpers'
@@ -517,8 +521,93 @@ describe('Settler', () => {
                       })
                     })
 
-                    context.skip('for transfer intents', () => {
-                      // TODO: implement
+                    context('for transfer intents', () => {
+                      const transferIntentParams: Partial<TransferIntent> = {}
+                      const transferProposalParams: Partial<TransferProposal> = {}
+                      let token: TokenMock
+
+                      const amount = fp(1)
+                      const feeAmount = fp(0.1)
+
+                      beforeEach('set token', async () => {
+                        token = await ethers.deployContract('TokenMock', ['TKN', 18])
+                      })
+
+                      beforeEach('set intent params', async () => {
+                        transferIntentParams.transfers = [{ token, amount }]
+                        transferIntentParams.feeToken = token
+                        transferIntentParams.feeAmount = feeAmount
+                      })
+
+                      beforeEach('mint and approve tokens', async () => {
+                        const totalAmount = amount + feeAmount
+
+                        await token.mint(user.address, totalAmount)
+                        await token.connect(user).approve(settler.target, totalAmount)
+                      })
+
+                      context('when no recipient is the settler', () => {
+                        beforeEach('set recipient', () => {
+                          toArray(transferIntentParams.transfers).forEach((transfer) => {
+                            transfer.recipient = other
+                          })
+                        })
+
+                        context('when the proposal fee amount is greater than the intent fee amount', () => {
+                          beforeEach('set proposal amount', async () => {
+                            transferProposalParams.feeAmount = transferIntentParams.feeAmount
+                          })
+
+                          it('executes successfully', async () => {
+                            const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
+                            const proposal = createTransferProposal({ ...proposalParams, ...transferProposalParams })
+                            const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                            const tx = await settler.execute(intent, proposal, signature)
+
+                            const settlerEvents = await settler.queryFilter(settler.filters.Executed(), tx.blockNumber)
+                            expect(settlerEvents).to.have.lengthOf(1)
+
+                            const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
+                            expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                          })
+                        })
+
+                        context('when the proposal fee amount is lower than the intent fee amount', () => {
+                          beforeEach('set proposal amount', async () => {
+                            transferProposalParams.feeAmount = feeAmount + BigInt(1)
+                          })
+
+                          it('reverts', async () => {
+                            const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
+                            const proposal = createTransferProposal({ ...proposalParams, ...transferProposalParams })
+                            const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                            await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+                              settler,
+                              'SettlerSolverFeeTooHigh'
+                            )
+                          })
+                        })
+                      })
+
+                      context('when a recipient is the settler', () => {
+                        beforeEach('set recipient', () => {
+                          toArray(transferIntentParams.transfers).forEach((transfer) => {
+                            transfer.recipient = settler
+                          })
+                        })
+
+                        it('reverts', async () => {
+                          const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
+                          const proposal = createTransferProposal({ ...proposalParams, ...transferProposalParams })
+                          const signature = await signProposal(settler, intent, solver, proposal, admin)
+                          await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+                            settler,
+                            'SettlerInvalidRecipient'
+                          )
+                        })
+                      })
                     })
 
                     context.skip('for call intents', () => {
@@ -1252,8 +1341,158 @@ describe('Settler', () => {
         })
       })
 
-      context.skip('transfer', () => {
-        // TODO: implement
+      context('transfer', () => {
+        let recipient: HardhatEthersSigner
+
+        beforeEach('set recipient', async () => {
+          recipient = other
+        })
+
+        context('single token', () => {
+          let token: TokenMock, feeToken: TokenMock
+
+          const amount = fp(1)
+
+          beforeEach('deploy token', async () => {
+            token = await ethers.deployContract('TokenMock', ['WETH', 18])
+          })
+
+          const itExecutesTheIntent = (feeAmount: BigNumberish) => {
+            beforeEach('create intent', async () => {
+              intent = createTransferIntent({
+                settler,
+                user,
+                transfers: [{ token, amount, recipient }],
+                feeToken,
+                feeAmount,
+              })
+            })
+
+            it('executes the intent', async () => {
+              const preUserTokenBalance = await token.balanceOf(user.address)
+              const preUserFeeTokenBalance = await feeToken.balanceOf(user.address)
+              const preRecipientBalance = await token.balanceOf(recipient.address)
+              const preSolverBalance = await feeToken.balanceOf(solver.address)
+
+              const proposal = createTransferProposal({ feeAmount })
+              const signature = await signProposal(settler, intent, solver, proposal, admin)
+              await settler.execute(intent, proposal, signature)
+
+              const postUserTokenBalance = await token.balanceOf(user.address)
+              if (token.target == feeToken.target) {
+                expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount + feeAmount)
+              } else {
+                const postUserFeeTokenBalance = await token.balanceOf(user.address)
+                expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount)
+                expect(preUserFeeTokenBalance - postUserFeeTokenBalance).to.be.eq(feeAmount)
+              }
+
+              const postRecipientBalance = await token.balanceOf(recipient.address)
+              expect(postRecipientBalance - preRecipientBalance).to.be.eq(amount)
+
+              const postSolverBalance = await feeToken.balanceOf(solver.address)
+              expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+            })
+          }
+
+          context('when the fee token is the transfer token', () => {
+            const feeAmount = fp(0.01)
+
+            beforeEach('set fee token', async () => {
+              feeToken = token
+            })
+
+            beforeEach('mint and approve tokens', async () => {
+              const totalAmount = amount + feeAmount
+
+              await token.mint(user.address, totalAmount)
+              await token.connect(user).approve(settler.target, totalAmount)
+            })
+
+            itExecutesTheIntent(feeAmount)
+          })
+
+          context('when the fee token is not the transfer token', () => {
+            const feeAmount = bn(0.2 * 1e6)
+
+            beforeEach('deploy token', async () => {
+              feeToken = await ethers.deployContract('TokenMock', ['USDC', 6])
+            })
+
+            beforeEach('mint and approve tokens', async () => {
+              await token.mint(user.address, amount)
+              await token.connect(user).approve(settler.target, amount)
+
+              await feeToken.mint(user.address, feeAmount)
+              await feeToken.connect(user).approve(settler.target, feeAmount)
+            })
+
+            itExecutesTheIntent(feeAmount)
+          })
+        })
+
+        context('multi token', () => {
+          let token1: TokenMock, token2: TokenMock
+
+          const amount1 = fp(0.5)
+          const amount2 = bn(2 * 1e6)
+          const feeAmount = fp(0.05)
+
+          beforeEach('deploy tokens', async () => {
+            token1 = await ethers.deployContract('TokenMock', ['TKN1', 18])
+            token2 = await ethers.deployContract('TokenMock', ['TKN2', 6])
+          })
+
+          beforeEach('mint and approve tokens', async () => {
+            const totalAmount = amount1 + feeAmount * BigInt(2)
+            await token1.mint(user.address, totalAmount)
+            await token1.connect(user).approve(settler.target, totalAmount)
+
+            await token2.mint(user.address, amount2)
+            await token2.connect(user).approve(settler.target, amount2)
+          })
+
+          beforeEach('create intent', async () => {
+            intent = createTransferIntent({
+              settler,
+              user,
+              transfers: [
+                { token: token1, amount: amount1, recipient },
+                { token: token1, amount: feeAmount, recipient: user }, // has no impact
+                { token: token2, amount: amount2, recipient },
+              ],
+              feeToken: token1,
+              feeAmount,
+            })
+          })
+
+          it('executes the intent', async () => {
+            const preUserBalance1 = await token1.balanceOf(user.address)
+            const preUserBalance2 = await token2.balanceOf(user.address)
+            const preRecipientBalance1 = await token1.balanceOf(recipient.address)
+            const preRecipientBalance2 = await token2.balanceOf(recipient.address)
+            const preSolverBalance = await token1.balanceOf(solver.address)
+
+            const proposal = createTransferProposal({ feeAmount })
+            const signature = await signProposal(settler, intent, solver, proposal, admin)
+            await settler.execute(intent, proposal, signature)
+
+            const postUserBalance1 = await token1.balanceOf(user.address)
+            expect(preUserBalance1 - postUserBalance1).to.be.eq(amount1 + feeAmount)
+
+            const postUserBalance2 = await token2.balanceOf(user.address)
+            expect(preUserBalance2 - postUserBalance2).to.be.eq(amount2)
+
+            const postRecipientBalance1 = await token1.balanceOf(recipient.address)
+            expect(postRecipientBalance1 - preRecipientBalance1).to.be.eq(amount1)
+
+            const postRecipientBalance2 = await token2.balanceOf(recipient.address)
+            expect(postRecipientBalance2 - preRecipientBalance2).to.be.eq(amount2)
+
+            const postSolverBalance = await token1.balanceOf(solver.address)
+            expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+          })
+        })
       })
 
       context.skip('call', () => {

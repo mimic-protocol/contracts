@@ -29,10 +29,10 @@ From your command line:
 
 ```bash
 # Clone this repository
-$ git clone https://github.com/mimic-protocol/tooling
+$ git clone https://github.com/mimic-protocol/contracts
 
 # Go into the repository
-$ cd tooling
+$ cd contracts
 
 # Install dependencies
 $ yarn
