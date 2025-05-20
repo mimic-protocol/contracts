@@ -195,11 +195,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
             TransferData memory transfer = transferIntent.transfers[i];
-            // TODO: contemplate smart accounts
+            // TODO: contemplate smart accounts (handle native too)
             IERC20(transfer.token).safeTransferFrom(intent.user, transfer.recipient, transfer.amount);
         }
 
-        // TODO: contemplate smart accounts
+        // TODO: contemplate smart accounts (handle native too)
         IERC20(transferIntent.feeToken).safeTransferFrom(intent.user, msg.sender, transferProposal.feeAmount);
     }
 
