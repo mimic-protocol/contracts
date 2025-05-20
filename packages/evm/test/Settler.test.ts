@@ -1,9 +1,9 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
-import { Contract, getBytes, Wallet } from 'ethers'
+import { getBytes, Wallet } from 'ethers'
 import { network } from 'hardhat'
-
-const { ethers } = await network.connect()
+import { Controller, EmptyExecutorMock, MintExecutorMock,
+  ReentrantExecutorMock, Settler, TokenMock, TransferExecutorMock } from '../types/ethers-contracts/index.js'
 
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import {
@@ -34,8 +34,10 @@ import {
   ZERO_BYTES32,
 } from './helpers'
 
+const { ethers } = await network.connect()
+
 describe('Settler', () => {
-  let settler: Contract, controller: Contract
+  let settler: Settler, controller: Controller
   let user: HardhatEthersSigner, other: HardhatEthersSigner
   let admin: HardhatEthersSigner, owner: HardhatEthersSigner, solver: HardhatEthersSigner
 
@@ -46,7 +48,7 @@ describe('Settler', () => {
     settler = await ethers.deployContract('Settler', [controller.target, owner.address])
   })
 
-  const balanceOf = (token: Contract | string, account: Account) => {
+  const balanceOf = (token: TokenMock | string, account: Account) => {
     const accountAddress = toAddress(account)
     return typeof token === 'string' ? ethers.provider.getBalance(accountAddress) : token.balanceOf(accountAddress)
   }
@@ -110,7 +112,7 @@ describe('Settler', () => {
   })
 
   describe('rescueFunds', () => {
-    let token: Contract | string
+    let token: TokenMock | string
     const airdrop = fp(10)
 
     context('when the sender is the owner', () => {
@@ -142,7 +144,7 @@ describe('Settler', () => {
           it('emits an event', async () => {
             const tx = await settler.rescueFunds(toAddress(token), recipient.address, amount)
 
-            const events = await settler.queryFilter(settler.filters['FundsRescued'](), tx.blockNumber)
+            const events = await settler.queryFilter(settler.filters.FundsRescued(), tx.blockNumber)
             expect(events).to.have.lengthOf(1)
 
             expect(events[0].args.token).to.be.equal(toAddress(token))
@@ -267,7 +269,7 @@ describe('Settler', () => {
                     context('for swap intents', () => {
                       const swapIntentParams: Partial<SwapIntent> = {}
                       const swapProposalParams: Partial<SwapProposal> = {}
-                      let tokenIn: Contract, tokenOut: Contract, executor: Contract
+                      let tokenIn: TokenMock, tokenOut: TokenMock, executor: MintExecutorMock
 
                       const amountIn = fp(1)
                       const proposedAmountOut = amountIn - BigInt(1)
@@ -658,14 +660,14 @@ describe('Settler', () => {
           const destinationChain = 31337
 
           context('withdraw', () => {
-            let executor: Contract
+            let executor: TransferExecutorMock
 
             beforeEach('deploy executor mock', async () => {
               executor = await ethers.deployContract('TransferExecutorMock')
             })
 
             context('single token', () => {
-              let token: Contract
+              let token: TokenMock
 
               const amount = fp(1)
               const minAmount = fp(0.99999)
@@ -712,7 +714,7 @@ describe('Settler', () => {
             })
 
             context('multi token', () => {
-              let token1: Contract, token2: Contract
+              let token1: TokenMock, token2: TokenMock
 
               const amount1 = fp(1)
               const amount2 = fp(2)
@@ -789,14 +791,14 @@ describe('Settler', () => {
           })
 
           context('swap', () => {
-            let executor: Contract
+            let executor: TransferExecutorMock
 
             beforeEach('deploy executor mock', async () => {
               executor = await ethers.deployContract('TransferExecutorMock')
             })
 
             context('single tokens', () => {
-              let tokenIn: Contract, tokenOut: Contract | string
+              let tokenIn: TokenMock, tokenOut: TokenMock | string
 
               const amountIn = bn(2900 * 1e6) // USDC
               const minAmountOut = fp(1) // WETH
@@ -859,8 +861,8 @@ describe('Settler', () => {
             })
 
             context('multi token', () => {
-              let tokenIn1: Contract, tokenIn2: Contract, tokenIn3: Contract
-              let tokenOut1: Contract, tokenOut2: Contract | string
+              let tokenIn1: TokenMock, tokenIn2: TokenMock, tokenIn3: TokenMock
+              let tokenOut1: TokenMock, tokenOut2: TokenMock | string
 
               const amountIn1 = fp(1)
               const amountIn2 = fp(2)
@@ -974,8 +976,8 @@ describe('Settler', () => {
               const sourceChain = 31337
               const destinationChain = 1
 
-              let executor: Contract
-              let tokenIn: Contract
+              let executor: EmptyExecutorMock
+              let tokenIn: TokenMock
               const tokenOut = randomAddress() // forcing random address for another chain
 
               beforeEach('deploy and mint tokens in', async () => {
@@ -1020,8 +1022,8 @@ describe('Settler', () => {
               const sourceChain = 1
               const destinationChain = 31337
 
-              let executor: Contract
-              let tokenOut: Contract | string
+              let executor: TransferExecutorMock
+              let tokenOut: TokenMock | string
               const tokenIn = randomAddress() // forcing random address for another chain
 
               beforeEach('deploy executor mock', async () => {
@@ -1082,11 +1084,11 @@ describe('Settler', () => {
             const minAmountOut2 = fp(1.99999)
 
             context('when executing on the source chain', () => {
-              let executor: Contract
+              let executor: EmptyExecutorMock
               const sourceChain = 31337
               const destinationChain = 1
 
-              let tokenIn1: Contract, tokenIn2: Contract, tokenIn3: Contract
+              let tokenIn1: TokenMock, tokenIn2: TokenMock, tokenIn3: TokenMock
               const tokenOut1 = randomAddress() // forcing random address for another chain
               const tokenOut2 = randomAddress() // forcing random address for another chain
 
@@ -1160,11 +1162,11 @@ describe('Settler', () => {
             })
 
             context('when executing on the destination chain', () => {
-              let executor: Contract
+              let executor: TransferExecutorMock
               const sourceChain = 1
               const destinationChain = 31337
 
-              let tokenOut1: Contract, tokenOut2: Contract | string
+              let tokenOut1: TokenMock, tokenOut2: TokenMock | string
               const tokenIn1 = randomAddress() // forcing random address for another chain
               const tokenIn2 = randomAddress() // forcing random address for another chain
               const tokenIn3 = randomAddress() // forcing random address for another chain
@@ -1283,7 +1285,7 @@ describe('Settler', () => {
   })
 
   describe('reentrancy guard', () => {
-    let executor: Contract
+    let executor: ReentrantExecutorMock
 
     beforeEach('deploy executor mock', async () => {
       executor = await ethers.deployContract('ReentrantExecutorMock', [settler.target])

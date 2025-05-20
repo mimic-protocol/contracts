@@ -1,15 +1,16 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
-import { Contract, getAddress } from 'ethers'
+import { getAddress } from 'ethers'
 import { network } from 'hardhat'
-
-const { ethers } = await network.connect()
+import { Controller } from '../types/ethers-contracts/index.js'
 
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import { randomAddress } from './helpers'
 
+const { ethers } = await network.connect()
+
 describe('Controller', () => {
-  let controller: Contract
+  let controller: Controller
   let owner: HardhatEthersSigner, other: HardhatEthersSigner
 
   const allowedSolvers = [randomAddress(), randomAddress()]
