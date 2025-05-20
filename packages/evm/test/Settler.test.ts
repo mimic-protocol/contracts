@@ -2,9 +2,16 @@ import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { getBytes, Wallet } from 'ethers'
 import { network } from 'hardhat'
-import { Controller, EmptyExecutorMock, MintExecutorMock,
-  ReentrantExecutorMock, Settler, TokenMock, TransferExecutorMock } from '../types/ethers-contracts/index.js'
 
+import {
+  Controller,
+  EmptyExecutorMock,
+  MintExecutorMock,
+  ReentrantExecutorMock,
+  Settler,
+  TokenMock,
+  TransferExecutorMock,
+} from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import {
   Account,

@@ -2,8 +2,8 @@ import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { getAddress } from 'ethers'
 import { network } from 'hardhat'
-import { Controller } from '../types/ethers-contracts/index.js'
 
+import { Controller } from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import { randomAddress } from './helpers'
 
