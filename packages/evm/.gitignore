@@ -1,6 +1,7 @@
 node_modules
 artifacts
 cache
+types
 build
 types
 .env

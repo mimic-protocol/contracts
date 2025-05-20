@@ -1,13 +1,16 @@
-import { Account, BigNumberish, MAX_UINT256, toAddress } from '@mimic-fi/helpers'
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address'
-import { Contract, ethers } from 'ethers'
+import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
+import { AbiCoder, Contract, keccak256, toUtf8Bytes } from 'ethers'
+import { network } from 'hardhat'
 
+import { Account, toAddress } from '../addresses'
+import { MAX_UINT256 } from '../constants'
 import { encodeIntent, Intent } from '../intents'
+import { BigNumberish } from '../numbers'
 
 export const DOMAIN_NAME_DEFAULTS = { name: 'Mimic Protocol Settler', version: '1' }
 
-export const PROPOSAL_TYPE_HASH = ethers.utils.keccak256(
-  ethers.utils.toUtf8Bytes('Proposal(bytes32 intent,address solver,uint256 deadline,bytes data)')
+export const PROPOSAL_TYPE_HASH = keccak256(
+  toUtf8Bytes('Proposal(bytes32 intent,address solver,uint256 deadline,bytes data)')
 )
 export const PROPOSAL_TYPE = {
   Proposal: [
@@ -28,11 +31,12 @@ export async function signProposal(
   intent: Intent,
   solver: Account,
   proposal: Proposal,
-  signer: SignerWithAddress
+  signer: HardhatEthersSigner
 ): Promise<string> {
-  const chainId = settler.provider._network.chainId
-  const domain = { ...DOMAIN_NAME_DEFAULTS, chainId, verifyingContract: settler.address }
-  return signer._signTypedData(domain, PROPOSAL_TYPE, {
+  const connection = await network.connect()
+  const chainId = connection.networkConfig.chainId
+  const domain = { ...DOMAIN_NAME_DEFAULTS, chainId, verifyingContract: settler.target }
+  return signer.signTypedData(domain, PROPOSAL_TYPE, {
     intent: encodeIntent(intent),
     solver: toAddress(solver),
     deadline: proposal.deadline,
@@ -41,8 +45,8 @@ export async function signProposal(
 }
 
 export function encodeProposal(proposal: Proposal, intent: Intent, solver: Account): string {
-  return ethers.utils.keccak256(
-    ethers.utils.defaultAbiCoder.encode(
+  return keccak256(
+    AbiCoder.defaultAbiCoder().encode(
       [
         'bytes32', // type hash
         'bytes32', // intent hash
@@ -55,7 +59,7 @@ export function encodeProposal(proposal: Proposal, intent: Intent, solver: Accou
         encodeIntent(intent),
         toAddress(solver),
         proposal.deadline.toString(),
-        ethers.utils.keccak256(proposal.data),
+        keccak256(proposal.data),
       ]
     )
   )

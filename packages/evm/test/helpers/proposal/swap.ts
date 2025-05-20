@@ -1,6 +1,8 @@
-import { Account, BigNumberish, NAry, randomAddress, toAddress, toArray } from '@mimic-fi/helpers'
-import { ethers } from 'ethers'
+import { AbiCoder } from 'ethers'
 
+import { Account, randomAddress, toAddress } from '../addresses'
+import { NAry, toArray } from '../arrays'
+import { BigNumberish } from '../numbers'
 import { createProposal, Proposal } from './base'
 
 export type SwapProposal = Proposal & {
@@ -16,13 +18,13 @@ export function createSwapProposal(params?: Partial<SwapProposal>): Proposal {
 }
 
 function encodeSwapProposal(proposal: Partial<SwapProposal>): string {
-  return ethers.utils.defaultAbiCoder.encode(
+  return AbiCoder.defaultAbiCoder().encode(
     [`tuple(address,bytes,uint256[])`],
     [
       [
         toAddress(proposal.executor),
         proposal.data,
-        toArray(proposal.amountsOut).map((amountOut) => amountOut.toString()),
+        toArray(proposal.amountsOut).map((amountOut: BigNumberish) => amountOut.toString()),
       ],
     ]
   )

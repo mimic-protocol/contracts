@@ -10,11 +10,10 @@ import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import '@openzeppelin/contracts/utils/cryptography/EIP712.sol';
 
-import '@mimic-fi/helpers/contracts/utils/ERC20Helpers.sol';
-
 import './Intents.sol';
 import './interfaces/IController.sol';
 import './interfaces/ISettler.sol';
+import './utils/ERC20Helpers.sol';
 
 /**
  * @title Settler

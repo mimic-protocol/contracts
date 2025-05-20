@@ -1,19 +1,31 @@
-import '@nomiclabs/hardhat-ethers'
-import '@nomiclabs/hardhat-waffle'
-import 'hardhat-local-networks-config-plugin'
+import hardhatToolboxMochaEthersPlugin from '@nomicfoundation/hardhat-toolbox-mocha-ethers'
+import { HardhatUserConfig } from 'hardhat/config'
 
-import { homedir } from 'os'
-import path from 'path'
-
-export default {
-  localNetworksConfig: path.join(homedir(), '/.hardhat/networks.mimic-protocol.json'),
+const config: HardhatUserConfig = {
+  plugins: [hardhatToolboxMochaEthersPlugin],
   solidity: {
-    version: '0.8.20',
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 1000,
+    profiles: {
+      default: {
+        version: '0.8.28',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
     },
   },
+  networks: {
+    hardhatMainnet: {
+      type: 'edr',
+      chainType: 'l1',
+    },
+    hardhatOp: {
+      type: 'edr',
+      chainType: 'optimism',
+    },
+  },
 }
+
+export default config

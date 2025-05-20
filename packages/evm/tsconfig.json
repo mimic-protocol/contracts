@@ -1,13 +1,12 @@
 {
   "compilerOptions": {
-    "target": "es2019",
-    "module": "commonjs",
-    "rootDir": ".",
-    "outDir": "dist",
+    "lib": ["es2023"],
+    "module": "node16",
+    "target": "es2022",
+    "strict": true,
     "esModuleInterop": true,
-    "strict": true
-  },
-  "files": [
-    "hardhat.config.ts"
-  ]
+    "skipLibCheck": true,
+    "moduleResolution": "node16",
+    "outDir": "dist"
+  }
 }

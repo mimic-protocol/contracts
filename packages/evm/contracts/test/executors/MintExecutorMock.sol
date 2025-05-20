@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import '@mimic-fi/helpers/contracts/mocks/TokenMock.sol';
+import '../TokenMock.sol';
 
 contract MintExecutorMock {
     event Minted();

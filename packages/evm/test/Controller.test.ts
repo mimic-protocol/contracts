@@ -1,13 +1,17 @@
-import { assertEvent, deploy, getSigners, randomAddress } from '@mimic-fi/helpers'
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/dist/src/signer-with-address'
+import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
-import { Contract, utils } from 'ethers'
+import { getAddress } from 'ethers'
+import { network } from 'hardhat'
 
+import { Controller } from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
+import { randomAddress } from './helpers'
+
+const { ethers } = await network.connect()
 
 describe('Controller', () => {
-  let controller: Contract
-  let owner: SignerWithAddress, other: SignerWithAddress
+  let controller: Controller
+  let owner: HardhatEthersSigner, other: HardhatEthersSigner
 
   const allowedSolvers = [randomAddress(), randomAddress()]
   const allowedExecutors = [randomAddress(), randomAddress(), randomAddress()]
@@ -15,8 +19,13 @@ describe('Controller', () => {
 
   beforeEach('deploy controller', async () => {
     // eslint-disable-next-line prettier/prettier
-    [, owner, other] = await getSigners()
-    controller = await deploy('Controller', [owner.address, allowedSolvers, allowedExecutors, allowedProposalSigners])
+    [, owner, other] = await ethers.getSigners();
+    controller = await ethers.deployContract('Controller', [
+      owner.address,
+      allowedSolvers,
+      allowedExecutors,
+      allowedProposalSigners,
+    ])
   })
 
   describe('ownable', () => {
@@ -71,7 +80,7 @@ describe('Controller', () => {
       })
 
       context('when the inputs lengths match', () => {
-        const keys = [randomAddress(), randomAddress(), randomAddress()].map((a) => utils.getAddress(a))
+        const keys = [randomAddress(), randomAddress(), randomAddress()].map((a) => getAddress(a))
         const values = [true, true, false]
 
         const itSetsTheConfigsProperly = () => {
@@ -88,9 +97,12 @@ describe('Controller', () => {
             const tx = await controller[setter](keys, values)
 
             const event = `${titleCasedConfig}AllowedSet`
+            const events = await controller.queryFilter(controller.filters[event](), tx.blockNumber)
+
             for (const [i, key] of keys.entries()) {
               const value = values[i]
-              await assertEvent(tx, event, { [config]: key, allowed: value })
+              expect(events[i].args[config]).to.equal(key)
+              expect(events[i].args.allowed).to.equal(value)
             }
           })
         }
@@ -111,7 +123,10 @@ describe('Controller', () => {
       context('when the inputs lengths do not match', () => {
         it('reverts', async () => {
           // eslint-disable-next-line no-secrets/no-secrets
-          await expect(controller[setter]([], [true])).to.be.revertedWith('ControllerInputInvalidLength')
+          await expect(controller[setter]([], [true])).to.be.revertedWithCustomError(
+            controller,
+            'ControllerInputInvalidLength'
+          )
         })
       })
     })
@@ -123,7 +138,7 @@ describe('Controller', () => {
 
       it('reverts', async () => {
         // eslint-disable-next-line no-secrets/no-secrets
-        await expect(controller[setter]([], [])).to.be.revertedWith('OwnableUnauthorizedAccount')
+        await expect(controller[setter]([], [])).to.be.revertedWithCustomError(controller, 'OwnableUnauthorizedAccount')
       })
     })
   }

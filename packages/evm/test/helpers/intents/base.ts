@@ -1,8 +1,11 @@
-import { Account, BigNumberish, MAX_UINT256, randomAddress, randomHex, toAddress } from '@mimic-fi/helpers'
-import { ethers } from 'ethers'
+import { AbiCoder, keccak256, toUtf8Bytes } from 'ethers'
 
-export const INTENT_TYPE_HASH = ethers.utils.keccak256(
-  ethers.utils.toUtf8Bytes('Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data)')
+import { Account, randomAddress, randomHex, toAddress } from '../addresses'
+import { MAX_UINT256 } from '../constants'
+import { BigNumberish } from '../numbers'
+
+export const INTENT_TYPE_HASH = keccak256(
+  toUtf8Bytes('Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data)')
 )
 
 /* eslint-disable no-unused-vars */
@@ -35,8 +38,8 @@ export function createIntent(params?: Partial<Intent>): Intent {
 }
 
 export function encodeIntent(intent: Intent): string {
-  return ethers.utils.keccak256(
-    ethers.utils.defaultAbiCoder.encode(
+  return keccak256(
+    AbiCoder.defaultAbiCoder().encode(
       [
         'bytes32', // type hash
         'uint8', // op
@@ -53,7 +56,7 @@ export function encodeIntent(intent: Intent): string {
         toAddress(intent.settler),
         intent.nonce.toString(),
         intent.deadline.toString(),
-        ethers.utils.keccak256(intent.data),
+        keccak256(intent.data),
       ]
     )
   )

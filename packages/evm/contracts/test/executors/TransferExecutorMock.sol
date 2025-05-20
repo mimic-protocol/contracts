@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import '@mimic-fi/helpers/contracts/utils/ERC20Helpers.sol';
+import '../../utils/ERC20Helpers.sol';
 
 contract TransferExecutorMock {
     receive() external payable {
