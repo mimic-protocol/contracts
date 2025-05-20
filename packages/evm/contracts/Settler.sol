@@ -192,7 +192,15 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
         TransferProposal memory transferProposal = abi.decode(proposal.data, (TransferProposal));
         _validateTransferIntent(transferIntent, transferProposal);
-        // TODO: implement
+
+        for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
+            TransferData memory transfer = transferIntent.transfers[i];
+            // TODO: contemplate smart accounts
+            IERC20(transfer.token).safeTransferFrom(intent.user, transfer.recipient, transfer.amount);
+        }
+
+        // TODO: contemplate smart accounts
+        IERC20(transferIntent.feeToken).safeTransferFrom(intent.user, msg.sender, transferProposal.feeAmount);
     }
 
     /**
