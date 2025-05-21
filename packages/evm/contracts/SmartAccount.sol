@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
-
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
 
@@ -13,7 +13,7 @@ import './utils/ERC20Helpers.sol';
  * @title SmartAccount
  * @dev Provides the logic for managing assets, executing arbitrary calls, and controlling permissions
  */
-contract SmartAccount is ISmartAccount, Ownable, ReentrancyGuard {
+contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     // Mimic settler reference
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override settler;
@@ -39,6 +39,14 @@ contract SmartAccount is ISmartAccount, Ownable, ReentrancyGuard {
     constructor(address _settler, address _owner, address[] memory _accounts) Ownable(_owner) {
         settler = _settler;
         for (uint256 i = 0; i < _accounts.length; i++) _setPermission(_accounts[i], true);
+    }
+
+    /**
+     * @dev Tells if the contract supports the given interface ID. Overrides ERC165 to declare support for ISmartAccount interface.
+     * @param interfaceId Interface ID is defined as the XOR of all function selectors in the interface
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
+        return interfaceId == type(ISmartAccount).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /**

@@ -53,6 +53,26 @@ describe('SmartAccount', () => {
     })
   })
 
+  describe('ERC165', () => {
+    it('supports the ISmartAccount interface', async () => {
+      const interfaceId = '0xcbec194e' // ISmartAccount
+
+      expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
+    })
+
+    it('supports the IERC165 interface', async () => {
+      const interfaceId = '0x01ffc9a7' // IERC165
+
+      expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
+    })
+
+    it('does not support random interfaces', async () => {
+      const interfaceId = randomHex(4)
+
+      expect(await smartAccount.supportsInterface(interfaceId)).to.be.false
+    })
+  })
+
   describe('receive', () => {
     const value = 1
 

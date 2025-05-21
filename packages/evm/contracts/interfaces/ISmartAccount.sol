@@ -2,10 +2,12 @@
 
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
 /**
  * @title SmartAccount interface
  */
-interface ISmartAccount {
+interface ISmartAccount is IERC165 {
     /**
      * @dev The sender is not the owner or the settler
      */
