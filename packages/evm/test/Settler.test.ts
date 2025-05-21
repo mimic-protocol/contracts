@@ -226,8 +226,7 @@ describe('Settler', () => {
         settler = settler.connect(other)
       })
 
-      // TODO: fix test
-      it.skip('reverts', async () => {
+      it('reverts', async () => {
         await expect(settler.rescueFunds(ZERO_ADDRESS, ZERO_ADDRESS, 0)).to.be.revertedWithCustomError(
           settler,
           // eslint-disable-next-line no-secrets/no-secrets
@@ -263,13 +262,13 @@ describe('Settler', () => {
               context('when the intent deadline has not been reached', () => {
                 beforeEach('set intent deadline', async () => {
                   const now = await currentTimestamp()
-                  intentParams.deadline = now + BigInt(100)
+                  intentParams.deadline = now + BigInt(60 * 5)
                 })
 
                 context('when the proposal deadline has not been reached', () => {
                   beforeEach('set proposal deadline', async () => {
                     const now = await currentTimestamp()
-                    proposalParams.deadline = now + BigInt(100)
+                    proposalParams.deadline = now + BigInt(60 * 5)
                   })
 
                   context('when the proposal has been signed properly', () => {
@@ -635,7 +634,7 @@ describe('Settler', () => {
                 context('when the proposal deadline has been reached', () => {
                   beforeEach('set deadline', async () => {
                     const now = await currentTimestamp()
-                    proposalParams.deadline = now - BigInt(60 * 60)
+                    proposalParams.deadline = now - BigInt(5 * 60)
                   })
 
                   it('reverts', async () => {
@@ -652,7 +651,7 @@ describe('Settler', () => {
               context('when the intent deadline has been reached', () => {
                 beforeEach('set deadline', async () => {
                   const now = await currentTimestamp()
-                  intentParams.deadline = now - BigInt(60 * 60)
+                  intentParams.deadline = now - BigInt(5 * 60)
                 })
 
                 it('reverts', async () => {

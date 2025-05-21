@@ -1,11 +1,15 @@
-export const currentBlock = async (): Promise<{ number: number; timestamp: number }> => {
-  const { network } = await import('hardhat')
-  const { ethers } = await network.connect()
-  return ethers.provider.send('eth_getBlockByNumber', ['latest', true])
+import { Block } from 'ethers'
+import { network } from 'hardhat'
+
+const { ethers } = await network.connect()
+
+export async function currentBlock(): Promise<Block> {
+  const block = ethers.provider.getBlock('latest')
+  if (!block) throw Error('Could not find latest block')
+  return block
 }
 
-export const currentTimestamp = async (): Promise<bigint> => {
+export async function currentTimestamp(): Promise<bigint> {
   const block = await currentBlock()
-  // TODO: fix 1 hour offset
-  return BigInt(block.timestamp) + BigInt(60 * 60)
+  return BigInt(block.timestamp)
 }

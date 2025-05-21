@@ -9,7 +9,7 @@ export default function itBehavesLikeOwnable(): void {
 
   beforeEach('set other', async function () {
     // eslint-disable-next-line prettier/prettier
-    [, other] = await ethers.getSigners();
+    [other] = await ethers.getSigners();
   })
 
   describe('owner', () => {
@@ -32,12 +32,7 @@ export default function itBehavesLikeOwnable(): void {
     })
 
     context('when the sender is not the owner', () => {
-      beforeEach('set sender', async function () {
-        this.ownable = this.ownable.connect(other)
-      })
-
-      // TODO: fix test
-      it.skip('reverts', async function () {
+      it('reverts', async function () {
         await expect(this.ownable.transferOwnership(other.address)).to.be.revertedWithCustomError(
           this.ownable,
           // eslint-disable-next-line no-secrets/no-secrets
