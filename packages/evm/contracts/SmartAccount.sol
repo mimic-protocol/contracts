@@ -6,6 +6,7 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import './interfaces/IPermissionOracle.sol';
 import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
 
@@ -14,19 +15,26 @@ import './utils/ERC20Helpers.sol';
  * @dev Provides the logic for managing assets, executing arbitrary calls, and controlling permissions
  */
 contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
+    // Constant used to denote that an account is not allowed
+    address internal constant NO_PERMISSION = address(0x0000000000000000000000000000000000000000);
+
+    // Constant used to denote that an account is allowed to do anything
+    address internal constant ANY_PERMISSION = address(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF);
+
+    // List of account permissions
+    mapping (address => address) internal _permissions;
+
     // Mimic settler reference
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override settler;
 
-    // List of allowed accounts
-    mapping (address => bool) public override hasPermission;
-
     /**
-     * @dev Reverts if the sender is not the owner or the settler
+     * @dev Reverts unless the sender is the owner or the settler
      */
     modifier onlyAuth() {
-        bool isAuthorized = msg.sender == owner() || msg.sender == settler;
-        if (!isAuthorized) revert SmartAccountUnauthorizedSender(msg.sender);
+        address sender = _msgSender();
+        bool isAuthorized = sender == owner() || sender == settler;
+        if (!isAuthorized) revert SmartAccountUnauthorizedSender(sender);
         _;
     }
 
@@ -34,19 +42,31 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @dev Creates a new SmartAccount contract
      * @param _settler Address of the Mimic settler
      * @param _owner Address that will own the contract
-     * @param _accounts List of allowed accounts
      */
-    constructor(address _settler, address _owner, address[] memory _accounts) Ownable(_owner) {
+    constructor(address _settler, address _owner) Ownable(_owner) {
         settler = _settler;
-        for (uint256 i = 0; i < _accounts.length; i++) _setPermission(_accounts[i], true);
     }
 
     /**
-     * @dev Tells if the contract supports the given interface ID. Overrides ERC165 to declare support for ISmartAccount interface.
+     * @dev Tells whether the contract supports the given interface ID. Overrides ERC165 to declare support for ISmartAccount interface.
      * @param interfaceId Interface ID is defined as the XOR of all function selectors in the interface
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
         return interfaceId == type(ISmartAccount).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @dev Tells whether an account is allowed
+     * @param account Address of the account being queried
+     * @param config Data representing the specific permission configuration
+     */
+    function hasPermission(address account, bytes memory config) external view returns (bool) {
+        if (account == owner()) return true;
+
+        address permission = _permissions[account];
+        if (permission == NO_PERMISSION) return false;
+        if (permission == ANY_PERMISSION) return true;
+        return IPermissionOracle(permission).hasPermission(account, config);
     }
 
     /**
@@ -88,20 +108,20 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     /**
      * @dev Sets permissions for multiple accounts. Sender must be the owner.
      * @param accounts List of account addresses
-     * @param alloweds List of permission statuses
+     * @param permissions List of permission addresses
      */
-    function setPermissions(address[] memory accounts, bool[] memory alloweds) external override onlyOwner {
-        if (accounts.length != alloweds.length) revert SmartAccountInputInvalidLength();
-        for (uint256 i = 0; i < accounts.length; i++) _setPermission(accounts[i], alloweds[i]);
+    function setPermissions(address[] memory accounts, address[] memory permissions) external override onlyOwner {
+        if (accounts.length != permissions.length) revert SmartAccountInputInvalidLength();
+        for (uint256 i = 0; i < accounts.length; i++) _setPermission(accounts[i], permissions[i]);
     }
 
     /**
      * @dev Sets an account permission
      * @param account Address of the account to be set
-     * @param allowed Permission status to be set
+     * @param permission Address of the permission to be set
      */
-    function _setPermission(address account, bool allowed) internal {
-        hasPermission[account] = allowed;
-        emit PermissionSet(account, allowed);
+    function _setPermission(address account, address permission) internal {
+        _permissions[account] = permission;
+        emit PermissionSet(account, permission);
     }
 }

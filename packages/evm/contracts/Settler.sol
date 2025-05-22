@@ -35,7 +35,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Modifier to tag settler functions in order to check if the sender is an allowed solver
      */
     modifier onlySolver() {
-        if (!IController(controller).isSolverAllowed(msg.sender)) revert SettlerSolverNotAllowed(msg.sender);
+        address sender = _msgSender();
+        if (!IController(controller).isSolverAllowed(sender)) revert SettlerSolverNotAllowed(sender);
         _;
     }
 
@@ -142,7 +143,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         else if (intent.op == OpType.Call) _executeCall(intent, proposal);
         else revert SettlerUnknownIntentType(uint8(intent.op));
 
-        emit Executed(proposal.hash(intent, msg.sender));
+        emit Executed(proposal.hash(intent, _msgSender()));
     }
 
     /**
@@ -200,7 +201,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         // TODO: contemplate smart accounts (handle native too)
-        IERC20(transferIntent.feeToken).safeTransferFrom(intent.user, msg.sender, transferProposal.feeAmount);
+        IERC20(transferIntent.feeToken).safeTransferFrom(intent.user, _msgSender(), transferProposal.feeAmount);
     }
 
     /**
@@ -235,7 +236,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (isProposalPastDeadline) revert SettlerProposalPastDeadline(proposal.deadline, block.timestamp);
 
         // TODO: fix signature check
-        address signer = ECDSA.recover(_hashTypedDataV4(proposal.hash(intent, msg.sender)), signature);
+        address signer = ECDSA.recover(_hashTypedDataV4(proposal.hash(intent, _msgSender())), signature);
         bool isProposalSignerNotAllowed = !IController(controller).isProposalSignerAllowed(signer) && !simulated;
         if (isProposalSignerNotAllowed) revert SettlerProposalSignerNotAllowed(signer);
     }

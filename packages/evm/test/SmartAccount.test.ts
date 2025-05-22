@@ -1,16 +1,18 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
-import { getAddress } from 'ethers'
+import { AbiCoder, getAddress } from 'ethers'
 import { network } from 'hardhat'
 
 const { ethers } = await network.connect()
 
-import { CallMock, SmartAccount, TokenMock } from '../types/ethers-contracts/index.js'
+import { CallMock, PermissionOracleMock, SmartAccount, TokenMock } from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import {
+  Account,
   BigNumberish,
   fp,
   NATIVE_TOKEN_ADDRESS,
+  ONES_ADDRESS,
   randomAddress,
   randomHex,
   toAddress,
@@ -24,12 +26,10 @@ describe('SmartAccount', () => {
   let smartAccount: SmartAccount
   let owner: HardhatEthersSigner, settler: HardhatEthersSigner, other: HardhatEthersSigner
 
-  const allowedAccounts = [randomAddress(), randomAddress()]
-
   beforeEach('deploy smart account', async () => {
     // eslint-disable-next-line prettier/prettier
     [, owner, settler, other] = await ethers.getSigners()
-    smartAccount = await ethers.deployContract('SmartAccount', [settler.address, owner.address, allowedAccounts])
+    smartAccount = await ethers.deployContract('SmartAccount', [settler.address, owner.address])
   })
 
   describe('ownable', () => {
@@ -45,17 +45,11 @@ describe('SmartAccount', () => {
     it('has a reference to the settler', async () => {
       expect(await smartAccount.settler()).to.be.equal(settler.address)
     })
-
-    it('initializes permissions properly', async () => {
-      for (const address of allowedAccounts) {
-        expect(await smartAccount.hasPermission(address)).to.be.true
-      }
-    })
   })
 
   describe('ERC165', () => {
     it('supports the ISmartAccount interface', async () => {
-      const interfaceId = '0xcbec194e' // ISmartAccount
+      const interfaceId = '0xa417cad5' // ISmartAccount
 
       expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
     })
@@ -280,35 +274,53 @@ describe('SmartAccount', () => {
   })
 
   describe('setPermissions', () => {
+    const NO_PERMISSION = ZERO_ADDRESS
+    const ANY_PERMISSION = ONES_ADDRESS
+
     context('when the sender is authorized', () => {
       beforeEach('set sender', () => {
         smartAccount = smartAccount.connect(owner)
       })
 
       context('when the inputs lengths match', () => {
+        let permissionOracle: PermissionOracleMock
+        let permissions: Account[]
+
+        beforeEach('deploy permission oracle', async () => {
+          permissionOracle = await ethers.deployContract('PermissionOracleMock')
+        })
+
+        beforeEach('set permissions array', async () => {
+          permissions = [NO_PERMISSION, ANY_PERMISSION, permissionOracle.target]
+        })
+
         const accounts = [randomAddress(), randomAddress(), randomAddress()].map((a) => getAddress(a))
-        const alloweds = [true, true, false]
+        const expecteds = [false, true, true]
+
+        const data = AbiCoder.defaultAbiCoder().encode(['bool'], [expecteds[2]])
+        const configs = [ZERO_BYTES32, randomHex(4), data]
 
         const itSetsThePermissionsProperly = () => {
           it('sets the permissions properly', async () => {
-            await smartAccount.setPermissions(accounts, alloweds)
+            await smartAccount.setPermissions(accounts, permissions)
 
             for (const [i, account] of accounts.entries()) {
-              const value = alloweds[i]
-              expect(await smartAccount.hasPermission(account)).to.be.equal(value)
+              const config = configs[i]
+              const expected = expecteds[i]
+              expect(await smartAccount.hasPermission(account, config)).to.be.equal(expected)
             }
           })
 
           it('emits the corresponding events', async () => {
-            const tx = await smartAccount.setPermissions(accounts, alloweds)
+            const tx = await smartAccount.setPermissions(accounts, permissions)
 
             const events = await smartAccount.queryFilter(smartAccount.filters['PermissionSet'](), tx.blockNumber)
             expect(events).to.have.lengthOf(accounts.length)
 
             for (const [i, account] of accounts.entries()) {
-              const value = alloweds[i]
+              const permission = permissions[i]
               expect(events[i].args.account).to.equal(account)
-              expect(events[i].args.allowed).to.equal(value)
+              expect(events[i].args.permission).to.equal(permission)
             }
           })
         }
@@ -319,7 +331,7 @@ describe('SmartAccount', () => {
 
         context('when the permissions were already set', () => {
           beforeEach('set permissions', async () => {
-            await smartAccount.setPermissions([accounts[0]], [!alloweds[0]])
+            await smartAccount.setPermissions([accounts[1]], [permissions[1]])
           })
 
           itSetsThePermissionsProperly()
@@ -328,7 +340,7 @@ describe('SmartAccount', () => {
 
       context('when the inputs lengths do not match', () => {
         it('reverts', async () => {
-          await expect(smartAccount.setPermissions([], [true])).to.be.revertedWithCustomError(
+          await expect(smartAccount.setPermissions([], [randomAddress()])).to.be.revertedWithCustomError(
             smartAccount,
             'SmartAccountInputInvalidLength'
           )

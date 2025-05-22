@@ -31,7 +31,7 @@ interface ISmartAccount is IERC165 {
     /**
      * @dev Emitted every time a permission is set
      */
-    event PermissionSet(address indexed account, bool allowed);
+    event PermissionSet(address indexed account, address permission);
 
     /**
      * @dev Tells the reference to the Mimic settler
@@ -41,8 +41,9 @@ interface ISmartAccount is IERC165 {
     /**
      * @dev Tells whether an account is allowed
      * @param account Address of the account being queried
+     * @param config Data representing the specific permission configuration
      */
-    function hasPermission(address account) external view returns (bool);
+    function hasPermission(address account, bytes memory config) external view returns (bool);
 
     /**
      * @dev Transfers ERC20 or native tokens to the recipient. Sender must be the owner or the settler.
@@ -63,7 +64,7 @@ interface ISmartAccount is IERC165 {
     /**
      * @dev Sets permissions for multiple accounts
      * @param accounts List of account addresses
-     * @param alloweds List of permission statuses
+     * @param permissions List of permission addresses
      */
-    function setPermissions(address[] memory accounts, bool[] memory alloweds) external;
+    function setPermissions(address[] memory accounts, address[] memory permissions) external;
 }
