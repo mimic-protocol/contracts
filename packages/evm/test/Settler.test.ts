@@ -9,6 +9,7 @@ import {
   MintExecutorMock,
   ReentrantExecutorMock,
   Settler,
+  SmartAccount,
   TokenMock,
   TransferExecutorMock,
 } from '../types/ethers-contracts/index.js'
@@ -17,6 +18,10 @@ import {
   Account,
   BigNumberish,
   bn,
+  CallIntent,
+  CallProposal,
+  createCallIntent,
+  createCallProposal,
   createIntent,
   createProposal,
   createSwapIntent,
@@ -609,8 +614,95 @@ describe('Settler', () => {
                       })
                     })
 
-                    context.skip('for call intents', () => {
-                      // TODO: implement
+                    context('for call intents', () => {
+                      const callIntentParams: Partial<CallIntent> = {}
+                      const callProposalParams: Partial<CallProposal> = {}
+                      let token: TokenMock
+
+                      const feeAmount = fp(0.1)
+
+                      beforeEach('set token', async () => {
+                        token = await ethers.deployContract('TokenMock', ['TKN', 18])
+                      })
+
+                      beforeEach('set intent params', async () => {
+                        const target = await ethers.deployContract('CallMock')
+                        const data = target.interface.encodeFunctionData('call')
+
+                        callIntentParams.calls = [{ target, data, value: 0 }]
+                        callIntentParams.feeToken = token
+                        callIntentParams.feeAmount = feeAmount
+                      })
+
+                      const itReverts = (reason: string) => {
+                        it('reverts', async () => {
+                          const intent = createCallIntent({ ...intentParams, ...callIntentParams })
+                          const proposal = createCallProposal({ ...proposalParams, ...callProposalParams })
+                          const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                          await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+                            settler,
+                            reason
+                          )
+                        })
+                      }
+
+                      context('when the user is a smart account', () => {
+                        beforeEach('set intent user', async () => {
+                          intentParams.user = await ethers.deployContract('SmartAccount', [settler, owner])
+                        })
+
+                        beforeEach('mint tokens', async () => {
+                          await token.mint(intentParams.user, feeAmount)
+                          // no neeed to approve the settler
+                        })
+
+                        context('when the proposal fee amount is greater than the intent fee amount', () => {
+                          beforeEach('set proposal amount', async () => {
+                            callProposalParams.feeAmount = callIntentParams.feeAmount
+                          })
+
+                          it('executes successfully', async () => {
+                            const intent = createCallIntent({ ...intentParams, ...callIntentParams })
+                            const proposal = createCallProposal({ ...proposalParams, ...callProposalParams })
+                            const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                            const tx = await settler.execute(intent, proposal, signature)
+
+                            const settlerEvents = await settler.queryFilter(settler.filters.Executed(), tx.blockNumber)
+                            expect(settlerEvents).to.have.lengthOf(1)
+
+                            const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
+                            expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                          })
+                        })
+
+                        context('when the proposal fee amount is lower than the intent fee amount', () => {
+                          beforeEach('set proposal amount', async () => {
+                            callProposalParams.feeAmount = feeAmount + BigInt(1)
+                          })
+
+                          itReverts('SettlerSolverFeeTooHigh')
+                        })
+                      })
+
+                      context('when the user is not a smart account', () => {
+                        context('when the user is an EOA', () => {
+                          beforeEach('set intent user', async () => {
+                            intentParams.user = other
+                          })
+
+                          itReverts('SettlerInvalidUser')
+                        })
+
+                        context('when the user is another contract', () => {
+                          beforeEach('set intent user', async () => {
+                            intentParams.user = token
+                          })
+
+                          itReverts('SettlerInvalidUser')
+                        })
+                      })
                     })
                   })
 
@@ -1381,7 +1473,7 @@ describe('Settler', () => {
               if (token.target == feeToken.target) {
                 expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount + feeAmount)
               } else {
-                const postUserFeeTokenBalance = await token.balanceOf(user.address)
+                const postUserFeeTokenBalance = await feeToken.balanceOf(user.address)
                 expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount)
                 expect(preUserFeeTokenBalance - postUserFeeTokenBalance).to.be.eq(feeAmount)
               }
@@ -1404,7 +1496,7 @@ describe('Settler', () => {
             beforeEach('mint and approve tokens', async () => {
               const totalAmount = amount + feeAmount
 
-              await token.mint(user.address, totalAmount)
+              await token.mint(user.address, totalAmount + BigInt(1))
               await token.connect(user).approve(settler.target, totalAmount)
             })
 
@@ -1419,7 +1511,7 @@ describe('Settler', () => {
             })
 
             beforeEach('mint and approve tokens', async () => {
-              await token.mint(user.address, amount)
+              await token.mint(user.address, amount + BigInt(2))
               await token.connect(user).approve(settler.target, amount)
 
               await feeToken.mint(user.address, feeAmount)
@@ -1494,8 +1586,193 @@ describe('Settler', () => {
         })
       })
 
-      context.skip('call', () => {
-        // TODO: implement
+      context('call', () => {
+        context('single call', () => {
+          let target: Account, data: string
+          let user: SmartAccount
+          let feeToken: TokenMock | string
+
+          const feeAmount = fp(0.01)
+
+          beforeEach('deploy smart account', async () => {
+            user = await ethers.deployContract('SmartAccount', [settler.target, owner.address])
+          })
+
+          beforeEach('set target and data', async () => {
+            target = await ethers.deployContract('CallMock')
+            data = target.interface.encodeFunctionData('call')
+          })
+
+          const _itExecutesTheIntent = (value: BigNumberish) => {
+            beforeEach('create intent', async () => {
+              intent = createCallIntent({
+                settler,
+                user,
+                calls: [{ target: target.target, data, value }],
+                feeToken,
+                feeAmount,
+              })
+            })
+
+            it('executes the intent', async () => {
+              const preUserBalance = await balanceOf(feeToken, user.target)
+              const preSolverBalance = await balanceOf(feeToken, solver.address)
+              const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target.target)
+
+              const proposal = createCallProposal({ feeAmount })
+              const signature = await signProposal(settler, intent, solver, proposal, admin)
+              const tx = await settler.execute(intent, proposal, signature)
+
+              const postUserBalance = await balanceOf(feeToken, user.target)
+              const extraAmount = feeToken == NATIVE_TOKEN_ADDRESS ? value : BigInt(0)
+              expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + extraAmount)
+
+              const postSolverBalance = await balanceOf(feeToken, solver.address)
+              if (feeToken == NATIVE_TOKEN_ADDRESS) {
+                const txReceipt = await (await tx.getTransaction())?.wait()
+                const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : BigInt(0)
+                expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
+              } else {
+                expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+              }
+
+              const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target.target)
+              expect(postTargetBalance - preTargetBalance).to.be.eq(value)
+            })
+          }
+
+          const itExecutesTheIntent = () => {
+            context('when the value is 0', () => {
+              const value = BigInt(0)
+
+              _itExecutesTheIntent(value)
+            })
+
+            context('when the value is greater than 0', () => {
+              const value = fp(0.00001)
+
+              beforeEach('fund smart account', async () => {
+                await owner.sendTransaction({ to: user.target, value })
+              })
+
+              _itExecutesTheIntent(value)
+            })
+          }
+
+          context('when the fee token is an ERC20', () => {
+            beforeEach('deploy token', async () => {
+              feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
+            })
+
+            beforeEach('mint tokens', async () => {
+              await feeToken.mint(user.target, feeAmount + BigInt(1))
+              // no need to approve the settler
+            })
+
+            itExecutesTheIntent()
+          })
+
+          context('when the fee token is the native token', () => {
+            beforeEach('set token', async () => {
+              feeToken = NATIVE_TOKEN_ADDRESS
+            })
+
+            beforeEach('fund smart account', async () => {
+              await owner.sendTransaction({ to: user.target, value: feeAmount + BigInt(2) })
+            })
+
+            itExecutesTheIntent()
+          })
+        })
+
+        context('multi call', () => {
+          let target1: Account, target2: Account
+          let data: string
+          let user: SmartAccount
+          let feeToken: TokenMock
+
+          const value1 = fp(1)
+          const value2 = fp(2)
+          const feeAmount = fp(0.01)
+
+          beforeEach('deploy smart account', async () => {
+            user = await ethers.deployContract('SmartAccount', [settler.target, owner.address])
+          })
+
+          beforeEach('set targets and data', async () => {
+            target1 = await ethers.deployContract('CallMock')
+            target2 = await ethers.deployContract('CallMock')
+            data = target1.interface.encodeFunctionData('call')
+          })
+
+          beforeEach('deploy token', async () => {
+            feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
+          })
+
+          beforeEach('mint tokens', async () => {
+            await feeToken.mint(user.target, feeAmount + BigInt(1))
+            // no need to approve the settler
+          })
+
+          beforeEach('fund smart account', async () => {
+            await owner.sendTransaction({ to: user.target, value: value1 + value2 })
+          })
+
+          beforeEach('create intent', async () => {
+            intent = createCallIntent({
+              settler,
+              user,
+              calls: [
+                { target: target1.target, data, value: value1 },
+                { target: target2.target, data, value: value2 },
+                { target: target2.target, data, value: 0 },
+              ],
+              feeToken,
+              feeAmount,
+            })
+          })
+
+          it('executes the intent', async () => {
+            const preUserBalance = await balanceOf(feeToken, user.target)
+            const preSolverBalance = await balanceOf(feeToken, solver.address)
+            const preTarget1Balance = await balanceOf(NATIVE_TOKEN_ADDRESS, target1.target)
+            const preTarget2Balance = await balanceOf(NATIVE_TOKEN_ADDRESS, target2.target)
+
+            const proposal = createCallProposal({ feeAmount })
+            const signature = await signProposal(settler, intent, solver, proposal, admin)
+            await settler.execute(intent, proposal, signature)
+
+            const postUserBalance = await balanceOf(feeToken, user.target)
+            expect(preUserBalance - postUserBalance).to.be.eq(feeAmount)
+
+            const postSolverBalance = await balanceOf(feeToken, solver.address)
+            expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+
+            const postTarget1Balance = await balanceOf(NATIVE_TOKEN_ADDRESS, target1.target)
+            expect(postTarget1Balance - preTarget1Balance).to.be.eq(value1)
+
+            const postTarget2Balance = await balanceOf(NATIVE_TOKEN_ADDRESS, target2.target)
+            expect(postTarget2Balance - preTarget2Balance).to.be.eq(value2)
+          })
+
+          it('calls the smart account contract', async () => {
+            const proposal = createCallProposal({ feeAmount })
+            const signature = await signProposal(settler, intent, solver, proposal, admin)
+            const tx = await settler.execute(intent, proposal, signature)
+
+            const events = await user.queryFilter(user.filters.Called(), tx.blockNumber)
+            expect(events).to.have.lengthOf(3)
+
+            const targets = [target1, target2, target2]
+            const values = [value1, value2, 0]
+            for (const [i, event] of events.entries()) {
+              expect(event.args.target).to.equal(targets[i])
+              expect(event.args.data).to.equal(data)
+              expect(event.args.value).to.equal(values[i])
+              expect(event.args.result).to.equal('0x')
+            }
+          })
+        })
       })
     })
   })
