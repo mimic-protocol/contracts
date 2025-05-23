@@ -49,7 +49,7 @@ describe('SmartAccount', () => {
 
   describe('ERC165', () => {
     it('supports the ISmartAccount interface', async () => {
-      const interfaceId = '0xa417cad5' // ISmartAccount
+      const interfaceId = '0xa3e6546f' // ISmartAccount
 
       expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
     })
@@ -268,6 +268,57 @@ describe('SmartAccount', () => {
         await expect(smartAccount.call(ZERO_ADDRESS, ZERO_BYTES32, 0)).to.be.revertedWithCustomError(
           smartAccount,
           'SmartAccountUnauthorizedSender'
+        )
+      })
+    })
+  })
+
+  describe('setSettler', () => {
+    context('when the sender is authorized', () => {
+      beforeEach('set sender', () => {
+        smartAccount = smartAccount.connect(owner)
+      })
+
+      context('when the new settler is not zero', () => {
+        const newSettler = randomAddress()
+
+        it('sets the settler', async () => {
+          await smartAccount.setSettler(newSettler)
+
+          expect(await smartAccount.settler()).to.be.equal(getAddress(newSettler))
+        })
+
+        it('emits an event', async () => {
+          const tx = await smartAccount.setSettler(newSettler)
+
+          const events = await smartAccount.queryFilter(smartAccount.filters['SettlerSet'](), tx.blockNumber)
+          expect(events).to.have.lengthOf(1)
+
+          expect(events[0].args.settler).to.equal(getAddress(newSettler))
+        })
+      })
+
+      context('when the new settler is the address zero', () => {
+        const newSettler = ZERO_ADDRESS
+
+        it('reverts', async () => {
+          await expect(smartAccount.setSettler(newSettler)).to.be.revertedWithCustomError(
+            smartAccount,
+            'SmartAccountSettlerZero'
+          )
+        })
+      })
+    })
+
+    context('when the sender is not authorized', () => {
+      beforeEach('set sender', () => {
+        smartAccount = smartAccount.connect(other)
+      })
+
+      it('reverts', async () => {
+        await expect(smartAccount.setSettler(ZERO_ADDRESS)).to.be.revertedWithCustomError(
+          smartAccount,
+          'OwnableUnauthorizedAccount'
         )
       })
     })

@@ -25,8 +25,7 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     mapping (address => address) internal _permissions;
 
     // Mimic settler reference
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable override settler;
+    address public override settler;
 
     /**
      * @dev Reverts unless the sender is the owner or the settler
@@ -44,7 +43,7 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @param _owner Address that will own the contract
      */
     constructor(address _settler, address _owner) Ownable(_owner) {
-        settler = _settler;
+        _setSettler(_settler);
     }
 
     /**
@@ -56,7 +55,8 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Tells whether an account is allowed
+     * @dev Tells whether an account is allowed. Intended to be used by the Mimic registry to verify if
+     * an account is permitted to perform certain actions.
      * @param account Address of the account being queried
      * @param config Data representing the specific permission configuration
      */
@@ -106,6 +106,14 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Sets the settler. Sender must be the owner.
+     * @param newSettler Address of the new settler to be set
+     */
+    function setSettler(address newSettler) external override onlyOwner {
+        _setSettler(newSettler);
+    }
+
+    /**
      * @dev Sets permissions for multiple accounts. Sender must be the owner.
      * @param accounts List of account addresses
      * @param permissions List of permission addresses
@@ -113,6 +121,16 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     function setPermissions(address[] memory accounts, address[] memory permissions) external override onlyOwner {
         if (accounts.length != permissions.length) revert SmartAccountInputInvalidLength();
         for (uint256 i = 0; i < accounts.length; i++) _setPermission(accounts[i], permissions[i]);
+    }
+
+    /**
+     * @dev Sets the settler
+     * @param newSettler Address of the new settler to be set
+     */
+    function _setSettler(address newSettler) internal {
+        if (newSettler == address(0)) revert SmartAccountSettlerZero();
+        settler = newSettler;
+        emit SettlerSet(newSettler);
     }
 
     /**
