@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
 import './interfaces/IPermissionOracle.sol';
 import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
@@ -30,7 +30,7 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     /**
      * @dev Reverts unless the sender is the owner or the settler
      */
-    modifier onlyAuth() {
+    modifier onlyOwnerOrSettler() {
         address sender = _msgSender();
         bool isAuthorized = sender == owner() || sender == settler;
         if (!isAuthorized) revert SmartAccountUnauthorizedSender(sender);
@@ -58,15 +58,15 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @dev Tells whether an account is allowed. Intended to be used by the Mimic registry to verify if
      * an account is permitted to perform certain actions.
      * @param account Address of the account being queried
-     * @param config Data representing the specific permission configuration
+     * @param data Data representing the specific action to be validated, only used for oracles
      */
-    function hasPermission(address account, bytes memory config) external view returns (bool) {
+    function hasPermission(address account, bytes memory data) external view returns (bool) {
         if (account == owner()) return true;
 
         address permission = _permissions[account];
         if (permission == NO_PERMISSION) return false;
         if (permission == ANY_PERMISSION) return true;
-        return IPermissionOracle(permission).hasPermission(account, config);
+        return IPermissionOracle(permission).hasPermission(account, data);
     }
 
     /**
@@ -82,7 +82,12 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @param recipient Address of the account receiving the tokens
      * @param amount Amount of tokens to be withdrawn
      */
-    function transfer(address token, address recipient, uint256 amount) external override onlyAuth nonReentrant {
+    function transfer(address token, address recipient, uint256 amount)
+        external
+        override
+        onlyOwnerOrSettler
+        nonReentrant
+    {
         ERC20Helpers.transfer(token, recipient, amount);
         emit Transferred(token, recipient, amount);
     }
@@ -97,7 +102,7 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     function call(address target, bytes memory data, uint256 value)
         external
         override
-        onlyAuth
+        onlyOwnerOrSettler
         nonReentrant
         returns (bytes memory result)
     {
@@ -120,7 +125,12 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      */
     function setPermissions(address[] memory accounts, address[] memory permissions) external override onlyOwner {
         if (accounts.length != permissions.length) revert SmartAccountInputInvalidLength();
-        for (uint256 i = 0; i < accounts.length; i++) _setPermission(accounts[i], permissions[i]);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            address account = accounts[i];
+            address permission = permissions[i];
+            _permissions[account] = permission;
+            emit PermissionSet(account, permission);
+        }
     }
 
     /**
@@ -131,15 +141,5 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
         if (newSettler == address(0)) revert SmartAccountSettlerZero();
         settler = newSettler;
         emit SettlerSet(newSettler);
-    }
-
-    /**
-     * @dev Sets an account permission
-     * @param account Address of the account to be set
-     * @param permission Address of the permission to be set
-     */
-    function _setPermission(address account, address permission) internal {
-        _permissions[account] = permission;
-        emit PermissionSet(account, permission);
     }
 }

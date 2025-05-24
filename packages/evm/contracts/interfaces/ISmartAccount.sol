@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import '@openzeppelin/contracts/utils/introspection/IERC165.sol';
 
 /**
  * @title SmartAccount interface
@@ -52,9 +52,9 @@ interface ISmartAccount is IERC165 {
      * @dev Tells whether an account is allowed. Intended to be used by the Mimic registry to verify if
      * an account is permitted to perform certain actions.
      * @param account Address of the account being queried
-     * @param config Data representing the specific permission configuration
+     * @param data Data representing the specific action to be validated, only used for oracles
      */
-    function hasPermission(address account, bytes memory config) external view returns (bool);
+    function hasPermission(address account, bytes memory data) external view returns (bool);
 
     /**
      * @dev Transfers ERC20 or native tokens to the recipient. Sender must be the owner or the settler.

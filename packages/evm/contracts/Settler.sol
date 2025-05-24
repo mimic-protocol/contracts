@@ -235,7 +235,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         bool isProposalPastDeadline = proposal.deadline <= block.timestamp;
         if (isProposalPastDeadline) revert SettlerProposalPastDeadline(proposal.deadline, block.timestamp);
 
-        // TODO: fix signature check
         address signer = ECDSA.recover(_hashTypedDataV4(proposal.hash(intent, _msgSender())), signature);
         bool isProposalSignerNotAllowed = !IController(controller).isProposalSignerAllowed(signer) && !simulated;
         if (isProposalSignerNotAllowed) revert SettlerProposalSignerNotAllowed(signer);

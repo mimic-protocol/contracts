@@ -9,7 +9,7 @@ interface IPermissionOracle {
     /**
      * @dev Tells whether an account is allowed
      * @param account Address of the account being queried
-     * @param config Data representing the specific permission configuration
+     * @param data Data representing the specific action to be validated
      */
-    function hasPermission(address account, bytes memory config) external view returns (bool);
+    function hasPermission(address account, bytes memory data) external view returns (bool);
 }
