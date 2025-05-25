@@ -267,13 +267,13 @@ describe('Settler', () => {
               context('when the intent deadline has not been reached', () => {
                 beforeEach('set intent deadline', async () => {
                   const now = await currentTimestamp()
-                  intentParams.deadline = now + BigInt(60 * 5)
+                  intentParams.deadline = now + BigInt(60 * 10)
                 })
 
                 context('when the proposal deadline has not been reached', () => {
                   beforeEach('set proposal deadline', async () => {
                     const now = await currentTimestamp()
-                    proposalParams.deadline = now + BigInt(60 * 5)
+                    proposalParams.deadline = now + BigInt(60 * 10)
                   })
 
                   context('when the proposal has been signed properly', () => {
@@ -692,7 +692,7 @@ describe('Settler', () => {
                             intentParams.user = other
                           })
 
-                          itReverts('SettlerInvalidUser')
+                          itReverts('SettlerUserNotSmartAccount')
                         })
 
                         context('when the user is another contract', () => {
@@ -700,7 +700,7 @@ describe('Settler', () => {
                             intentParams.user = token
                           })
 
-                          itReverts('SettlerInvalidUser')
+                          itReverts('SettlerUserNotSmartAccount')
                         })
                       })
                     })
@@ -1496,7 +1496,7 @@ describe('Settler', () => {
             beforeEach('mint and approve tokens', async () => {
               const totalAmount = amount + feeAmount
 
-              await token.mint(user.address, totalAmount + BigInt(1))
+              await token.mint(user.address, totalAmount + feeAmount)
               await token.connect(user).approve(settler.target, totalAmount)
             })
 
@@ -1511,7 +1511,7 @@ describe('Settler', () => {
             })
 
             beforeEach('mint and approve tokens', async () => {
-              await token.mint(user.address, amount + BigInt(2))
+              await token.mint(user.address, amount + feeAmount)
               await token.connect(user).approve(settler.target, amount)
 
               await feeToken.mint(user.address, feeAmount)
@@ -1598,90 +1598,120 @@ describe('Settler', () => {
             user = await ethers.deployContract('SmartAccount', [settler.target, owner.address])
           })
 
-          beforeEach('set target and data', async () => {
+          beforeEach('set target', async () => {
             target = await ethers.deployContract('CallMock')
-            data = target.interface.encodeFunctionData('call')
           })
 
-          const _itExecutesTheIntent = (value: BigNumberish) => {
+          context('when the call succeeds', () => {
+            beforeEach('set data', async () => {
+              data = target.interface.encodeFunctionData('call')
+            })
+
+            const _itExecutesTheIntent = (value: BigNumberish) => {
+              beforeEach('create intent', async () => {
+                intent = createCallIntent({
+                  settler,
+                  user,
+                  calls: [{ target: target.target, data, value }],
+                  feeToken,
+                  feeAmount,
+                })
+              })
+
+              it('executes the intent', async () => {
+                const preUserBalance = await balanceOf(feeToken, user.target)
+                const preSolverBalance = await balanceOf(feeToken, solver.address)
+                const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target.target)
+
+                const proposal = createCallProposal({ feeAmount })
+                const signature = await signProposal(settler, intent, solver, proposal, admin)
+                const tx = await settler.execute(intent, proposal, signature)
+
+                const postUserBalance = await balanceOf(feeToken, user.target)
+                const extraAmount = feeToken == NATIVE_TOKEN_ADDRESS ? value : BigInt(0)
+                expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + extraAmount)
+
+                const postSolverBalance = await balanceOf(feeToken, solver.address)
+                if (feeToken == NATIVE_TOKEN_ADDRESS) {
+                  const txReceipt = await (await tx.getTransaction())?.wait()
+                  const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : BigInt(0)
+                  expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
+                } else {
+                  expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+                }
+
+                const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target.target)
+                expect(postTargetBalance - preTargetBalance).to.be.eq(value)
+              })
+            }
+
+            const itExecutesTheIntent = () => {
+              context('when the value is 0', () => {
+                const value = BigInt(0)
+
+                _itExecutesTheIntent(value)
+              })
+
+              context('when the value is greater than 0', () => {
+                const value = fp(0.00001)
+
+                beforeEach('fund smart account', async () => {
+                  await owner.sendTransaction({ to: user.target, value })
+                })
+
+                _itExecutesTheIntent(value)
+              })
+            }
+
+            context('when the fee token is an ERC20', () => {
+              beforeEach('deploy token', async () => {
+                feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
+              })
+
+              beforeEach('mint tokens', async () => {
+                await feeToken.mint(user.target, feeAmount + BigInt(1))
+                // no need to approve the settler
+              })
+
+              itExecutesTheIntent()
+            })
+
+            context('when the fee token is the native token', () => {
+              beforeEach('set token', async () => {
+                feeToken = NATIVE_TOKEN_ADDRESS
+              })
+
+              beforeEach('fund smart account', async () => {
+                await owner.sendTransaction({ to: user.target, value: feeAmount + BigInt(2) })
+              })
+
+              itExecutesTheIntent()
+            })
+          })
+
+          context('when the call fails', () => {
+            beforeEach('set data', async () => {
+              data = target.interface.encodeFunctionData('callError')
+            })
+
             beforeEach('create intent', async () => {
               intent = createCallIntent({
                 settler,
                 user,
-                calls: [{ target: target.target, data, value }],
-                feeToken,
+                calls: [{ target: target.target, data, value: 0 }],
                 feeAmount,
               })
             })
 
-            it('executes the intent', async () => {
-              const preUserBalance = await balanceOf(feeToken, user.target)
-              const preSolverBalance = await balanceOf(feeToken, solver.address)
-              const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target.target)
-
+            it('reverts', async () => {
               const proposal = createCallProposal({ feeAmount })
               const signature = await signProposal(settler, intent, solver, proposal, admin)
-              const tx = await settler.execute(intent, proposal, signature)
 
-              const postUserBalance = await balanceOf(feeToken, user.target)
-              const extraAmount = feeToken == NATIVE_TOKEN_ADDRESS ? value : BigInt(0)
-              expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + extraAmount)
-
-              const postSolverBalance = await balanceOf(feeToken, solver.address)
-              if (feeToken == NATIVE_TOKEN_ADDRESS) {
-                const txReceipt = await (await tx.getTransaction())?.wait()
-                const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : BigInt(0)
-                expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
-              } else {
-                expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
-              }
-
-              const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target.target)
-              expect(postTargetBalance - preTargetBalance).to.be.eq(value)
+              await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+                target,
+                'CallError'
+              )
             })
-          }
-
-          const itExecutesTheIntent = () => {
-            context('when the value is 0', () => {
-              const value = BigInt(0)
-
-              _itExecutesTheIntent(value)
-            })
-
-            context('when the value is greater than 0', () => {
-              const value = fp(0.00001)
-
-              beforeEach('fund smart account', async () => {
-                await owner.sendTransaction({ to: user.target, value })
-              })
-
-              _itExecutesTheIntent(value)
-            })
-          }
-
-          context('when the fee token is an ERC20', () => {
-            beforeEach('deploy token', async () => {
-              feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
-            })
-
-            beforeEach('mint tokens', async () => {
-              await feeToken.mint(user.target, feeAmount + BigInt(1))
-              // no need to approve the settler
-            })
-
-            itExecutesTheIntent()
-          })
-
-          context('when the fee token is the native token', () => {
-            beforeEach('set token', async () => {
-              feeToken = NATIVE_TOKEN_ADDRESS
-            })
-
-            beforeEach('fund smart account', async () => {
-              await owner.sendTransaction({ to: user.target, value: feeAmount + BigInt(2) })
-            })
-
-            itExecutesTheIntent()
           })
         })
 

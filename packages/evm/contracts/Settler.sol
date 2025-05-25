@@ -9,12 +9,12 @@ import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import '@openzeppelin/contracts/utils/cryptography/EIP712.sol';
-import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
+import './interfaces/IPartialSmartAccount.sol';
 import './interfaces/ISettler.sol';
-import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
 
 /**
@@ -216,7 +216,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         CallProposal memory callProposal = abi.decode(proposal.data, (CallProposal));
         _validateCallIntent(callIntent, callProposal, intent.user);
 
-        ISmartAccount smartAccount = ISmartAccount(intent.user);
+        IPartialSmartAccount smartAccount = IPartialSmartAccount(intent.user);
 
         for (uint256 i = 0; i < callIntent.calls.length; i++) {
             CallData memory call = callIntent.calls[i];
@@ -299,7 +299,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param user The originator of the intent
      */
     function _validateCallIntent(CallIntent memory intent, CallProposal memory proposal, address user) internal view {
-        if (!_isSmartAccount(user)) revert SettlerInvalidUser(user);
+        if (!_isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
         if (intent.feeAmount < proposal.feeAmount) revert SettlerSolverFeeTooHigh(intent.feeAmount, proposal.feeAmount);
     }
 
@@ -321,6 +321,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param account Address of the account to be checked
      */
     function _isSmartAccount(address account) internal view returns (bool) {
-        return ERC165Checker.supportsInterface(account, type(ISmartAccount).interfaceId);
+        return ERC165Checker.supportsInterface(account, type(IPartialSmartAccount).interfaceId);
     }
 }

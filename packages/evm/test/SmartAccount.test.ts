@@ -54,6 +54,12 @@ describe('SmartAccount', () => {
       expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
     })
 
+    it('supports the IPartialSmartAccount interface', async () => {
+      const interfaceId = '0x4a825dc9' // IPartialSmartAccount
+
+      expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
+    })
+
     it('supports the IERC165 interface', async () => {
       const interfaceId = '0x01ffc9a7' // IERC165
 
@@ -214,7 +220,7 @@ describe('SmartAccount', () => {
           })
         })
 
-        context('when the call does not succeeds', () => {
+        context('when the call fails', () => {
           const data = randomHex(32)
 
           it('reverts', async () => {

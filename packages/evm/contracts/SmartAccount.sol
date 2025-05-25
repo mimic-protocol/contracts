@@ -6,6 +6,8 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
+
+import './interfaces/IPartialSmartAccount.sol';
 import './interfaces/IPermissionOracle.sol';
 import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
@@ -51,7 +53,10 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @param interfaceId Interface ID is defined as the XOR of all function selectors in the interface
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
-        return interfaceId == type(ISmartAccount).interfaceId || super.supportsInterface(interfaceId);
+        return
+            interfaceId == type(ISmartAccount).interfaceId ||
+            interfaceId == type(IPartialSmartAccount).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     /**

@@ -66,7 +66,7 @@ interface ISettler {
     /**
      * @dev The user is not a smart account
      */
-    error SettlerInvalidUser(address user);
+    error SettlerUserNotSmartAccount(address user);
 
     /**
      * @dev The amount out is lower than the proposed amount
