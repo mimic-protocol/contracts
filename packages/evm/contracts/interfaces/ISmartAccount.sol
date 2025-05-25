@@ -14,16 +14,6 @@ interface ISmartAccount is IERC165 {
     error SmartAccountUnauthorizedSender(address sender);
 
     /**
-     * @dev The settler is zero
-     */
-    error SmartAccountSettlerZero();
-
-    /**
-     * @dev The input arrays are not of equal length
-     */
-    error SmartAccountInputInvalidLength();
-
-    /**
      * @dev Emitted every time tokens are transferred
      */
     event Transferred(address indexed token, address indexed recipient, uint256 amount);
@@ -32,16 +22,6 @@ interface ISmartAccount is IERC165 {
      * @dev Emitted every time `call` is called
      */
     event Called(address indexed target, bytes data, uint256 value, bytes result);
-
-    /**
-     * @dev Emitted every time the settler is set
-     */
-    event SettlerSet(address indexed settler);
-
-    /**
-     * @dev Emitted every time a permission is set
-     */
-    event PermissionSet(address indexed account, address permission);
 
     /**
      * @dev Tells whether an account is allowed. Intended to be used by the Mimic registry to verify if
