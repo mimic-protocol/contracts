@@ -538,7 +538,7 @@ describe('Settler', () => {
                       })
 
                       beforeEach('set intent params', async () => {
-                        transferIntentParams.transfers = [{ token, amount }]
+                        transferIntentParams.transfers = [{ token, amount, recipient: other.address }]
                         transferIntentParams.feeToken = token
                         transferIntentParams.feeAmount = feeAmount
                       })
@@ -550,56 +550,81 @@ describe('Settler', () => {
                         await token.connect(user).approve(settler.target, totalAmount)
                       })
 
-                      context('when no recipient is the settler', () => {
-                        beforeEach('set recipient', () => {
-                          toArray(transferIntentParams.transfers).forEach((transfer) => {
-                            transfer.recipient = other
+                      context('when the chain is the current chain', () => {
+                        beforeEach('set chain', () => {
+                          transferIntentParams.chainId = 31337
+                        })
+
+                        context('when no recipient is the settler', () => {
+                          beforeEach('set recipient', () => {
+                            toArray(transferIntentParams.transfers).forEach((transfer) => {
+                              transfer.recipient = other
+                            })
+                          })
+
+                          context('when the proposal fee amount is greater than the intent fee amount', () => {
+                            beforeEach('set proposal amount', async () => {
+                              transferProposalParams.feeAmount = transferIntentParams.feeAmount
+                            })
+
+                            it('executes successfully', async () => {
+                              const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
+                              const proposal = createTransferProposal({ ...proposalParams, ...transferProposalParams })
+                              const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                              const tx = await settler.execute(intent, proposal, signature)
+
+                              const settlerEvents = await settler.queryFilter(
+                                settler.filters.Executed(),
+                                tx.blockNumber
+                              )
+                              expect(settlerEvents).to.have.lengthOf(1)
+
+                              const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
+                              expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                            })
+                          })
+
+                          context('when the proposal fee amount is lower than the intent fee amount', () => {
+                            beforeEach('set proposal amount', async () => {
+                              transferProposalParams.feeAmount = feeAmount + BigInt(1)
+                            })
+
+                            it('reverts', async () => {
+                              const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
+                              const proposal = createTransferProposal({ ...proposalParams, ...transferProposalParams })
+                              const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                              await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+                                settler,
+                                'SettlerSolverFeeTooHigh'
+                              )
+                            })
                           })
                         })
 
-                        context('when the proposal fee amount is greater than the intent fee amount', () => {
-                          beforeEach('set proposal amount', async () => {
-                            transferProposalParams.feeAmount = transferIntentParams.feeAmount
-                          })
-
-                          it('executes successfully', async () => {
-                            const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
-                            const proposal = createTransferProposal({ ...proposalParams, ...transferProposalParams })
-                            const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                            const tx = await settler.execute(intent, proposal, signature)
-
-                            const settlerEvents = await settler.queryFilter(settler.filters.Executed(), tx.blockNumber)
-                            expect(settlerEvents).to.have.lengthOf(1)
-
-                            const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
-                            expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
-                          })
-                        })
-
-                        context('when the proposal fee amount is lower than the intent fee amount', () => {
-                          beforeEach('set proposal amount', async () => {
-                            transferProposalParams.feeAmount = feeAmount + BigInt(1)
+                        context('when a recipient is the settler', () => {
+                          beforeEach('set recipient', () => {
+                            toArray(transferIntentParams.transfers).forEach((transfer) => {
+                              transfer.recipient = settler
+                            })
                           })
 
                           it('reverts', async () => {
                             const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
                             const proposal = createTransferProposal({ ...proposalParams, ...transferProposalParams })
                             const signature = await signProposal(settler, intent, solver, proposal, admin)
-
                             await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
                               settler,
-                              'SettlerSolverFeeTooHigh'
+                              'SettlerInvalidRecipient'
                             )
                           })
                         })
                       })
 
-                      context('when a recipient is the settler', () => {
-                        beforeEach('set recipient', () => {
-                          toArray(transferIntentParams.transfers).forEach((transfer) => {
-                            transfer.recipient = settler
-                          })
+                      context('when the chain is not the current chain', () => {
+                        beforeEach('set chain', () => {
+                          transferIntentParams.chainId = 1
                         })
 
                         it('reverts', async () => {
@@ -608,7 +633,7 @@ describe('Settler', () => {
                           const signature = await signProposal(settler, intent, solver, proposal, admin)
                           await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
                             settler,
-                            'SettlerInvalidRecipient'
+                            'SettlerInvalidChain'
                           )
                         })
                       })
@@ -647,61 +672,78 @@ describe('Settler', () => {
                         })
                       }
 
-                      context('when the user is a smart account', () => {
-                        beforeEach('set intent user', async () => {
-                          intentParams.user = await ethers.deployContract('SmartAccount', [settler, owner])
+                      context('when the chain is the current chain', () => {
+                        beforeEach('set chain', () => {
+                          callIntentParams.chainId = 31337
                         })
 
-                        beforeEach('mint tokens', async () => {
-                          await token.mint(intentParams.user, feeAmount)
-                          // no neeed to approve the settler
+                        context('when the user is a smart account', () => {
+                          beforeEach('set intent user', async () => {
+                            intentParams.user = await ethers.deployContract('SmartAccount', [settler, owner])
+                          })
+
+                          beforeEach('mint tokens', async () => {
+                            await token.mint(intentParams.user, feeAmount)
+                            // no neeed to approve the settler
+                          })
+
+                          context('when the proposal fee amount is greater than the intent fee amount', () => {
+                            beforeEach('set proposal amount', async () => {
+                              callProposalParams.feeAmount = callIntentParams.feeAmount
+                            })
+
+                            it('executes successfully', async () => {
+                              const intent = createCallIntent({ ...intentParams, ...callIntentParams })
+                              const proposal = createCallProposal({ ...proposalParams, ...callProposalParams })
+                              const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                              const tx = await settler.execute(intent, proposal, signature)
+
+                              const settlerEvents = await settler.queryFilter(
+                                settler.filters.Executed(),
+                                tx.blockNumber
+                              )
+                              expect(settlerEvents).to.have.lengthOf(1)
+
+                              const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
+                              expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                            })
+                          })
+
+                          context('when the proposal fee amount is lower than the intent fee amount', () => {
+                            beforeEach('set proposal amount', async () => {
+                              callProposalParams.feeAmount = feeAmount + BigInt(1)
+                            })
+
+                            itReverts('SettlerSolverFeeTooHigh')
+                          })
                         })
 
-                        context('when the proposal fee amount is greater than the intent fee amount', () => {
-                          beforeEach('set proposal amount', async () => {
-                            callProposalParams.feeAmount = callIntentParams.feeAmount
+                        context('when the user is not a smart account', () => {
+                          context('when the user is an EOA', () => {
+                            beforeEach('set intent user', async () => {
+                              intentParams.user = other
+                            })
+
+                            itReverts('SettlerUserNotSmartAccount')
                           })
 
-                          it('executes successfully', async () => {
-                            const intent = createCallIntent({ ...intentParams, ...callIntentParams })
-                            const proposal = createCallProposal({ ...proposalParams, ...callProposalParams })
-                            const signature = await signProposal(settler, intent, solver, proposal, admin)
+                          context('when the user is another contract', () => {
+                            beforeEach('set intent user', async () => {
+                              intentParams.user = token
+                            })
 
-                            const tx = await settler.execute(intent, proposal, signature)
-
-                            const settlerEvents = await settler.queryFilter(settler.filters.Executed(), tx.blockNumber)
-                            expect(settlerEvents).to.have.lengthOf(1)
-
-                            const proposalHash = await settler.getProposalHash(proposal, intent, solver.address)
-                            expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                            itReverts('SettlerUserNotSmartAccount')
                           })
-                        })
-
-                        context('when the proposal fee amount is lower than the intent fee amount', () => {
-                          beforeEach('set proposal amount', async () => {
-                            callProposalParams.feeAmount = feeAmount + BigInt(1)
-                          })
-
-                          itReverts('SettlerSolverFeeTooHigh')
                         })
                       })
 
-                      context('when the user is not a smart account', () => {
-                        context('when the user is an EOA', () => {
-                          beforeEach('set intent user', async () => {
-                            intentParams.user = other
-                          })
-
-                          itReverts('SettlerUserNotSmartAccount')
+                      context('when the chain is not the current chain', () => {
+                        beforeEach('set chain', () => {
+                          callIntentParams.chainId = 1
                         })
 
-                        context('when the user is another contract', () => {
-                          beforeEach('set intent user', async () => {
-                            intentParams.user = token
-                          })
-
-                          itReverts('SettlerUserNotSmartAccount')
-                        })
+                        itReverts('SettlerInvalidChain')
                       })
                     })
                   })

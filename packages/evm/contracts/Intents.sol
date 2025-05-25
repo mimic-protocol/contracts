@@ -70,11 +70,13 @@ struct TokenOut {
 
 /**
  * @dev Represents a transfer intent containing multiple token transfers.
+ * @param chainId Chain ID where the transfers should be executed.
  * @param transfers List of token transfers to be performed.
  * @param feeToken Token used to pay for the execution fee.
  * @param feeAmount Amount of feeToken to be paid for settling this intent.
  */
 struct TransferIntent {
+    uint256 chainId;
     TransferData[] transfers;
     address feeToken;
     uint256 feeAmount;
@@ -94,11 +96,13 @@ struct TransferData {
 
 /**
  * @dev Represents a generic call intent consisting of one or more contract calls.
+ * @param chainId Chain ID where the calls should be executed.
  * @param calls List of low-level contract calls to be executed.
  * @param feeToken Token used to pay for the execution fee.
  * @param feeAmount Amount of feeToken to be paid for settling this intent.
  */
 struct CallIntent {
+    uint256 chainId;
     CallData[] calls;
     address feeToken;
     uint256 feeAmount;

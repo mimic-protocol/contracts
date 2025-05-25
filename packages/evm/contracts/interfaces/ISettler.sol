@@ -54,9 +54,9 @@ interface ISettler {
     error SettlerIntentPastDeadline(uint256 deadline, uint256 timestamp);
 
     /**
-     * @dev Neither the source chain nor the destination chain is the current chain
+     * @dev The current chain is not valid
      */
-    error SettlerInvalidChain(uint256 source, uint256 dest);
+    error SettlerInvalidChain(uint256 chainId);
 
     /**
      * @dev The recipient is the settler contract
