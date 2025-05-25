@@ -44,11 +44,6 @@ interface ISmartAccount is IERC165 {
     event PermissionSet(address indexed account, address permission);
 
     /**
-     * @dev Tells the reference to the Mimic settler
-     */
-    function settler() external view returns (address);
-
-    /**
      * @dev Tells whether an account is allowed. Intended to be used by the Mimic registry to verify if
      * an account is permitted to perform certain actions.
      * @param account Address of the account being queried
@@ -71,17 +66,4 @@ interface ISmartAccount is IERC165 {
      * @param value Native token value to send along with the call
      */
     function call(address target, bytes memory data, uint256 value) external returns (bytes memory result);
-
-    /**
-     * @dev Sets the settler
-     * @param newSettler Address of the new settler to be set
-     */
-    function setSettler(address newSettler) external;
-
-    /**
-     * @dev Sets permissions for multiple accounts
-     * @param accounts List of account addresses
-     * @param permissions List of permission addresses
-     */
-    function setPermissions(address[] memory accounts, address[] memory permissions) external;
 }

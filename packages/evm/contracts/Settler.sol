@@ -13,8 +13,8 @@ import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
-import './interfaces/IPartialSmartAccount.sol';
 import './interfaces/ISettler.sol';
+import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
 
 /**
@@ -216,7 +216,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         CallProposal memory callProposal = abi.decode(proposal.data, (CallProposal));
         _validateCallIntent(callIntent, callProposal, intent.user);
 
-        IPartialSmartAccount smartAccount = IPartialSmartAccount(intent.user);
+        ISmartAccount smartAccount = ISmartAccount(intent.user);
 
         for (uint256 i = 0; i < callIntent.calls.length; i++) {
             CallData memory call = callIntent.calls[i];
@@ -321,6 +321,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param account Address of the account to be checked
      */
     function _isSmartAccount(address account) internal view returns (bool) {
-        return ERC165Checker.supportsInterface(account, type(IPartialSmartAccount).interfaceId);
+        return ERC165Checker.supportsInterface(account, type(ISmartAccount).interfaceId);
     }
 }
