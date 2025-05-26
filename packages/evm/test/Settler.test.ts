@@ -1669,8 +1669,7 @@ describe('Settler', () => {
               })
 
               beforeEach('mint tokens', async () => {
-                await feeToken.mint(user.target, feeAmount + BigInt(1))
-                // no need to approve the settler
+                await feeToken.mint(user.target, feeAmount)
               })
 
               itExecutesTheIntent()
@@ -1740,8 +1739,7 @@ describe('Settler', () => {
           })
 
           beforeEach('mint tokens', async () => {
-            await feeToken.mint(user.target, feeAmount + BigInt(1))
-            // no need to approve the settler
+            await feeToken.mint(user.target, feeAmount)
           })
 
           beforeEach('fund smart account', async () => {

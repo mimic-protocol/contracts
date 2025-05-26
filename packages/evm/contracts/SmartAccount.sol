@@ -39,6 +39,11 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     error SmartAccountInputInvalidLength();
 
     /**
+     * @dev The sender is not the owner or the settler
+     */
+    error SmartAccountUnauthorizedSender(address sender);
+
+    /**
      * @dev Emitted every time the settler is set
      */
     event SettlerSet(address indexed settler);

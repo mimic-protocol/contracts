@@ -9,11 +9,6 @@ import '@openzeppelin/contracts/utils/introspection/IERC165.sol';
  */
 interface ISmartAccount is IERC165 {
     /**
-     * @dev The sender is not the owner or the settler
-     */
-    error SmartAccountUnauthorizedSender(address sender);
-
-    /**
      * @dev Emitted every time tokens are transferred
      */
     event Transferred(address indexed token, address indexed recipient, uint256 amount);
