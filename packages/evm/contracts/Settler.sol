@@ -9,10 +9,12 @@ import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import '@openzeppelin/contracts/utils/cryptography/EIP712.sol';
+import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
 import './interfaces/ISettler.sol';
+import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
 
 /**
@@ -212,8 +214,16 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     function _executeCall(Intent memory intent, Proposal memory proposal) internal {
         CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
         CallProposal memory callProposal = abi.decode(proposal.data, (CallProposal));
-        _validateCallIntent(callIntent, callProposal);
-        // TODO: implement
+        _validateCallIntent(callIntent, callProposal, intent.user);
+
+        ISmartAccount smartAccount = ISmartAccount(intent.user);
+
+        for (uint256 i = 0; i < callIntent.calls.length; i++) {
+            CallData memory call = callIntent.calls[i];
+            smartAccount.call(call.target, call.data, call.value);
+        }
+
+        smartAccount.transfer(callIntent.feeToken, _msgSender(), callProposal.feeAmount);
     }
 
     /**
@@ -286,9 +296,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Validates a call intent and its corresponding proposal
      * @param intent Call intent to be fulfilled
      * @param proposal Proposal to be executed
+     * @param user The originator of the intent
      */
-    function _validateCallIntent(CallIntent memory intent, CallProposal memory proposal) internal view {
-        // TODO: validate smart account
+    function _validateCallIntent(CallIntent memory intent, CallProposal memory proposal, address user) internal view {
+        if (!_isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
         if (intent.feeAmount < proposal.feeAmount) revert SettlerSolverFeeTooHigh(intent.feeAmount, proposal.feeAmount);
     }
 
@@ -303,5 +314,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 balances[i] = ERC20Helpers.balanceOf(intent.tokensOut[i].token, address(this));
             }
         }
+    }
+
+    /**
+     * @dev Tells if an account is a smart account
+     * @param account Address of the account to be checked
+     */
+    function _isSmartAccount(address account) internal view returns (bool) {
+        return ERC165Checker.supportsInterface(account, type(ISmartAccount).interfaceId);
     }
 }

@@ -49,7 +49,7 @@ describe('SmartAccount', () => {
 
   describe('ERC165', () => {
     it('supports the ISmartAccount interface', async () => {
-      const interfaceId = '0xa3e6546f' // ISmartAccount
+      const interfaceId = '0x4a825dc9' // ISmartAccount
 
       expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
     })
@@ -214,7 +214,7 @@ describe('SmartAccount', () => {
           })
         })
 
-        context('when the call does not succeeds', () => {
+        context('when the call fails', () => {
           const data = randomHex(32)
 
           it('reverts', async () => {

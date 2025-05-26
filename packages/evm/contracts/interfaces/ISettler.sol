@@ -64,6 +64,11 @@ interface ISettler {
     error SettlerInvalidRecipient(address to);
 
     /**
+     * @dev The user is not a smart account
+     */
+    error SettlerUserNotSmartAccount(address user);
+
+    /**
      * @dev The amount out is lower than the proposed amount
      */
     error SettlerAmountOutLtProposed(uint256 index, uint256 amountOut, uint256 proposed);

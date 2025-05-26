@@ -6,6 +6,7 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
+
 import './interfaces/IPermissionOracle.sol';
 import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
@@ -25,7 +26,32 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     mapping (address => address) internal _permissions;
 
     // Mimic settler reference
-    address public override settler;
+    address public settler;
+
+    /**
+     * @dev The settler is zero
+     */
+    error SmartAccountSettlerZero();
+
+    /**
+     * @dev The input arrays are not of equal length
+     */
+    error SmartAccountInputInvalidLength();
+
+    /**
+     * @dev The sender is not the owner or the settler
+     */
+    error SmartAccountUnauthorizedSender(address sender);
+
+    /**
+     * @dev Emitted every time the settler is set
+     */
+    event SettlerSet(address indexed settler);
+
+    /**
+     * @dev Emitted every time a permission is set
+     */
+    event PermissionSet(address indexed account, address permission);
 
     /**
      * @dev Reverts unless the sender is the owner or the settler
@@ -114,7 +140,7 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @dev Sets the settler. Sender must be the owner.
      * @param newSettler Address of the new settler to be set
      */
-    function setSettler(address newSettler) external override onlyOwner {
+    function setSettler(address newSettler) external onlyOwner {
         _setSettler(newSettler);
     }
 
@@ -123,7 +149,7 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @param accounts List of account addresses
      * @param permissions List of permission addresses
      */
-    function setPermissions(address[] memory accounts, address[] memory permissions) external override onlyOwner {
+    function setPermissions(address[] memory accounts, address[] memory permissions) external onlyOwner {
         if (accounts.length != permissions.length) revert SmartAccountInputInvalidLength();
         for (uint256 i = 0; i < accounts.length; i++) {
             address account = accounts[i];
