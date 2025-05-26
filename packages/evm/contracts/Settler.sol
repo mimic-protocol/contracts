@@ -257,7 +257,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _validateSwapIntent(SwapIntent memory intent, SwapProposal memory proposal) internal view {
         bool isChainInvalid = intent.sourceChain != block.chainid && intent.destinationChain != block.chainid;
-        if (isChainInvalid) revert SettlerInvalidChain(intent.sourceChain, intent.destinationChain);
+        if (isChainInvalid) revert SettlerInvalidChain(block.chainid);
 
         if (proposal.amountsOut.length != intent.tokensOut.length) revert SettlerInvalidProposedAmounts();
 
@@ -284,6 +284,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param proposal Proposal to be executed
      */
     function _validateTransferIntent(TransferIntent memory intent, TransferProposal memory proposal) internal view {
+        if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+
         for (uint256 i = 0; i < intent.transfers.length; i++) {
             address recipient = intent.transfers[i].recipient;
             if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
@@ -299,6 +301,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param user The originator of the intent
      */
     function _validateCallIntent(CallIntent memory intent, CallProposal memory proposal, address user) internal view {
+        if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
         if (!_isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
         if (intent.feeAmount < proposal.feeAmount) revert SettlerSolverFeeTooHigh(intent.feeAmount, proposal.feeAmount);
     }
