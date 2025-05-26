@@ -196,14 +196,21 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         TransferProposal memory transferProposal = abi.decode(proposal.data, (TransferProposal));
         _validateTransferIntent(transferIntent, transferProposal);
 
-        for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
-            TransferData memory transfer = transferIntent.transfers[i];
-            // TODO: contemplate smart accounts (handle native too)
-            IERC20(transfer.token).safeTransferFrom(intent.user, transfer.recipient, transfer.amount);
+        bool isSmartAccount = _isSmartAccount(intent.user);
+        if (isSmartAccount) {
+            ISmartAccount smartAccount = ISmartAccount(intent.user);
+            for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
+                TransferData memory transfer = transferIntent.transfers[i];
+                smartAccount.transfer(transfer.token, transfer.recipient, transfer.amount);
+            }
+            smartAccount.transfer(transferIntent.feeToken, _msgSender(), transferProposal.feeAmount);
+        } else {
+            for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
+                TransferData memory transfer = transferIntent.transfers[i];
+                IERC20(transfer.token).safeTransferFrom(intent.user, transfer.recipient, transfer.amount);
+            }
+            IERC20(transferIntent.feeToken).safeTransferFrom(intent.user, _msgSender(), transferProposal.feeAmount);
         }
-
-        // TODO: contemplate smart accounts (handle native too)
-        IERC20(transferIntent.feeToken).safeTransferFrom(intent.user, _msgSender(), transferProposal.feeAmount);
     }
 
     /**
