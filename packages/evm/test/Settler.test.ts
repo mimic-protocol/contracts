@@ -287,8 +287,8 @@ describe('Settler', () => {
                       let tokenIn: TokenMock, tokenOut: TokenMock, executor: MintExecutorMock
 
                       const amountIn = fp(1)
-                      const proposedAmountOut = amountIn - BigInt(1)
-                      const minAmount = proposedAmountOut - BigInt(1)
+                      const proposedAmountOut = amountIn - 1n
+                      const minAmount = proposedAmountOut - 1n
 
                       beforeEach('set tokens', async () => {
                         tokenIn = await ethers.deployContract('TokenMock', ['IN', 18])
@@ -327,7 +327,7 @@ describe('Settler', () => {
 
                             context('when the proposal amount is greater than the min amount', () => {
                               beforeEach('set proposal amount', () => {
-                                swapProposalParams.amountsOut = [minAmount + BigInt(1)]
+                                swapProposalParams.amountsOut = [minAmount + 1n]
                               })
 
                               const itExecutesTheProposalSuccessfully = () => {
@@ -383,13 +383,13 @@ describe('Settler', () => {
                                 }
 
                                 context('when the amount out is greater than the proposal amount', () => {
-                                  const amountOut = proposedAmountOut + BigInt(1)
+                                  const amountOut = proposedAmountOut + 1n
 
                                   itExecutesSuccessfully(amountOut)
                                 })
 
                                 context('when the amount out is lower than the proposal amount', () => {
-                                  const amountOut = proposedAmountOut - BigInt(1)
+                                  const amountOut = proposedAmountOut - 1n
 
                                   if (destinationChain == 31337) {
                                     itReverts('SettlerAmountOutLtProposed', amountOut)
@@ -428,7 +428,7 @@ describe('Settler', () => {
 
                             context('when the proposal amount is lower than the min amount', () => {
                               beforeEach('set proposal amount', () => {
-                                swapProposalParams.amountsOut = [minAmount - BigInt(1)]
+                                swapProposalParams.amountsOut = [minAmount - 1n]
                               })
 
                               it('reverts', async () => {
@@ -587,7 +587,7 @@ describe('Settler', () => {
 
                           context('when the proposal fee amount is lower than the intent fee amount', () => {
                             beforeEach('set proposal amount', async () => {
-                              transferProposalParams.feeAmount = feeAmount + BigInt(1)
+                              transferProposalParams.feeAmount = feeAmount + 1n
                             })
 
                             it('reverts', async () => {
@@ -712,7 +712,7 @@ describe('Settler', () => {
 
                           context('when the proposal fee amount is lower than the intent fee amount', () => {
                             beforeEach('set proposal amount', async () => {
-                              callProposalParams.feeAmount = feeAmount + BigInt(1)
+                              callProposalParams.feeAmount = feeAmount + 1n
                             })
 
                             itReverts('SettlerSolverFeeTooHigh')
@@ -1670,13 +1670,13 @@ describe('Settler', () => {
                 const tx = await settler.execute(intent, proposal, signature)
 
                 const postUserBalance = await balanceOf(feeToken, user.target)
-                const extraAmount = feeToken == NATIVE_TOKEN_ADDRESS ? value : BigInt(0)
+                const extraAmount = feeToken == NATIVE_TOKEN_ADDRESS ? value : 0n
                 expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + extraAmount)
 
                 const postSolverBalance = await balanceOf(feeToken, solver.address)
                 if (feeToken == NATIVE_TOKEN_ADDRESS) {
                   const txReceipt = await (await tx.getTransaction())?.wait()
-                  const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : BigInt(0)
+                  const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : 0n
                   expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
                 } else {
                   expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
@@ -1689,7 +1689,7 @@ describe('Settler', () => {
 
             const itExecutesTheIntent = () => {
               context('when the value is 0', () => {
-                const value = BigInt(0)
+                const value = 0n
 
                 _itExecutesTheIntent(value)
               })
