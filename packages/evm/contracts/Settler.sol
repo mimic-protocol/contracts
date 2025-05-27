@@ -159,11 +159,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateSwapIntent(swapIntent, swapProposal);
 
         if (swapIntent.sourceChain == block.chainid) {
+            bool isSmartAccount = _isSmartAccount(intent.user);
             for (uint256 i = 0; i < swapIntent.tokensIn.length; i++) {
-                IERC20 tokenIn = IERC20(swapIntent.tokensIn[i].token);
-                uint256 amountIn = swapIntent.tokensIn[i].amount;
-                // TODO: contemplate smart accounts
-                tokenIn.safeTransferFrom(intent.user, address(swapProposal.executor), amountIn);
+                TokenIn memory tokenIn = swapIntent.tokensIn[i];
+                _transferFrom(tokenIn.token, intent.user, swapProposal.executor, tokenIn.amount, isSmartAccount);
             }
         }
 
