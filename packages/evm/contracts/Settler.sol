@@ -196,14 +196,14 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         TransferProposal memory transferProposal = abi.decode(proposal.data, (TransferProposal));
         _validateTransferIntent(transferIntent, transferProposal);
 
+        bool isSmartAccount = _isSmartAccount(intent.user);
+
         for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
             TransferData memory transfer = transferIntent.transfers[i];
-            // TODO: contemplate smart accounts (handle native too)
-            IERC20(transfer.token).safeTransferFrom(intent.user, transfer.recipient, transfer.amount);
+            _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        // TODO: contemplate smart accounts (handle native too)
-        IERC20(transferIntent.feeToken).safeTransferFrom(intent.user, _msgSender(), transferProposal.feeAmount);
+        _transferFrom(transferIntent.feeToken, intent.user, _msgSender(), transferProposal.feeAmount, isSmartAccount);
     }
 
     /**
@@ -325,5 +325,21 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _isSmartAccount(address account) internal view returns (bool) {
         return ERC165Checker.supportsInterface(account, type(ISmartAccount).interfaceId);
+    }
+
+    /**
+     * @dev Transfers tokens from one account to another
+     * @param token Address of the token to transfer
+     * @param from Address of the account sending the tokens
+     * @param to Address of the account receiving the tokens
+     * @param amount Amount of tokens to transfer
+     * @param isSmartAccount Whether the sender is a smart account
+     */
+    function _transferFrom(address token, address from, address to, uint256 amount, bool isSmartAccount) internal {
+        if (isSmartAccount) {
+            ISmartAccount(from).transfer(token, to, amount);
+        } else {
+            IERC20(token).safeTransferFrom(from, to, amount);
+        }
     }
 }
