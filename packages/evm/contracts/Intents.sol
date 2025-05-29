@@ -15,6 +15,18 @@ enum OpType {
 }
 
 /**
+ * @dev Execution structure.
+ * @param intent Intent to be fulfilled.
+ * @param proposal Proposal to be executed.
+ * @param signature Proposal signature.
+ */
+struct Execution {
+    Intent intent;
+    Proposal proposal;
+    bytes signature;
+}
+
+/**
  * @dev General intent structure used to abstract over different intent types.
  * @param op The type of operation this intent represents.
  * @param user The originator of the intent.

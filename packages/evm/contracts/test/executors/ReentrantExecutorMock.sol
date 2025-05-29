@@ -12,7 +12,7 @@ contract ReentrantExecutorMock {
         settler = _settler;
     }
 
-    function execute(Intent memory intent, Proposal memory proposal, bytes memory signature) external {
-        ISettler(settler).execute(intent, proposal, signature);
+    function execute(Execution[] memory execution) external {
+        ISettler(settler).execute(execution);
     }
 }

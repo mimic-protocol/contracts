@@ -6,3 +6,7 @@ export function toArray<T>(...values: NAry<T>[]): T[] {
   const firstArray = Array.isArray(first) ? first : [first]
   return firstArray.concat(toArray(...rest))
 }
+
+export function shuffle<T>(array: T[]): T[] {
+  return array.sort(() => Math.random() - 0.5)
+}
