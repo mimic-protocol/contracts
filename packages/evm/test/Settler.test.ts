@@ -248,24 +248,38 @@ describe('Settler', () => {
       const proposalParams: Partial<Proposal> = {}
 
       const itReverts = (reason: string) => {
-        it('reverts', async () => {
-          const executions = []
+        context('when there is one execution', () => {
+          it('reverts', async () => {
+            const intent = createIntent(intentParams)
+            const proposal = createProposal(proposalParams)
 
-          const executor = await ethers.deployContract('EmptyExecutorMock')
-          for (let i = 0; i < 5; i++) {
-            const intent = createSwapIntent({ settler })
-            const proposal = createSwapProposal({ executor })
-            const signature = await signProposal(settler, intent, solver, proposal, admin)
-            executions.push({ intent, proposal, signature })
-          }
-          await controller.connect(admin).setAllowedProposalSigners([admin.address], [true])
+            await expect(settler.execute([{ intent, proposal, signature: '0x' }])).to.be.revertedWithCustomError(
+              settler,
+              reason
+            )
+          })
+        })
 
-          const intent = createIntent(intentParams)
-          const proposal = createProposal(proposalParams)
-          executions.push({ intent, proposal, signature: '0x' })
+        context('when there are multiple executions', () => {
+          it('reverts', async () => {
+            const executions = []
 
-          const shuffled = shuffle(executions)
-          await expect(settler.execute(shuffled)).to.be.revertedWithCustomError(settler, reason)
+            const executor = await ethers.deployContract('EmptyExecutorMock')
+            for (let i = 0; i < 5; i++) {
+              const intent = createSwapIntent({ settler })
+              const proposal = createSwapProposal({ executor })
+              const signature = await signProposal(settler, intent, solver, proposal, admin)
+              executions.push({ intent, proposal, signature })
+            }
+            await controller.connect(admin).setAllowedProposalSigners([admin.address], [true])
+
+            const intent = createIntent(intentParams)
+            const proposal = createProposal(proposalParams)
+            executions.push({ intent, proposal, signature: '0x' })
+
+            const shuffled = shuffle(executions)
+            await expect(settler.execute(shuffled)).to.be.revertedWithCustomError(settler, reason)
+          })
         })
       }
 
