@@ -96,56 +96,45 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev Executes a proposal to fulfill an intent
-     * @param intent Intent to be fulfilled
-     * @param proposal Proposal to be executed
-     * @param signature Proposal signature
+     * @param executions List of executions, each including the intent, proposal, and proposal signature
      */
-    function execute(Intent memory intent, Proposal memory proposal, bytes memory signature)
-        external
-        override
-        onlySolver
-    {
-        _execute(intent, proposal, signature, false);
+    function execute(Execution[] memory executions) external override onlySolver {
+        _execute(executions, false);
     }
 
     /**
      * @dev Simulates an execution. It will always revert. Successful executions are returned as
      * `SettlerSimulationSuccess` errors. Any other error should be treated as failure.
-     * @param intent Intent to be fulfilled
-     * @param proposal Proposal to be executed
-     * @param signature Proposal signature
+     * @param executions List of executions, each including the intent, proposal, and proposal signature
      */
-    function simulate(Intent memory intent, Proposal memory proposal, bytes memory signature)
-        external
-        override
-        onlySolver
-    {
+    function simulate(Execution[] memory executions) external override onlySolver {
         uint256 initialGas = gasleft();
-        _execute(intent, proposal, signature, true);
+        _execute(executions, true);
         uint256 gasUsed = initialGas - gasleft();
         revert SettlerSimulationSuccess(gasUsed);
     }
 
     /**
      * @dev Validates and executes a proposal to fulfill an intent
-     * @param intent Intent to be fulfilled
-     * @param proposal Proposal to be executed
-     * @param signature Proposal signature
+     * @param executions List of executions, each including the intent, proposal, and proposal signature
      * @param simulated Whether the execution is a simulation
      */
-    function _execute(Intent memory intent, Proposal memory proposal, bytes memory signature, bool simulated)
-        internal
-        nonReentrant
-    {
-        _validateIntent(intent, proposal, signature, simulated);
-        isNonceUsed[intent.user][intent.nonce] = true;
+    function _execute(Execution[] memory executions, bool simulated) internal nonReentrant {
+        for (uint256 i = 0; i < executions.length; i++) {
+            Intent memory intent = executions[i].intent;
+            Proposal memory proposal = executions[i].proposal;
+            bytes memory signature = executions[i].signature;
 
-        if (intent.op == OpType.Swap) _executeSwap(intent, proposal);
-        else if (intent.op == OpType.Transfer) _executeTransfer(intent, proposal);
-        else if (intent.op == OpType.Call) _executeCall(intent, proposal);
-        else revert SettlerUnknownIntentType(uint8(intent.op));
+            _validateIntent(intent, proposal, signature, simulated);
+            isNonceUsed[intent.user][intent.nonce] = true;
 
-        emit Executed(proposal.hash(intent, _msgSender()));
+            if (intent.op == OpType.Swap) _executeSwap(intent, proposal);
+            else if (intent.op == OpType.Transfer) _executeTransfer(intent, proposal);
+            else if (intent.op == OpType.Call) _executeCall(intent, proposal);
+            else revert SettlerUnknownIntentType(uint8(intent.op));
+
+            emit Executed(proposal.hash(intent, _msgSender()), i);
+        }
     }
 
     /**
