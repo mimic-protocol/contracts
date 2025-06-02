@@ -13,6 +13,7 @@ import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
+import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
 import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
@@ -156,7 +157,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapIntent);
-        Address.functionCall(swapProposal.executor, swapProposal.data);
+        IExecutor(swapProposal.executor).execute(swapProposal.data);
 
         if (swapIntent.destinationChain == block.chainid) {
             for (uint256 i = 0; i < swapIntent.tokensOut.length; i++) {
