@@ -2,10 +2,12 @@
 
 pragma solidity ^0.8.20;
 
-contract EmptyExecutorMock {
+import '../../interfaces/IExecutor.sol';
+
+contract EmptyExecutorMock is IExecutor {
     event Executed();
 
-    fallback() external payable {
+    function execute(bytes memory) external override {
         emit Executed();
     }
 }
