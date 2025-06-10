@@ -1,24 +1,22 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
-import { AbiCoder, getAddress } from 'ethers'
+import { getAddress, hashMessage } from 'ethers'
 import { network } from 'hardhat'
 
-const { ethers } = await network.connect()
-
-import { CallMock, PermissionOracleMock, SmartAccount, TokenMock } from '../types/ethers-contracts/index.js'
+import { CallMock, SmartAccount, TokenMock } from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import {
-  Account,
   BigNumberish,
   fp,
   NATIVE_TOKEN_ADDRESS,
-  ONES_ADDRESS,
   randomAddress,
   randomHex,
   toAddress,
   ZERO_ADDRESS,
   ZERO_BYTES32,
 } from './helpers'
+
+const { ethers } = await network.connect()
 
 /* eslint-disable no-secrets/no-secrets */
 
@@ -49,7 +47,7 @@ describe('SmartAccount', () => {
 
   describe('ERC165', () => {
     it('supports the ISmartAccount interface', async () => {
-      const interfaceId = '0x4a825dc9' // ISmartAccount
+      const interfaceId = '0xf44bac89' // ISmartAccount
 
       expect(await smartAccount.supportsInterface(interfaceId)).to.be.true
     })
@@ -291,7 +289,7 @@ describe('SmartAccount', () => {
         it('emits an event', async () => {
           const tx = await smartAccount.setSettler(newSettler)
 
-          const events = await smartAccount.queryFilter(smartAccount.filters['SettlerSet'](), tx.blockNumber)
+          const events = await smartAccount.queryFilter(smartAccount.filters.SettlerSet(), tx.blockNumber)
           expect(events).to.have.lengthOf(1)
 
           expect(events[0].args.settler).to.equal(getAddress(newSettler))
@@ -324,54 +322,48 @@ describe('SmartAccount', () => {
     })
   })
 
-  describe('setPermissions', () => {
-    const NO_PERMISSION = ZERO_ADDRESS
-    const ANY_PERMISSION = ONES_ADDRESS
-
+  describe('setAllowedSigners', () => {
     context('when the sender is authorized', () => {
       beforeEach('set sender', () => {
         smartAccount = smartAccount.connect(owner)
       })
 
       context('when the inputs lengths match', () => {
-        let permissionOracle: PermissionOracleMock
-        let permissions: Account[]
+        let accounts: HardhatEthersSigner[]
+        const allowances = [false, true, true]
 
-        beforeEach('deploy permission oracle', async () => {
-          permissionOracle = await ethers.deployContract('PermissionOracleMock')
+        beforeEach('set accounts', async () => {
+          accounts = (await ethers.getSigners()).slice(-allowances.length)
         })
-
-        beforeEach('set permissions array', async () => {
-          permissions = [NO_PERMISSION, ANY_PERMISSION, permissionOracle.target]
-        })
-
-        const accounts = [randomAddress(), randomAddress(), randomAddress()].map((a) => getAddress(a))
-        const expecteds = [false, true, true]
-
-        const data = AbiCoder.defaultAbiCoder().encode(['bool'], [expecteds[2]])
-        const configs = [ZERO_BYTES32, randomHex(4), data]
 
         const itSetsThePermissionsProperly = () => {
           it('sets the permissions properly', async () => {
-            await smartAccount.setPermissions(accounts, permissions)
+            await smartAccount.setAllowedSigners(
+              accounts.map((a) => a.address),
+              allowances
+            )
 
             for (const [i, account] of accounts.entries()) {
-              const config = configs[i]
-              const expected = expecteds[i]
-              expect(await smartAccount.hasPermission(account, config)).to.be.equal(expected)
+              const message = 'test'
+              const signature = await account.signMessage(message)
+              const expected = allowances[i] ? '0x1626ba7e' : '0xffffffff'
+              const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+              expect(result).to.equal(expected)
             }
           })
 
           it('emits the corresponding events', async () => {
-            const tx = await smartAccount.setPermissions(accounts, permissions)
+            const tx = await smartAccount.setAllowedSigners(
+              accounts.map((a) => a.address),
+              allowances
+            )
 
-            const events = await smartAccount.queryFilter(smartAccount.filters['PermissionSet'](), tx.blockNumber)
+            const events = await smartAccount.queryFilter(smartAccount.filters.SignerAllowedSet(), tx.blockNumber)
             expect(events).to.have.lengthOf(accounts.length)
 
             for (const [i, account] of accounts.entries()) {
-              const permission = permissions[i]
               expect(events[i].args.account).to.equal(account)
-              expect(events[i].args.permission).to.equal(permission)
+              expect(events[i].args.allowed).to.equal(allowances[i])
             }
           })
         }
@@ -382,7 +374,7 @@ describe('SmartAccount', () => {
 
         context('when the permissions were already set', () => {
           beforeEach('set permissions', async () => {
-            await smartAccount.setPermissions([accounts[1]], [permissions[1]])
+            await smartAccount.setAllowedSigners([accounts[1]], [allowances[1]])
           })
 
           itSetsThePermissionsProperly()
@@ -391,7 +383,7 @@ describe('SmartAccount', () => {
 
       context('when the inputs lengths do not match', () => {
         it('reverts', async () => {
-          await expect(smartAccount.setPermissions([], [randomAddress()])).to.be.revertedWithCustomError(
+          await expect(smartAccount.setAllowedSigners([], [randomAddress()])).to.be.revertedWithCustomError(
             smartAccount,
             'SmartAccountInputInvalidLength'
           )
@@ -402,7 +394,7 @@ describe('SmartAccount', () => {
     context('when the sender is not authorized', () => {
       const itReverts = () => {
         it('reverts', async () => {
-          await expect(smartAccount.setPermissions([], [])).to.be.revertedWithCustomError(
+          await expect(smartAccount.setAllowedSigners([], [])).to.be.revertedWithCustomError(
             smartAccount,
             'OwnableUnauthorizedAccount'
           )
@@ -423,6 +415,72 @@ describe('SmartAccount', () => {
         })
 
         itReverts()
+      })
+    })
+  })
+
+  describe('isValidSignature', () => {
+    const message = 'test'
+
+    context('when recovering a valid signature', () => {
+      context('when the signer is the owner', () => {
+        it('accepts the signature', async () => {
+          const signature = await owner.signMessage(message)
+          const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+          expect(result).to.equal('0x1626ba7e')
+        })
+      })
+
+      context('when the signer is not the owner', () => {
+        let signer: HardhatEthersSigner
+
+        beforeEach('set signer', async () => {
+          signer = other
+        })
+
+        context('when the signer is allowed by the owner', () => {
+          beforeEach('approve signer', async () => {
+            await smartAccount.connect(owner).setAllowedSigners([signer.address], [true])
+          })
+
+          it('accepts the signature', async () => {
+            const signature = await signer.signMessage(message)
+            const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+            expect(result).to.equal('0x1626ba7e')
+          })
+        })
+
+        context('when the signer is not allowed by the owner', () => {
+          beforeEach('disapprove signer', async () => {
+            await smartAccount.connect(owner).setAllowedSigners([signer.address], [false])
+          })
+
+          it('rejects the signature', async () => {
+            const signature = await signer.signMessage(message)
+            const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+            expect(result).to.equal('0xffffffff')
+          })
+        })
+      })
+    })
+
+    context('when recovering an invalid signature', () => {
+      context('when the signature is too short', () => {
+        const signature = randomHex(8)
+
+        it('rejects the signature', async () => {
+          const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+          expect(result).to.equal('0xffffffff')
+        })
+      })
+
+      context('when the signature is too long', () => {
+        const signature = randomHex(130)
+
+        it('rejects the signature', async () => {
+          const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+          expect(result).to.equal('0xffffffff')
+        })
       })
     })
   })

@@ -5,9 +5,9 @@ pragma solidity ^0.8.20;
 import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
 
-import './interfaces/IPermissionOracle.sol';
 import './interfaces/ISmartAccount.sol';
 import './utils/ERC20Helpers.sol';
 
@@ -16,14 +16,14 @@ import './utils/ERC20Helpers.sol';
  * @dev Provides the logic for managing assets, executing arbitrary calls, and controlling permissions
  */
 contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
-    // Constant used to denote that an account is not allowed
-    address internal constant NO_PERMISSION = address(0x0000000000000000000000000000000000000000);
+    // EIP1271 magic return value
+    bytes4 constant internal EIP1271_MAGIC_VALUE = 0x1626ba7e;
 
-    // Constant used to denote that an account is allowed to do anything
-    address internal constant ANY_PERMISSION = address(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF);
+    // EIP1271 invalid signature return value
+    bytes4 constant internal EIP1271_INVALID_SIGNATURE = 0xffffffff;
 
     // List of account permissions
-    mapping (address => address) internal _permissions;
+    mapping (address => bool) public isSignerAllowed;
 
     // Mimic settler reference
     address public settler;
@@ -49,9 +49,9 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     event SettlerSet(address indexed settler);
 
     /**
-     * @dev Emitted every time a permission is set
+     * @dev Emitted every time a signer allowance is set
      */
-    event PermissionSet(address indexed account, address permission);
+    event SignerAllowedSet(address indexed account, bool allowed);
 
     /**
      * @dev Reverts unless the sender is the owner or the settler
@@ -81,18 +81,14 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Tells whether an account is allowed. Intended to be used by the Mimic registry to verify if
-     * an account is permitted to perform certain actions.
-     * @param account Address of the account being queried
-     * @param data Data representing the specific action to be validated, only used for oracles
+     * @dev Tells whether the signature provided belongs to an allowed account.
+     * @param hash Message signed by the account
+     * @param signature Signature provided to be verified
      */
-    function hasPermission(address account, bytes memory data) external view returns (bool) {
-        if (account == owner()) return true;
-
-        address permission = _permissions[account];
-        if (permission == NO_PERMISSION) return false;
-        if (permission == ANY_PERMISSION) return true;
-        return IPermissionOracle(permission).hasPermission(account, data);
+    function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
+        (address signer, ECDSA.RecoverError error, bytes32 errorArg) = ECDSA.tryRecover(hash, signature);
+        if (signer != address(0) && (signer == owner() || isSignerAllowed[signer])) return EIP1271_MAGIC_VALUE;
+        return EIP1271_INVALID_SIGNATURE;
     }
 
     /**
@@ -145,17 +141,17 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Sets permissions for multiple accounts. Sender must be the owner.
+     * @dev Sets a list of allowed signers. Sender must be the owner.
      * @param accounts List of account addresses
-     * @param permissions List of permission addresses
+     * @param allowances List of allowed condition per account
      */
-    function setPermissions(address[] memory accounts, address[] memory permissions) external onlyOwner {
-        if (accounts.length != permissions.length) revert SmartAccountInputInvalidLength();
+    function setAllowedSigners(address[] memory accounts, bool[] memory allowances) external onlyOwner {
+        if (accounts.length != allowances.length) revert SmartAccountInputInvalidLength();
         for (uint256 i = 0; i < accounts.length; i++) {
             address account = accounts[i];
-            address permission = permissions[i];
-            _permissions[account] = permission;
-            emit PermissionSet(account, permission);
+            bool allowed = allowances[i];
+            isSignerAllowed[account] = allowed;
+            emit SignerAllowedSet(account, allowed);
         }
     }
 
