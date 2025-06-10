@@ -422,40 +422,62 @@ describe('SmartAccount', () => {
   describe('isValidSignature', () => {
     const message = 'test'
 
-    context('when the signer is the owner', () => {
-      it('accepts the signature', async () => {
-        const signature = await owner.signMessage(message)
-        const result = await smartAccount.isValidSignature(hashMessage(message), signature)
-        expect(result).to.equal('0x1626ba7e')
-      })
-    })
-
-    context('when the signer is not the owner', () => {
-      let signer: HardhatEthersSigner
-
-      beforeEach('set signer', async () => {
-        signer = other
-      })
-
-      context('when the signer is allowed by the owner', () => {
-        beforeEach('approve signer', async () => {
-          await smartAccount.connect(owner).setAllowedSigners([signer.address], [true])
-        })
-
+    context('when recovering a valid signature', () => {
+      context('when the signer is the owner', () => {
         it('accepts the signature', async () => {
-          const signature = await signer.signMessage(message)
+          const signature = await owner.signMessage(message)
           const result = await smartAccount.isValidSignature(hashMessage(message), signature)
           expect(result).to.equal('0x1626ba7e')
         })
       })
 
-      context('when the signer is not allowed by the owner', () => {
-        beforeEach('disapprove signer', async () => {
-          await smartAccount.connect(owner).setAllowedSigners([signer.address], [false])
+      context('when the signer is not the owner', () => {
+        let signer: HardhatEthersSigner
+
+        beforeEach('set signer', async () => {
+          signer = other
         })
 
+        context('when the signer is allowed by the owner', () => {
+          beforeEach('approve signer', async () => {
+            await smartAccount.connect(owner).setAllowedSigners([signer.address], [true])
+          })
+
+          it('accepts the signature', async () => {
+            const signature = await signer.signMessage(message)
+            const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+            expect(result).to.equal('0x1626ba7e')
+          })
+        })
+
+        context('when the signer is not allowed by the owner', () => {
+          beforeEach('disapprove signer', async () => {
+            await smartAccount.connect(owner).setAllowedSigners([signer.address], [false])
+          })
+
+          it('rejects the signature', async () => {
+            const signature = await signer.signMessage(message)
+            const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+            expect(result).to.equal('0xffffffff')
+          })
+        })
+      })
+    })
+
+    context('when recovering an invalid signature', () => {
+      context('when the signature is too short', () => {
+        const signature = randomHex(8)
+
         it('rejects the signature', async () => {
-          const signature = await signer.signMessage(message)
+          const result = await smartAccount.isValidSignature(hashMessage(message), signature)
+          expect(result).to.equal('0xffffffff')
+        })
+      })
+
+      context('when the signature is too long', () => {
+        const signature = randomHex(130)
+
+        it('rejects the signature', async () => {
           const result = await smartAccount.isValidSignature(hashMessage(message), signature)
           expect(result).to.equal('0xffffffff')
         })
