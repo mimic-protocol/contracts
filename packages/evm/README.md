@@ -14,6 +14,7 @@
   <a href="#content">Content</a> •
   <a href="#setup">Setup</a> •
   <a href="#deploy">Deploy</a> •
+  <a href="#security">Security</a> •
   <a href="#license">License</a>
 </p>
 
@@ -96,13 +97,22 @@ yarn hardhat ignition deploy ignition/modules/Settler.ts --network <network> --p
 
 Note that Ignition tracks previous deployments. If a deployment already exists in `ignition/deployments`, it won’t re-deploy unless something changes.
 
+## Security
+
+To read more about our auditing and related security processes please refer to the [security section](https://docs.mimic.fi/miscellaneous/security) of our docs site.
+
+However, if you found any potential issue in any of our smart contracts or in any piece of code you consider critical
+for the safety of the protocol, please contact us through <a href="mailto:security@mimic.fi">security@mimic.fi</a>.
+
 ## License
 
-Private
+This project is licensed under the GNU General Public License v3.0.  
+See the [LICENSE](../../LICENSE) file for details.
 
 ---
 
 > Website [mimic.fi](https://mimic.fi) &nbsp;&middot;&nbsp;
+> Docs [docs.mimic.fi](https://docs.mimic.fi) &nbsp;&middot;&nbsp;
 > GitHub [@mimic-fi](https://github.com/mimic-fi) &nbsp;&middot;&nbsp;
 > Twitter [@mimicfi](https://twitter.com/mimicfi) &nbsp;&middot;&nbsp;
 > Discord [mimic](https://discord.mimic.fi)

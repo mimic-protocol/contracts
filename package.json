@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "Mimic Protocol Contracts",
-  "license": "Private",
+  "license": "GPL-3.0",
   "scripts": {
     "prepare": "yarn build",
     "build": "yarn workspaces run build",
