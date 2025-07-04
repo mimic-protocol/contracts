@@ -14,7 +14,7 @@ contract ReentrantExecutorMock is IExecutor {
     }
 
     function execute(bytes memory data) external override {
-        (Execution[] memory executions) = abi.decode(data, (Execution[]));
+        Execution[] memory executions = abi.decode(data, (Execution[]));
         ISettler(settler).execute(executions);
     }
 }

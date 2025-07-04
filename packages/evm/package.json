@@ -9,7 +9,7 @@
     "build": "yarn compile",
     "compile": "hardhat compile",
     "lint": "yarn lint:solidity && yarn lint:typescript",
-    "lint:solidity": "echo 'no lint for now'",
+    "lint:solidity": "solhint 'contracts/**/*.sol' --config ../../node_modules/solhint-config-mimic/index.js",
     "lint:typescript": "eslint . --ext .ts",
     "test": "hardhat test"
   },
