@@ -209,6 +209,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < callIntent.calls.length; i++) {
             CallData memory call = callIntent.calls[i];
+            // solhint-disable-next-line avoid-low-level-calls
             smartAccount.call(call.target, call.data, call.value);
         }
 

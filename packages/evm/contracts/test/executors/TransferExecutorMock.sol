@@ -14,6 +14,7 @@ contract TransferExecutorMock is IExecutor {
 
     function execute(bytes memory data) external override {
         (address[] memory tokens, uint256[] memory amounts) = abi.decode(data, (address[], uint256[]));
+        // solhint-disable-next-line custom-errors
         require(tokens.length == amounts.length, 'Invalid inputs');
         for (uint256 i = 0; i < tokens.length; i++) {
             ERC20Helpers.transfer(tokens[i], msg.sender, amounts[i]);
