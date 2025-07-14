@@ -38,6 +38,12 @@ const config: HardhatUserConfig = {
       url: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
     },
+    gnosis: {
+      type: 'http',
+      chainId: 100,
+      url: process.env.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
   },
 }
 
