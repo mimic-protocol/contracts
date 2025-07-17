@@ -77,7 +77,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev It allows receiving native token transfers
-     * Note: This method mainly allow supporting native tokes for swaps
+     * Note: This method mainly allows supporting native tokens for swaps
      */
     receive() external payable {
         // solhint-disable-previous-line no-empty-blocks
@@ -157,7 +157,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapIntent);
-        IExecutor(swapProposal.executor).execute(swapProposal.data);
+        IExecutor(swapProposal.executor).execute(intent, proposal);
 
         if (swapIntent.destinationChain == block.chainid) {
             for (uint256 i = 0; i < swapIntent.tokensOut.length; i++) {
@@ -209,6 +209,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < callIntent.calls.length; i++) {
             CallData memory call = callIntent.calls[i];
+            // solhint-disable-next-line avoid-low-level-calls
             smartAccount.call(call.target, call.data, call.value);
         }
 

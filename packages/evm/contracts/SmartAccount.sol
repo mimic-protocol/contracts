@@ -17,10 +17,10 @@ import './utils/ERC20Helpers.sol';
  */
 contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     // EIP1271 magic return value
-    bytes4 constant internal EIP1271_MAGIC_VALUE = 0x1626ba7e;
+    bytes4 internal constant EIP1271_MAGIC_VALUE = 0x1626ba7e;
 
     // EIP1271 invalid signature return value
-    bytes4 constant internal EIP1271_INVALID_SIGNATURE = 0xffffffff;
+    bytes4 internal constant EIP1271_INVALID_SIGNATURE = 0xffffffff;
 
     // List of account permissions
     mapping (address => bool) public isSignerAllowed;
@@ -86,7 +86,7 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      * @param signature Signature provided to be verified
      */
     function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
-        (address signer, ECDSA.RecoverError error, bytes32 errorArg) = ECDSA.tryRecover(hash, signature);
+        (address signer, , ) = ECDSA.tryRecover(hash, signature);
         if (signer != address(0) && (signer == owner() || isSignerAllowed[signer])) return EIP1271_MAGIC_VALUE;
         return EIP1271_INVALID_SIGNATURE;
     }
