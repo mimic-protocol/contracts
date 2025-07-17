@@ -32,6 +32,12 @@ const config: HardhatUserConfig = {
       url: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
     },
+    arbitrum: {
+      type: 'http',
+      chainId: 42161,
+      url: process.env.ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
   },
 }
 
