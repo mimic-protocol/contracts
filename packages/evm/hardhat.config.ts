@@ -1,11 +1,12 @@
 import hardhatToolboxMochaEthersPlugin from '@nomicfoundation/hardhat-toolbox-mocha-ethers'
+import hardhatVerify from '@nomicfoundation/hardhat-verify'
 import dotenv from 'dotenv'
 import { HardhatUserConfig } from 'hardhat/config'
 
 dotenv.config()
 
 const config: HardhatUserConfig = {
-  plugins: [hardhatToolboxMochaEthersPlugin],
+  plugins: [hardhatVerify, hardhatToolboxMochaEthersPlugin],
   solidity: {
     profiles: {
       default: {
@@ -13,7 +14,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 1000,
           },
         },
       },
@@ -43,6 +44,11 @@ const config: HardhatUserConfig = {
       chainId: 100,
       url: process.env.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
+  },
+  verify: {
+    etherscan: {
+      apiKey: process.env.ETHERSCAN_KEY || '',
     },
   },
 }
