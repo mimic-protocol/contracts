@@ -1,7 +1,10 @@
-node_modules
+# Ignore Hardhat build files
 artifacts
 cache
 types
 dist
 build
-.env
+
+# But do not ignore anything inside ignition
+!ignition/
+!ignition/**

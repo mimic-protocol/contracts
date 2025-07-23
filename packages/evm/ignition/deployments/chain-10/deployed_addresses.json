@@ -1,4 +1,8 @@
 {
-  "Controller#Controller": "0x187D5Da2aD67fb9CdF786797b520A4037FBA2A66",
-  "Settler#Settler": "0xdcF1D9d12A0488dFb70A8696f44d6D3Bc303963D"
+  "Create3Controller#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
+  "Create3Controller#Controller": "0x2cdc7E6d49582FF3e142D053Fe0Bc4A8f295d9D5",
+  "Create3Settler#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
+  "Create3Settler#Settler": "0xF009e848b642ddd1A35A7630C6E597e78592533E",
+  "Create3SmartAccount#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
+  "Create3SmartAccount#SmartAccount": "0x1d355Ac7EEC92341e3D929666001e584269918E6"
 }
