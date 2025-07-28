@@ -1,10 +1,7 @@
 import { buildModule, IgnitionModule } from '@nomicfoundation/hardhat-ignition/modules'
 
-/* eslint-disable no-secrets/no-secrets */
-
+// eslint-disable-next-line no-secrets/no-secrets
 const CREATEX_ADDRESS = '0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed'
-
-/* eslint-enable no-secrets/no-secrets */
 
 export default (contractName: string): IgnitionModule =>
   buildModule(`Create3${contractName}`, (m) => {

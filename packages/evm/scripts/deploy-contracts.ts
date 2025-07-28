@@ -5,21 +5,16 @@ import type { Artifact } from 'hardhat/types/artifacts'
 
 import ControllerArtifact from '../artifacts/contracts/Controller.sol/Controller.json'
 import SettlerArtifact from '../artifacts/contracts/Settler.sol/Settler.json'
-import SmartAccountArtifact from '../artifacts/contracts/SmartAccount.sol/SmartAccount.json'
 import buildCreate3Module from '../ignition/modules/Create3'
 
-/* eslint-disable no-secrets/no-secrets */
-
-const ADMIN = '0x3A0cE8115b4913F42C4928D6bC3f554e9A81468B'
-const AXIA = '0x3F4C47E37A94caeE31d0B585f54F3fFA1f2294C9'
-const SOLVER = '0xE0D76433Edd9f5df370561bd0AF231E72c83Cd3a'
-
-/* eslint-enable no-secrets/no-secrets */
-
 async function main(): Promise<void> {
+  if (!process.env.AXIA) throw Error('AXIA env variable not provided')
+  if (!process.env.ADMIN) throw Error('ADMIN env variable not provided')
+  if (!process.env.SOLVER) throw Error('SOLVER env variable not provided')
+  const { ADMIN, SOLVER, AXIA } = process.env
+
   const controller = await deployCreate3(ControllerArtifact, [ADMIN, [SOLVER], [], [AXIA]], '0x10')
-  const settler = await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x11')
-  await deployCreate3(SmartAccountArtifact, [settler.target, ADMIN], '0x12')
+  await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x11')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
