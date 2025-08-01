@@ -8,8 +8,6 @@ import { createIntent, Intent, OpType } from './base'
 export type CallIntent = Intent & {
   chainId: BigNumberish
   calls: NAry<CallData>
-  feeToken: Account
-  feeAmount: BigNumberish
 }
 
 export interface CallData {
@@ -27,7 +25,7 @@ export function createCallIntent(params?: Partial<CallIntent>): Intent {
 function encodeCallIntent(intent: Partial<CallIntent>): string {
   const CALLS = 'tuple(address,bytes,uint256)[]'
   return AbiCoder.defaultAbiCoder().encode(
-    [`tuple(uint256,${CALLS},address,uint256)`],
+    [`tuple(uint256,${CALLS})`],
     [
       [
         intent.chainId,
@@ -36,8 +34,6 @@ function encodeCallIntent(intent: Partial<CallIntent>): string {
           callData.data,
           callData.value.toString(),
         ]),
-        toAddress(intent.feeToken),
-        intent.feeAmount.toString(),
       ],
     ]
   )
