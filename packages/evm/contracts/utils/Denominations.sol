@@ -25,6 +25,10 @@ library Denominations {
     // Fiat currencies follow https://en.wikipedia.org/wiki/ISO_4217
     address internal constant USD = address(840);
 
+    function isUSD(address token) internal pure returns (bool) {
+        return token == USD;
+    }
+
     function isNativeToken(address token) internal pure returns (bool) {
         return token == NATIVE_TOKEN;
     }

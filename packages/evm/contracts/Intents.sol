@@ -34,6 +34,7 @@ struct Execution {
  * @param nonce A unique value used to prevent replay attacks and distinguish intents.
  * @param deadline The timestamp by which the intent must be executed.
  * @param data ABI-encoded data representing a specific intent type (e.g. SwapIntent, TransferIntent, CallIntent).
+ * @param maxFees List of max fees the user is willing to pay for the intent.
  */
 struct Intent {
     OpType op;
@@ -42,6 +43,17 @@ struct Intent {
     bytes32 nonce;
     uint256 deadline;
     bytes data;
+    MaxFee[] maxFees;
+}
+
+/**
+ * @dev Max fee representation
+ * @param token Token used to pay for the execution fee.
+ * @param amount Max amount of fee token to be paid for settling this intent.
+ */
+struct MaxFee {
+    address token;
+    uint256 amount;
 }
 
 /**
@@ -84,14 +96,10 @@ struct TokenOut {
  * @dev Represents a transfer intent containing multiple token transfers.
  * @param chainId Chain ID where the transfers should be executed.
  * @param transfers List of token transfers to be performed.
- * @param feeToken Token used to pay for the execution fee.
- * @param feeAmount Amount of feeToken to be paid for settling this intent.
  */
 struct TransferIntent {
     uint256 chainId;
     TransferData[] transfers;
-    address feeToken;
-    uint256 feeAmount;
 }
 
 /**
@@ -116,8 +124,6 @@ struct TransferData {
 struct CallIntent {
     uint256 chainId;
     CallData[] calls;
-    address feeToken;
-    uint256 feeAmount;
 }
 
 /**
@@ -135,11 +141,13 @@ struct CallData {
 /**
  * @dev Generic proposal structure representing a solver’s response to an intent.
  * @param deadline Timestamp until when the proposal is valid.
- * @param data ABI-encoded proposal-specific data (e.g. SwapProposal, TransferProposal, CallProposal).
+ * @param data ABI-encoded proposal-specific data (e.g. SwapProposal).
+ * @param fees List of fee amounts the solver requires for execution.
  */
 struct Proposal {
     uint256 deadline;
     bytes data;
+    uint256[] fees;
 }
 
 /**
@@ -154,28 +162,16 @@ struct SwapProposal {
     uint256[] amountsOut;
 }
 
-/**
- * @dev Transfer proposal representation for a transfer intent.
- * @param feeAmount Amount of the fee token the solver requires for execution.
- */
-struct TransferProposal {
-    uint256 feeAmount;
-}
-
-/**
- * @dev Call proposal representation for a call intent.
- * @param feeAmount Amount of the fee token the solver requires for execution.
- */
-struct CallProposal {
-    uint256 feeAmount;
-}
-
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
-        keccak256('Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data)');
+        keccak256(
+            'Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data,MaxFee[] maxFees)MaxFee(address token,uint256 amount)'
+        );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
-        keccak256('Proposal(bytes32 intent,address solver,uint256 deadline,bytes data)');
+        keccak256('Proposal(bytes32 intent,address solver,uint256 deadline,bytes data,uint256[] fees)');
+
+    bytes32 internal constant MAX_FEE_TYPE_HASH = keccak256('MaxFee(address token,uint256 amount)');
 
     function hash(Intent memory intent) internal pure returns (bytes32) {
         return
@@ -187,7 +183,8 @@ library IntentsHelpers {
                     intent.settler,
                     intent.nonce,
                     intent.deadline,
-                    keccak256(intent.data)
+                    keccak256(intent.data),
+                    hash(intent.maxFees)
                 )
             );
     }
@@ -195,7 +192,26 @@ library IntentsHelpers {
     function hash(Proposal memory proposal, Intent memory intent, address solver) internal pure returns (bytes32) {
         return
             keccak256(
-                abi.encode(PROPOSAL_TYPE_HASH, hash(intent), solver, proposal.deadline, keccak256(proposal.data))
+                abi.encode(
+                    PROPOSAL_TYPE_HASH,
+                    hash(intent),
+                    solver,
+                    proposal.deadline,
+                    keccak256(proposal.data),
+                    hash(proposal.fees)
+                )
             );
+    }
+
+    function hash(MaxFee[] memory fees) internal pure returns (bytes32) {
+        bytes32[] memory feeHashes = new bytes32[](fees.length);
+        for (uint256 i = 0; i < fees.length; i++) {
+            feeHashes[i] = keccak256(abi.encode(MAX_FEE_TYPE_HASH, fees[i].token, fees[i].amount));
+        }
+        return keccak256(abi.encodePacked(feeHashes));
+    }
+
+    function hash(uint256[] memory fees) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(fees));
     }
 }

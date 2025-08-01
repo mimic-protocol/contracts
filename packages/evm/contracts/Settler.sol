@@ -160,8 +160,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
         _validateSwapIntent(swapIntent, swapProposal);
 
+        bool isSmartAccount = _isSmartAccount(intent.user);
         if (swapIntent.sourceChain == block.chainid) {
-            bool isSmartAccount = _isSmartAccount(intent.user);
             for (uint256 i = 0; i < swapIntent.tokensIn.length; i++) {
                 TokenIn memory tokenIn = swapIntent.tokensIn[i];
                 _transferFrom(tokenIn.token, intent.user, swapProposal.executor, tokenIn.amount, isSmartAccount);
@@ -184,6 +184,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
                 ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, amountOut);
             }
+
+            _payFees(intent.user, _msgSender(), intent.maxFees, proposal.fees, isSmartAccount);
         }
     }
 
@@ -194,8 +196,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeTransfer(Intent memory intent, Proposal memory proposal) internal {
         TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
-        TransferProposal memory transferProposal = abi.decode(proposal.data, (TransferProposal));
-        _validateTransferIntent(transferIntent, transferProposal);
+        _validateTransferIntent(transferIntent, proposal);
 
         bool isSmartAccount = _isSmartAccount(intent.user);
 
@@ -204,7 +205,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        _transferFrom(transferIntent.feeToken, intent.user, _msgSender(), transferProposal.feeAmount, isSmartAccount);
+        _payFees(intent.user, _msgSender(), intent.maxFees, proposal.fees, isSmartAccount);
     }
 
     /**
@@ -214,8 +215,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeCall(Intent memory intent, Proposal memory proposal) internal {
         CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
-        CallProposal memory callProposal = abi.decode(proposal.data, (CallProposal));
-        _validateCallIntent(callIntent, callProposal, intent.user);
+        _validateCallIntent(callIntent, proposal, intent.user);
 
         ISmartAccount smartAccount = ISmartAccount(intent.user);
 
@@ -225,7 +225,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             smartAccount.call(call.target, call.data, call.value);
         }
 
-        smartAccount.transfer(callIntent.feeToken, _msgSender(), callProposal.feeAmount);
+        _payFees(intent.user, _msgSender(), intent.maxFees, proposal.fees, true);
     }
 
     /**
@@ -246,6 +246,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         bool isProposalPastDeadline = proposal.deadline <= block.timestamp;
         if (isProposalPastDeadline) revert SettlerProposalPastDeadline(proposal.deadline, block.timestamp);
+
+        if (intent.maxFees.length != proposal.fees.length) revert SettlerSolverFeeInvalidLength();
+        for (uint256 i = 0; i < intent.maxFees.length; i++) {
+            uint256 maxFee = intent.maxFees[i].amount;
+            uint256 proposalFee = proposal.fees[i];
+            if (proposalFee > maxFee) revert SettlerSolverFeeTooHigh(proposalFee, maxFee);
+        }
 
         address signer = ECDSA.recover(_hashTypedDataV4(proposal.hash(intent, _msgSender())), signature);
         bool isProposalSignerNotAllowed = !IController(controller).isProposalSignerAllowed(signer) && !simulated;
@@ -285,15 +292,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param intent Transfer intent to be fulfilled
      * @param proposal Proposal to be executed
      */
-    function _validateTransferIntent(TransferIntent memory intent, TransferProposal memory proposal) internal view {
+    function _validateTransferIntent(TransferIntent memory intent, Proposal memory proposal) internal view {
         if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
-
+        if (proposal.data.length > 0) revert SettlerProposalDataNotEmpty();
         for (uint256 i = 0; i < intent.transfers.length; i++) {
             address recipient = intent.transfers[i].recipient;
             if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
         }
-
-        if (intent.feeAmount < proposal.feeAmount) revert SettlerSolverFeeTooHigh(intent.feeAmount, proposal.feeAmount);
     }
 
     /**
@@ -302,10 +307,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param proposal Proposal to be executed
      * @param user The originator of the intent
      */
-    function _validateCallIntent(CallIntent memory intent, CallProposal memory proposal, address user) internal view {
+    function _validateCallIntent(CallIntent memory intent, Proposal memory proposal, address user) internal view {
         if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+        if (proposal.data.length > 0) revert SettlerProposalDataNotEmpty();
         if (!_isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
-        if (intent.feeAmount < proposal.feeAmount) revert SettlerSolverFeeTooHigh(intent.feeAmount, proposal.feeAmount);
     }
 
     /**
@@ -327,6 +332,23 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _isSmartAccount(address account) internal view returns (bool) {
         return ERC165Checker.supportsInterface(account, type(ISmartAccount).interfaceId);
+    }
+
+    /**
+     * @dev Pays fees
+     * @param from Address of the account sending the fees
+     * @param to Address of the account receiving the fees
+     * @param maxFees List of max fees requested by the payer
+     * @param fees List of fees to be paid to the recipient
+     * @param isSmartAccount Whether the sender is a smart account
+     */
+    function _payFees(address from, address to, MaxFee[] memory maxFees, uint256[] memory fees, bool isSmartAccount)
+        internal
+    {
+        for (uint256 i = 0; i < maxFees.length; i++) {
+            address token = maxFees[i].token;
+            _transferFrom(token, from, to, fees[i], isSmartAccount);
+        }
     }
 
     /**

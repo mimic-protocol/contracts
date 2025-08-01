@@ -89,14 +89,24 @@ interface ISettler {
     error SettlerPostBalanceOutLtPre(uint256 index, uint256 post, uint256 pre);
 
     /**
+     * @dev The solver fees length does not match the requested by the user
+     */
+    error SettlerSolverFeeInvalidLength();
+
+    /**
      * @dev The solver fee is too high
      */
-    error SettlerSolverFeeTooHigh(uint256 requested, uint256 proposed);
+    error SettlerSolverFeeTooHigh(uint256 fee, uint256 max);
 
     /**
      * @dev The proposal deadline is in the past
      */
     error SettlerProposalPastDeadline(uint256 deadline, uint256 timestamp);
+
+    /**
+     * @dev The proposal data is not empty
+     */
+    error SettlerProposalDataNotEmpty();
 
     /**
      * @dev The rescue funds recipient is zero
