@@ -347,7 +347,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     {
         for (uint256 i = 0; i < maxFees.length; i++) {
             address token = maxFees[i].token;
-            _transferFrom(token, from, to, fees[i], isSmartAccount);
+            if (!Denominations.isUSD(token)) _transferFrom(token, from, to, fees[i], isSmartAccount);
         }
     }
 
