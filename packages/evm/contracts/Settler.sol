@@ -185,7 +185,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, amountOut);
             }
 
-            _payFees(intent.user, _msgSender(), intent.maxFees, proposal.fees, isSmartAccount);
+            _payFees(intent, proposal, isSmartAccount);
         }
     }
 
@@ -205,7 +205,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        _payFees(intent.user, _msgSender(), intent.maxFees, proposal.fees, isSmartAccount);
+        _payFees(intent, proposal, isSmartAccount);
     }
 
     /**
@@ -218,14 +218,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateCallIntent(callIntent, proposal, intent.user);
 
         ISmartAccount smartAccount = ISmartAccount(intent.user);
-
         for (uint256 i = 0; i < callIntent.calls.length; i++) {
             CallData memory call = callIntent.calls[i];
             // solhint-disable-next-line avoid-low-level-calls
             smartAccount.call(call.target, call.data, call.value);
         }
 
-        _payFees(intent.user, _msgSender(), intent.maxFees, proposal.fees, true);
+        _payFees(intent, proposal, true);
     }
 
     /**
@@ -336,18 +335,16 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev Pays fees
-     * @param from Address of the account sending the fees
-     * @param to Address of the account receiving the fees
-     * @param maxFees List of max fees requested by the payer
-     * @param fees List of fees to be paid to the recipient
-     * @param isSmartAccount Whether the sender is a smart account
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param isSmartAccount Whether the intent user is a smart account
      */
-    function _payFees(address from, address to, MaxFee[] memory maxFees, uint256[] memory fees, bool isSmartAccount)
-        internal
-    {
-        for (uint256 i = 0; i < maxFees.length; i++) {
-            address token = maxFees[i].token;
-            _transferFrom(token, from, to, fees[i], isSmartAccount);
+    function _payFees(Intent memory intent, Proposal memory proposal, bool isSmartAccount) internal {
+        address from = intent.user;
+        address to = _msgSender();
+        for (uint256 i = 0; i < intent.maxFees.length; i++) {
+            address token = intent.maxFees[i].token;
+            _transferFrom(token, from, to, proposal.fees[i], isSmartAccount);
         }
     }
 

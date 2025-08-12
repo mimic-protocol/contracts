@@ -1,8 +1,8 @@
 import { AbiCoder } from 'ethers'
 
-import { Account, randomAddress, toAddress } from '../addresses'
+import { Account, toAddress } from '../addresses'
 import { NAry, toArray } from '../arrays'
-import { BigNumberish, fp } from '../numbers'
+import { BigNumberish } from '../numbers'
 import { createIntent, Intent, OpType } from './base'
 
 export type CallIntent = Intent & {
@@ -43,7 +43,5 @@ function getDefaults(): Partial<CallIntent> {
   return {
     chainId: 31337,
     calls: [],
-    feeToken: randomAddress(),
-    feeAmount: fp(0.05),
   }
 }
