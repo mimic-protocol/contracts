@@ -1830,15 +1830,14 @@ describe('Settler', () => {
                     const tx = await settler.execute([{ intent, proposal, signature }])
 
                     const postUserBalance = await balanceOf(feeToken, user)
-                    const extraAmount = feeToken == NATIVE_TOKEN_ADDRESS ? value : 0n
-                    expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + extraAmount)
-
                     const postSolverBalance = await balanceOf(feeToken, solver)
                     if (feeToken == NATIVE_TOKEN_ADDRESS) {
                       const txReceipt = await (await tx.getTransaction())?.wait()
                       const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : 0n
+                      expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + value)
                       expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
-                    } else {
+                    } else if (feeToken !== USD_ADDRESS) {
+                      expect(preUserBalance - postUserBalance).to.be.eq(feeAmount)
                       expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
                     }
 
@@ -1864,6 +1863,14 @@ describe('Settler', () => {
                     itExecutesTheIntentWithValue(value)
                   })
                 }
+
+                context('when the fee token is USD', () => {
+                  beforeEach('set fee token', async () => {
+                    feeToken = USD_ADDRESS
+                  })
+
+                  itExecutesTheIntent()
+                })
 
                 context('when the fee token is an ERC20', () => {
                   beforeEach('deploy token', async () => {

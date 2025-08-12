@@ -28,6 +28,7 @@ import './interfaces/IController.sol';
 import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
 import './interfaces/ISmartAccount.sol';
+import './utils/Denominations.sol';
 import './utils/ERC20Helpers.sol';
 
 /**
