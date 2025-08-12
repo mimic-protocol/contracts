@@ -47,6 +47,7 @@ import {
   toArray,
   TransferIntent,
   TransferProposal,
+  USD_ADDRESS,
   ZERO_ADDRESS,
   ZERO_BYTES32,
 } from './helpers'
@@ -67,7 +68,9 @@ describe('Settler', () => {
 
   const balanceOf = (token: TokenMock | string, account: Account) => {
     const accountAddress = toAddress(account)
-    return typeof token === 'string' ? ethers.provider.getBalance(accountAddress) : token.balanceOf(accountAddress)
+    if (token == USD_ADDRESS) return 0n
+    else if (token == NATIVE_TOKEN_ADDRESS) return ethers.provider.getBalance(accountAddress)
+    else return token.balanceOf(accountAddress)
   }
 
   describe('initialize', () => {
@@ -1542,7 +1545,7 @@ describe('Settler', () => {
                 const postUserTokenBalance = await balanceOf(token, intent.user)
                 if (toAddress(token) == toAddress(feeToken)) {
                   expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount + feeAmount)
-                } else {
+                } else if (feeToken !== USD_ADDRESS) {
                   const postUserFeeTokenBalance = await balanceOf(feeToken, intent.user)
                   expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount)
                   expect(preUserFeeTokenBalance - postUserFeeTokenBalance).to.be.eq(feeAmount)
@@ -1556,7 +1559,7 @@ describe('Settler', () => {
                   const txReceipt = await (await tx.getTransaction())?.wait()
                   const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : 0n
                   expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
-                } else {
+                } else if (feeToken !== USD_ADDRESS) {
                   expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
                 }
               })
@@ -1574,6 +1577,16 @@ describe('Settler', () => {
 
                 beforeEach('mint tokens', async () => {
                   await token.mint(from, amount)
+                })
+
+                context('when the fee token is USD', () => {
+                  const feeAmount = fp(0.02)
+
+                  beforeEach('set fee token', async () => {
+                    feeToken = USD_ADDRESS
+                  })
+
+                  itExecutesTheIntent(feeAmount)
                 })
 
                 context('when the fee token is the transfer token', () => {
@@ -1612,6 +1625,16 @@ describe('Settler', () => {
 
                 beforeEach('fund user', async () => {
                   await owner.sendTransaction({ to: from, value: amount })
+                })
+
+                context('when the fee token is USD', () => {
+                  const feeAmount = fp(0.02)
+
+                  beforeEach('set fee token', async () => {
+                    feeToken = USD_ADDRESS
+                  })
+
+                  itExecutesTheIntent(feeAmount)
                 })
 
                 context('when the fee token is the native token', () => {
@@ -1656,6 +1679,16 @@ describe('Settler', () => {
               beforeEach('mint and approve tokens', async () => {
                 await token.mint(user, amount)
                 await token.connect(user).approve(settler, amount)
+              })
+
+              context('when the fee token is USD', () => {
+                const feeAmount = fp(0.02)
+
+                beforeEach('set fee token', async () => {
+                  feeToken = USD_ADDRESS
+                })
+
+                itExecutesTheIntent(feeAmount)
               })
 
               context('when the fee token is the transfer token', () => {
