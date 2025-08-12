@@ -28,6 +28,7 @@ import './interfaces/IController.sol';
 import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
 import './interfaces/ISmartAccount.sol';
+import './utils/Denominations.sol';
 import './utils/ERC20Helpers.sol';
 
 /**
@@ -344,7 +345,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         address to = _msgSender();
         for (uint256 i = 0; i < intent.maxFees.length; i++) {
             address token = intent.maxFees[i].token;
-            _transferFrom(token, from, to, proposal.fees[i], isSmartAccount);
+            if (!Denominations.isUSD(token)) _transferFrom(token, from, to, proposal.fees[i], isSmartAccount);
         }
     }
 
