@@ -22,4 +22,8 @@ contract DenominationsMock {
     function NATIVE_TOKEN() external pure returns (address) {
         return Denominations.NATIVE_TOKEN;
     }
+
+    function USD() external pure returns (address) {
+        return Denominations.USD;
+    }
 }
