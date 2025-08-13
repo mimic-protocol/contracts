@@ -295,11 +295,8 @@ describe('Settler', () => {
           })
 
           context('when the swap is single-chain', () => {
-            const sourceChain = 31337
-            const destinationChain = 31337
-
             beforeEach('set intent data', async () => {
-              intentParams.data = encodeSwapIntent({ sourceChain, destinationChain, tokensIn: [], tokensOut: [] })
+              intentParams.data = encodeSwapIntent({ sourceChain: 31337, destinationChain: 31337 })
             })
 
             itReverts(reason)
@@ -307,22 +304,16 @@ describe('Settler', () => {
 
           context('when the swap is cross-chain', () => {
             context('when executing on the source chain', () => {
-              const sourceChain = 31337
-              const destinationChain = 1
-
               beforeEach('set intent data', async () => {
-                intentParams.data = encodeSwapIntent({ sourceChain, destinationChain, tokensIn: [], tokensOut: [] })
+                intentParams.data = encodeSwapIntent({ sourceChain: 31337, destinationChain: 1 })
               })
 
               itReverts(reason)
             })
 
             context('when executing on the destination chain', () => {
-              const sourceChain = 1
-              const destinationChain = 31337
-
               beforeEach('set intent data', async () => {
-                intentParams.data = encodeSwapIntent({ sourceChain, destinationChain, tokensIn: [], tokensOut: [] })
+                intentParams.data = encodeSwapIntent({ sourceChain: 1, destinationChain: 31337 })
               })
 
               it('does not validate the deadline', async () => {

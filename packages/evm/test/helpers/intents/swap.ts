@@ -38,8 +38,8 @@ export function encodeSwapIntent(intent: Partial<SwapIntent>): string {
       [
         intent.sourceChain,
         intent.destinationChain,
-        toArray(intent.tokensIn).map((tokenIn: TokenIn) => [toAddress(tokenIn.token), tokenIn.amount.toString()]),
-        toArray(intent.tokensOut).map((tokenOut: TokenOut) => [
+        toArray(intent.tokensIn || []).map((tokenIn: TokenIn) => [toAddress(tokenIn.token), tokenIn.amount.toString()]),
+        toArray(intent.tokensOut || []).map((tokenOut: TokenOut) => [
           toAddress(tokenOut.token),
           tokenOut.minAmount.toString(),
           toAddress(tokenOut.recipient),
