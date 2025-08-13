@@ -45,6 +45,12 @@ const config: HardhatUserConfig = {
       url: process.env.GNOSIS_RPC_URL || 'https://rpc.gnosischain.com',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
     },
+    sonic: {
+      type: 'http',
+      chainId: 146,
+      url: process.env.SONIC_RPC_URL || 'https://rpc.soniclabs.com',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
   },
   verify: {
     etherscan: {
