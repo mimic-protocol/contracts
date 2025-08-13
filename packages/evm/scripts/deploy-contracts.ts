@@ -13,8 +13,8 @@ async function main(): Promise<void> {
   if (!process.env.SOLVER) throw Error('SOLVER env variable not provided')
   const { ADMIN, SOLVER, AXIA } = process.env
 
-  const controller = await deployCreate3(ControllerArtifact, [ADMIN, [SOLVER], [], [AXIA]], '0x10')
-  await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x11')
+  const controller = await deployCreate3(ControllerArtifact, [ADMIN, [SOLVER], [], [AXIA]], '0x15')
+  await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x16')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
