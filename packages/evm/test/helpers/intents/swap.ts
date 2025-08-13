@@ -29,7 +29,7 @@ export function createSwapIntent(params?: Partial<SwapIntent>): Intent {
   return intent
 }
 
-function encodeSwapIntent(intent: Partial<SwapIntent>): string {
+export function encodeSwapIntent(intent: Partial<SwapIntent>): string {
   const TOKENS_IN = 'tuple(address,uint256)[]'
   const TOKENS_OUT = 'tuple(address,uint256,address)[]'
   return AbiCoder.defaultAbiCoder().encode(
@@ -38,8 +38,8 @@ function encodeSwapIntent(intent: Partial<SwapIntent>): string {
       [
         intent.sourceChain,
         intent.destinationChain,
-        toArray(intent.tokensIn).map((tokenIn: TokenIn) => [toAddress(tokenIn.token), tokenIn.amount.toString()]),
-        toArray(intent.tokensOut).map((tokenOut: TokenOut) => [
+        toArray(intent.tokensIn || []).map((tokenIn: TokenIn) => [toAddress(tokenIn.token), tokenIn.amount.toString()]),
+        toArray(intent.tokensOut || []).map((tokenOut: TokenOut) => [
           toAddress(tokenOut.token),
           tokenOut.minAmount.toString(),
           toAddress(tokenOut.recipient),
