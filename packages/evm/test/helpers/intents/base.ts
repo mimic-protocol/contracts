@@ -91,7 +91,7 @@ export function hashMaxFee(maxFee: MaxFee): string {
 
 function getDefaults(): Intent {
   return {
-    op: OpType.Swap,
+    op: OpType.Transfer,
     settler: randomAddress(),
     user: randomAddress(),
     nonce: randomHex(32),

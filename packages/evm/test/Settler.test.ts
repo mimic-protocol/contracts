@@ -29,6 +29,7 @@ import {
   createTransferIntent,
   createTransferProposal,
   currentTimestamp,
+  encodeSwapIntent,
   fp,
   hashIntent,
   hashProposal,
@@ -36,6 +37,7 @@ import {
   MAX_UINT256,
   NATIVE_TOKEN_ADDRESS,
   ONES_BYTES32,
+  OpType,
   Proposal,
   randomAddress,
   randomHex,
@@ -283,6 +285,72 @@ describe('Settler', () => {
             const shuffled = shuffle(executions)
             await expect(settler.execute(shuffled)).to.be.revertedWithCustomError(settler, reason)
           })
+        })
+      }
+
+      const itRevertsUnlessDestinationChain = (reason: string) => {
+        context('when the intent is a swap', () => {
+          beforeEach('set intent type', async () => {
+            intentParams.op = OpType.Swap
+          })
+
+          context('when the swap is single-chain', () => {
+            const sourceChain = 31337
+            const destinationChain = 31337
+
+            beforeEach('set intent data', async () => {
+              intentParams.data = encodeSwapIntent({ sourceChain, destinationChain, tokensIn: [], tokensOut: [] })
+            })
+
+            itReverts(reason)
+          })
+
+          context('when the swap is cross-chain', () => {
+            context('when executing on the source chain', () => {
+              const sourceChain = 31337
+              const destinationChain = 1
+
+              beforeEach('set intent data', async () => {
+                intentParams.data = encodeSwapIntent({ sourceChain, destinationChain, tokensIn: [], tokensOut: [] })
+              })
+
+              itReverts(reason)
+            })
+
+            context('when executing on the destination chain', () => {
+              const sourceChain = 1
+              const destinationChain = 31337
+
+              beforeEach('set intent data', async () => {
+                intentParams.data = encodeSwapIntent({ sourceChain, destinationChain, tokensIn: [], tokensOut: [] })
+              })
+
+              it('does not validate the deadline', async () => {
+                const intent = createIntent(intentParams)
+                const proposal = createProposal(proposalParams)
+
+                await expect(
+                  settler.execute([{ intent, proposal, signature: '0x' }])
+                ).not.to.be.revertedWithCustomError(settler, reason)
+              })
+            })
+          })
+        })
+
+        context('when the intent is a transfer', () => {
+          beforeEach('set intent type', async () => {
+            intentParams.op = OpType.Transfer
+          })
+
+          itReverts(reason)
+        })
+
+        context('when the intent is a call', () => {
+          beforeEach('set intent type', async () => {
+            intentParams.op = OpType.Call
+          })
+
+          itReverts(reason)
         })
       }
 
@@ -788,7 +856,7 @@ describe('Settler', () => {
                     proposalParams.deadline = now - BigInt(5 * 60)
                   })
 
-                  itReverts('SettlerProposalPastDeadline')
+                  itRevertsUnlessDestinationChain('SettlerProposalPastDeadline')
                 })
               })
 
@@ -798,7 +866,7 @@ describe('Settler', () => {
                   intentParams.deadline = now - BigInt(5 * 60)
                 })
 
-                itReverts('SettlerIntentPastDeadline')
+                itRevertsUnlessDestinationChain('SettlerIntentPastDeadline')
               })
             })
 

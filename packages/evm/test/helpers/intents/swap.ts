@@ -29,7 +29,7 @@ export function createSwapIntent(params?: Partial<SwapIntent>): Intent {
   return intent
 }
 
-function encodeSwapIntent(intent: Partial<SwapIntent>): string {
+export function encodeSwapIntent(intent: Partial<SwapIntent>): string {
   const TOKENS_IN = 'tuple(address,uint256)[]'
   const TOKENS_OUT = 'tuple(address,uint256,address)[]'
   return AbiCoder.defaultAbiCoder().encode(

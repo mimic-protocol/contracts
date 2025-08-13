@@ -242,10 +242,14 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (intent.settler != address(this)) revert SettlerInvalidSettler(intent.settler);
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
         if (isNonceUsed[intent.user][intent.nonce]) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
-        if (intent.deadline <= block.timestamp) revert SettlerIntentPastDeadline(intent.deadline, block.timestamp);
 
-        bool isProposalPastDeadline = proposal.deadline <= block.timestamp;
-        if (isProposalPastDeadline) revert SettlerProposalPastDeadline(proposal.deadline, block.timestamp);
+        bool shouldValidateDeadlines = _shouldValidateDeadlines(intent);
+        if (shouldValidateDeadlines) {
+            if (intent.deadline <= block.timestamp) revert SettlerIntentPastDeadline(intent.deadline, block.timestamp);
+
+            bool isProposalPastDeadline = proposal.deadline <= block.timestamp;
+            if (isProposalPastDeadline) revert SettlerProposalPastDeadline(proposal.deadline, block.timestamp);
+        }
 
         if (intent.maxFees.length != proposal.fees.length) revert SettlerSolverFeeInvalidLength();
         for (uint256 i = 0; i < intent.maxFees.length; i++) {
@@ -332,6 +336,19 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _isSmartAccount(address account) internal view returns (bool) {
         return ERC165Checker.supportsInterface(account, type(ISmartAccount).interfaceId);
+    }
+
+    /**
+     * @dev Tells if the intent and proposal deadlines should be validated
+     * @param intent Intent to be fulfilled
+     */
+    function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
+        if (intent.op != OpType.Swap) return true;
+
+        SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
+        if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
+
+        return swapIntent.sourceChain == block.chainid;
     }
 
     /**
