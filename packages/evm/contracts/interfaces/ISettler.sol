@@ -129,11 +129,11 @@ interface ISettler {
     function controller() external view returns (address);
 
     /**
-     * @dev Tells whether a nonce has been used by a user
+     * @dev Tells the block at which a user nonce was used. Returns 0 if unused.
      * @param user Address of the user being queried
      * @param nonce Nonce being queried
      */
-    function isNonceUsed(address user, bytes32 nonce) external view returns (bool);
+    function getNonceBlock(address user, bytes32 nonce) external view returns (uint256);
 
     /**
      * @dev Tells the hash of an intent
