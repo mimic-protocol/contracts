@@ -44,8 +44,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override controller;
 
-    // List of already used nonces by user
-    mapping (address => mapping (bytes32 => bool)) public override isNonceUsed;
+    // List of block numbers at which a user nonce was used
+    mapping (address => mapping (bytes32 => uint256)) public override getNonceBlock;
 
     /**
      * @dev Modifier to tag settler functions in order to check if the sender is an allowed solver
@@ -140,7 +140,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             bytes memory signature = executions[i].signature;
 
             _validateIntent(intent, proposal, signature, simulated);
-            isNonceUsed[intent.user][intent.nonce] = true;
+            getNonceBlock[intent.user][intent.nonce] = block.number;
 
             if (intent.op == OpType.Swap) _executeSwap(intent, proposal);
             else if (intent.op == OpType.Transfer) _executeTransfer(intent, proposal);
@@ -241,7 +241,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     {
         if (intent.settler != address(this)) revert SettlerInvalidSettler(intent.settler);
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
-        if (isNonceUsed[intent.user][intent.nonce]) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
+        if (getNonceBlock[intent.user][intent.nonce] != 0) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
 
         bool shouldValidateDeadlines = _shouldValidateDeadlines(intent);
         if (shouldValidateDeadlines) {
