@@ -64,7 +64,7 @@ describe('Settler', () => {
   beforeEach('deploy settler', async () => {
     // eslint-disable-next-line prettier/prettier
     [, admin, owner, user, other, solver] = await ethers.getSigners()
-    controller = await ethers.deployContract('Controller', [admin, [], [], []])
+    controller = await ethers.deployContract('Controller', [admin, [], [], [], []])
     settler = await ethers.deployContract('Settler', [controller, owner])
   })
 

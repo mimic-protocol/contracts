@@ -32,19 +32,28 @@ contract Controller is IController, Ownable {
     // List of allowed proposal signers
     mapping (address => bool) public override isProposalSignerAllowed;
 
+    // List of allowed validators
+    mapping (address => bool) public override isValidatorAllowed;
+
     /**
      * @dev Creates a new Controller contract
      * @param owner Address that will own the contract
      * @param solvers List of allowed solvers
      * @param executors List of allowed executors
      * @param proposalSigners List of allowed proposal signers
+     * @param validators List of allowed validators
      */
-    constructor(address owner, address[] memory solvers, address[] memory executors, address[] memory proposalSigners)
-        Ownable(owner)
-    {
+    constructor(
+        address owner,
+        address[] memory solvers,
+        address[] memory executors,
+        address[] memory proposalSigners,
+        address[] memory validators
+    ) Ownable(owner) {
         for (uint256 i = 0; i < solvers.length; i++) _setAllowedSolver(solvers[i], true);
         for (uint256 i = 0; i < executors.length; i++) _setAllowedExecutor(executors[i], true);
         for (uint256 i = 0; i < proposalSigners.length; i++) _setAllowedProposalSigner(proposalSigners[i], true);
+        for (uint256 i = 0; i < validators.length; i++) _setAllowedValidator(validators[i], true);
     }
 
     /**
@@ -78,6 +87,16 @@ contract Controller is IController, Ownable {
     }
 
     /**
+     * @dev Sets permissions for multiple validators
+     * @param validators List of validator addresses
+     * @param alloweds List of permission statuses
+     */
+    function setAllowedValidators(address[] memory validators, bool[] memory alloweds) external override onlyOwner {
+        if (validators.length != alloweds.length) revert ControllerInputInvalidLength();
+        for (uint256 i = 0; i < validators.length; i++) _setAllowedValidator(validators[i], alloweds[i]);
+    }
+
+    /**
      * @dev Sets a solver permission
      */
     function _setAllowedSolver(address solver, bool allowed) internal {
@@ -99,5 +118,13 @@ contract Controller is IController, Ownable {
     function _setAllowedProposalSigner(address signer, bool allowed) internal {
         isProposalSignerAllowed[signer] = allowed;
         emit ProposalSignerAllowedSet(signer, allowed);
+    }
+
+    /**
+     * @dev Sets a validator permission
+     */
+    function _setAllowedValidator(address validator, bool allowed) internal {
+        isValidatorAllowed[validator] = allowed;
+        emit ValidatorAllowedSet(validator, allowed);
     }
 }
