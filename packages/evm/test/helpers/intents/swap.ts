@@ -1,9 +1,8 @@
-import { AbiCoder } from 'ethers'
+import { BigNumberish, encodeSwapIntent, OpType, SwapIntentData } from '@mimicprotocol/sdk'
 
 import { Account, toAddress } from '../addresses'
 import { NAry, toArray } from '../arrays'
-import { BigNumberish } from '../numbers'
-import { createIntent, Intent, OpType } from './base'
+import { createIntent, Intent } from './base'
 
 export type SwapIntent = Intent & {
   sourceChain: number
@@ -25,28 +24,25 @@ export interface TokenOut {
 
 export function createSwapIntent(params?: Partial<SwapIntent>): Intent {
   const intent = createIntent({ ...params, op: OpType.Swap })
-  intent.data = encodeSwapIntent({ ...getDefaults(), ...params, ...intent })
+  const swapIntent = { ...getDefaults(), ...params, ...intent } as SwapIntent
+  intent.data = encodeSwapIntent(toSwapIntentData(swapIntent))
   return intent
 }
 
-export function encodeSwapIntent(intent: Partial<SwapIntent>): string {
-  const TOKENS_IN = 'tuple(address,uint256)[]'
-  const TOKENS_OUT = 'tuple(address,uint256,address)[]'
-  return AbiCoder.defaultAbiCoder().encode(
-    [`tuple(uint256,uint256,${TOKENS_IN},${TOKENS_OUT})`],
-    [
-      [
-        intent.sourceChain,
-        intent.destinationChain,
-        toArray(intent.tokensIn || []).map((tokenIn: TokenIn) => [toAddress(tokenIn.token), tokenIn.amount.toString()]),
-        toArray(intent.tokensOut || []).map((tokenOut: TokenOut) => [
-          toAddress(tokenOut.token),
-          tokenOut.minAmount.toString(),
-          toAddress(tokenOut.recipient),
-        ]),
-      ],
-    ]
-  )
+function toSwapIntentData(intent: SwapIntent): SwapIntentData {
+  return {
+    sourceChain: intent.sourceChain.toString(),
+    destinationChain: intent.destinationChain.toString(),
+    tokensIn: toArray(intent.tokensIn).map(({ token, amount }) => ({
+      token: toAddress(token),
+      amount: amount.toString(),
+    })),
+    tokensOut: toArray(intent.tokensOut).map(({ token, minAmount, recipient }) => ({
+      token: toAddress(token),
+      minAmount: minAmount.toString(),
+      recipient: toAddress(recipient),
+    })),
+  }
 }
 
 function getDefaults(): Partial<SwapIntent> {

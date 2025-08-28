@@ -1,3 +1,17 @@
+import {
+  BigNumberish,
+  encodeSwapIntent,
+  fp,
+  MAX_UINT256,
+  NATIVE_TOKEN_ADDRESS,
+  ONES_BYTES32,
+  OpType,
+  randomAddress,
+  randomHex,
+  USD_ADDRESS,
+  ZERO_ADDRESS,
+  ZERO_BYTES32,
+} from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { AbiCoder, getBytes, Wallet } from 'ethers'
@@ -16,8 +30,6 @@ import {
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import {
   Account,
-  BigNumberish,
-  bn,
   CallIntent,
   CallProposal,
   createCallIntent,
@@ -29,18 +41,10 @@ import {
   createTransferIntent,
   createTransferProposal,
   currentTimestamp,
-  encodeSwapIntent,
-  fp,
   hashIntent,
   hashProposal,
   Intent,
-  MAX_UINT256,
-  NATIVE_TOKEN_ADDRESS,
-  ONES_BYTES32,
-  OpType,
   Proposal,
-  randomAddress,
-  randomHex,
   shuffle,
   signProposal,
   SwapIntent,
@@ -49,9 +53,6 @@ import {
   toArray,
   TransferIntent,
   TransferProposal,
-  USD_ADDRESS,
-  ZERO_ADDRESS,
-  ZERO_BYTES32,
 } from './helpers'
 
 const { ethers } = await network.connect()
@@ -296,7 +297,12 @@ describe('Settler', () => {
 
           context('when the swap is single-chain', () => {
             beforeEach('set intent data', async () => {
-              intentParams.data = encodeSwapIntent({ sourceChain: 31337, destinationChain: 31337 })
+              intentParams.data = encodeSwapIntent({
+                sourceChain: 31337,
+                destinationChain: 31337,
+                tokensIn: [],
+                tokensOut: [],
+              })
             })
 
             itReverts(reason)
@@ -305,7 +311,12 @@ describe('Settler', () => {
           context('when the swap is cross-chain', () => {
             context('when executing on the source chain', () => {
               beforeEach('set intent data', async () => {
-                intentParams.data = encodeSwapIntent({ sourceChain: 31337, destinationChain: 1 })
+                intentParams.data = encodeSwapIntent({
+                  sourceChain: 31337,
+                  destinationChain: 1,
+                  tokensIn: [],
+                  tokensOut: [],
+                })
               })
 
               itReverts(reason)
@@ -313,7 +324,12 @@ describe('Settler', () => {
 
             context('when executing on the destination chain', () => {
               beforeEach('set intent data', async () => {
-                intentParams.data = encodeSwapIntent({ sourceChain: 1, destinationChain: 31337 })
+                intentParams.data = encodeSwapIntent({
+                  sourceChain: 1,
+                  destinationChain: 31337,
+                  tokensIn: [],
+                  tokensOut: [],
+                })
               })
 
               it('does not validate the deadline', async () => {
@@ -497,7 +513,7 @@ describe('Settler', () => {
                                       const amountOut = proposedAmountOut + 1n
 
                                       beforeEach('set swap proposal data', async () => {
-                                        swapProposalParams.data = AbiCoder.defaultAbiCoder().encode(
+                                        swapProposalParams.executorData = AbiCoder.defaultAbiCoder().encode(
                                           ['address[]', 'uint256[]'],
                                           [[tokenOut.target], [amountOut]]
                                         )
@@ -510,7 +526,7 @@ describe('Settler', () => {
                                       const amountOut = proposedAmountOut - 1n
 
                                       beforeEach('set swap proposal data', async () => {
-                                        swapProposalParams.data = AbiCoder.defaultAbiCoder().encode(
+                                        swapProposalParams.executorData = AbiCoder.defaultAbiCoder().encode(
                                           ['address[]', 'uint256[]'],
                                           [[tokenOut.target], [amountOut]]
                                         )
@@ -962,11 +978,11 @@ describe('Settler', () => {
                   const preRecipientBalance = await token.balanceOf(recipient)
                   const preExecutorBalance = await token.balanceOf(executor)
 
-                  const data = AbiCoder.defaultAbiCoder().encode(
+                  const executorData = AbiCoder.defaultAbiCoder().encode(
                     ['address[]', 'uint256[]'],
                     [[token.target], [minAmount]]
                   )
-                  const proposal = createSwapProposal({ executor, data, amountsOut: minAmount })
+                  const proposal = createSwapProposal({ executor, executorData, amountsOut: minAmount })
                   const signature = await signProposal(settler, intent, solver, proposal, admin)
                   await settler.execute([{ intent, proposal, signature }])
 
@@ -1027,14 +1043,15 @@ describe('Settler', () => {
                   const preExecutorBalance1 = await token1.balanceOf(executor)
                   const preExecutorBalance2 = await token2.balanceOf(executor)
 
-                  const data = AbiCoder.defaultAbiCoder().encode(
+                  const amountsOut = [minAmountOut1, minAmountOut2]
+                  const executorData = AbiCoder.defaultAbiCoder().encode(
                     ['address[]', 'uint256[]'],
                     [
                       [token1.target, token2.target],
                       [minAmountOut1, minAmountOut2],
                     ]
                   )
-                  const proposal = createSwapProposal({ executor, data, amountsOut: [minAmountOut1, minAmountOut2] })
+                  const proposal = createSwapProposal({ executor, executorData, amountsOut })
                   const signature = await signProposal(settler, intent, solver, proposal, admin)
                   await settler.execute([{ intent, proposal, signature }])
 
@@ -1088,11 +1105,11 @@ describe('Settler', () => {
                     const preBalanceIn = await balanceOf(tokenIn, intent.user)
                     const preBalanceOut = await balanceOf(tokenOut, recipient)
 
-                    const data = AbiCoder.defaultAbiCoder().encode(
+                    const executorData = AbiCoder.defaultAbiCoder().encode(
                       ['address[]', 'uint256[]'],
                       [[toAddress(tokenOut)], [minAmountOut]]
                     )
-                    const proposal = createSwapProposal({ executor, data, amountsOut: minAmountOut })
+                    const proposal = createSwapProposal({ executor, executorData, amountsOut: minAmountOut })
                     const signature = await signProposal(settler, intent, solver, proposal, admin)
                     await settler.execute([{ intent, proposal, signature }])
 
@@ -1130,7 +1147,7 @@ describe('Settler', () => {
                   })
 
                   context('when the token in is an ERC20', () => {
-                    const amountIn = bn(3000 * 1e6) // USDC
+                    const amountIn = BigInt(3000 * 1e6) // USDC
 
                     beforeEach('deploy token in', async () => {
                       tokenIn = await ethers.deployContract('TokenMock', ['USDC', 6])
@@ -1159,7 +1176,7 @@ describe('Settler', () => {
                 })
 
                 context('when the user is not a smart account', () => {
-                  const amountIn = bn(2900 * 1e6) // USDC
+                  const amountIn = BigInt(2900 * 1e6) // USDC
 
                   beforeEach('set from', async () => {
                     from = user
@@ -1231,14 +1248,15 @@ describe('Settler', () => {
                     const preBalanceOut1 = await tokenOut1.balanceOf(recipient)
                     const preBalanceOut2 = await balanceOf(tokenOut2, recipient)
 
-                    const data = AbiCoder.defaultAbiCoder().encode(
+                    const amountsOut = [minAmountOut1, minAmountOut2]
+                    const executorData = AbiCoder.defaultAbiCoder().encode(
                       ['address[]', 'uint256[]'],
                       [
                         [tokenOut1.target, toAddress(tokenOut2)],
                         [minAmountOut1, minAmountOut2],
                       ]
                     )
-                    const proposal = createSwapProposal({ executor, data, amountsOut: [minAmountOut1, minAmountOut2] })
+                    const proposal = createSwapProposal({ executor, executorData, amountsOut })
                     const signature = await signProposal(settler, intent, solver, proposal, admin)
                     await settler.execute([{ intent, proposal, signature }])
 
@@ -1365,11 +1383,11 @@ describe('Settler', () => {
                   it('executes the intent', async () => {
                     const preRecipientBalance = await balanceOf(tokenOut, recipient)
 
-                    const data = AbiCoder.defaultAbiCoder().encode(
+                    const executorData = AbiCoder.defaultAbiCoder().encode(
                       ['address[]', 'uint256[]'],
                       [[toAddress(tokenOut)], [minAmount]]
                     )
-                    const proposal = createSwapProposal({ executor, data, amountsOut: minAmount })
+                    const proposal = createSwapProposal({ executor, executorData, amountsOut: minAmount })
                     const signature = await signProposal(settler, intent, solver, proposal, admin)
                     await settler.execute([{ intent, proposal, signature }])
 
@@ -1521,14 +1539,15 @@ describe('Settler', () => {
                     const preRecipientBalanceOut1 = await tokenOut1.balanceOf(recipient)
                     const preRecipientBalanceOut2 = await balanceOf(tokenOut2, recipient)
 
-                    const data = AbiCoder.defaultAbiCoder().encode(
+                    const amountsOut = [minAmountOut1, minAmountOut2]
+                    const executorData = AbiCoder.defaultAbiCoder().encode(
                       ['address[]', 'uint256[]'],
                       [
                         [tokenOut1.target, toAddress(tokenOut2)],
                         [minAmountOut1, minAmountOut2],
                       ]
                     )
-                    const proposal = createSwapProposal({ executor, data, amountsOut: [minAmountOut1, minAmountOut2] })
+                    const proposal = createSwapProposal({ executor, executorData, amountsOut })
                     const signature = await signProposal(settler, intent, solver, proposal, admin)
                     await settler.execute([{ intent, proposal, signature }])
 
@@ -1663,7 +1682,7 @@ describe('Settler', () => {
                 })
 
                 context('when the fee token is another token', () => {
-                  const feeAmount = bn(0.01 * 1e6)
+                  const feeAmount = BigInt(0.01 * 1e6)
 
                   beforeEach('deploy fee token', async () => {
                     feeToken = await ethers.deployContract('TokenMock', ['USDC', 6])
@@ -1711,7 +1730,7 @@ describe('Settler', () => {
                 })
 
                 context('when the fee token is another token', () => {
-                  const feeAmount = bn(0.1 * 1e6)
+                  const feeAmount = BigInt(0.1 * 1e6)
 
                   beforeEach('deploy fee token', async () => {
                     feeToken = await ethers.deployContract('TokenMock', ['USDC', 6])
@@ -1767,7 +1786,7 @@ describe('Settler', () => {
               })
 
               context('when the fee token is another token', () => {
-                const feeAmount = bn(0.2 * 1e6)
+                const feeAmount = BigInt(0.2 * 1e6)
 
                 beforeEach('deploy token', async () => {
                   feeToken = await ethers.deployContract('TokenMock', ['USDC', 6])
@@ -1787,7 +1806,7 @@ describe('Settler', () => {
             let token1: TokenMock, token2: TokenMock
 
             const amount1 = fp(0.5)
-            const amount2 = bn(2 * 1e6)
+            const amount2 = BigInt(2 * 1e6)
             const feeAmount = fp(0.05)
 
             beforeEach('deploy tokens', async () => {
@@ -2184,8 +2203,8 @@ describe('Settler', () => {
           const transferProposal = createTransferProposal({ fees: [feeAmount] })
           const transferSignature = await signProposal(settler, transferIntent, solver, transferProposal, admin)
 
-          const data = AbiCoder.defaultAbiCoder().encode(['address[]', 'uint256[]'], [[eth], [amount]])
-          const swapProposal = createSwapProposal({ executor, data, amountsOut: amount })
+          const executorData = AbiCoder.defaultAbiCoder().encode(['address[]', 'uint256[]'], [[eth], [amount]])
+          const swapProposal = createSwapProposal({ executor, executorData, amountsOut: amount })
           const swapSignature = await signProposal(settler, swapIntent, solver, swapProposal, admin)
 
           const callProposal = createCallProposal({ fees: [feeAmount] })
@@ -2262,11 +2281,6 @@ describe('Settler', () => {
   describe('reentrancy guard', () => {
     let executor: ReentrantExecutorMock
 
-    const MAX_FEE = 'tuple(address token,uint256 amount)'
-    const INTENT = `tuple(uint8 op,address settler,address user,bytes32 nonce,uint256 deadline,bytes data,${MAX_FEE}[] maxFees)`
-    const PROPOSAL = 'tuple(uint256 deadline,bytes data,uint256[] fees)'
-    const EXECUTIONS = `tuple(${INTENT} intent,${PROPOSAL} proposal,bytes signature)[]`
-
     beforeEach('deploy executor mock', async () => {
       executor = await ethers.deployContract('ReentrantExecutorMock', [settler])
       await controller.connect(admin).setAllowedExecutors([executor], [true])
@@ -2283,9 +2297,7 @@ describe('Settler', () => {
 
     it('reverts', async () => {
       const intent = createSwapIntent({ settler })
-      const executions = [{ intent, proposal: createProposal(), signature: '0x' }]
-      const data = AbiCoder.defaultAbiCoder().encode([EXECUTIONS], [executions])
-      const proposal = createSwapProposal({ executor, data })
+      const proposal = createSwapProposal({ executor })
       const signature = await signProposal(settler, intent, solver, proposal, admin)
 
       await expect(settler.execute([{ intent, proposal, signature }])).to.be.revertedWithCustomError(
