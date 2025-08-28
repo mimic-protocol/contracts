@@ -20,7 +20,7 @@ import './interfaces/IController.sol';
 
 /**
  * @title Controller
- * @dev Manages allow lists for solvers, executors and proposal signers
+ * @dev Manages allow lists for solvers, executors, proposal signers and validators
  */
 contract Controller is IController, Ownable {
     // List of allowed solvers
