@@ -1,9 +1,8 @@
-import { AbiCoder } from 'ethers'
+import { BigNumberish, CallIntentData, encodeCallIntent, OpType } from '@mimicprotocol/sdk'
 
 import { Account, toAddress } from '../addresses'
 import { NAry, toArray } from '../arrays'
-import { BigNumberish } from '../numbers'
-import { createIntent, Intent, OpType } from './base'
+import { createIntent, Intent } from './base'
 
 export type CallIntent = Intent & {
   chainId: BigNumberish
@@ -18,25 +17,20 @@ export interface CallData {
 
 export function createCallIntent(params?: Partial<CallIntent>): Intent {
   const intent = createIntent({ ...params, op: OpType.Call })
-  intent.data = encodeCallIntent({ ...getDefaults(), ...params, ...intent })
+  const callIntent = { ...getDefaults(), ...params, ...intent } as CallIntent
+  intent.data = encodeCallIntent(toCallIntentData(callIntent))
   return intent
 }
 
-function encodeCallIntent(intent: Partial<CallIntent>): string {
-  const CALLS = 'tuple(address,bytes,uint256)[]'
-  return AbiCoder.defaultAbiCoder().encode(
-    [`tuple(uint256,${CALLS})`],
-    [
-      [
-        intent.chainId,
-        toArray(intent.calls).map((callData: CallData) => [
-          toAddress(callData.target),
-          callData.data,
-          callData.value.toString(),
-        ]),
-      ],
-    ]
-  )
+function toCallIntentData(intent: CallIntent): CallIntentData {
+  return {
+    chainId: intent.chainId,
+    calls: toArray(intent.calls).map((callData: CallData) => ({
+      target: toAddress(callData.target),
+      data: callData.data,
+      value: callData.value.toString(),
+    })),
+  }
 }
 
 function getDefaults(): Partial<CallIntent> {
