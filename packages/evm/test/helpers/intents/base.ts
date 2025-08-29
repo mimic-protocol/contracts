@@ -1,13 +1,12 @@
 import {
   BigNumberish,
-  encodeIntent,
+  hashIntent as hashRawIntent,
   Intent as RawIntent,
   MAX_UINT256,
   OpType,
   randomAddress,
   randomHex,
 } from '@mimicprotocol/sdk'
-import { keccak256 } from 'ethers'
 
 import { Account, toAddress } from '../addresses'
 
@@ -31,7 +30,7 @@ export function createIntent(params?: Partial<Intent>): Intent {
 }
 
 export function hashIntent(intent: Intent): string {
-  return keccak256(encodeIntent(toRawIntent(intent)))
+  return hashRawIntent(toRawIntent(intent))
 }
 
 function toRawIntent(intent: Intent): RawIntent {

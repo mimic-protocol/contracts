@@ -440,10 +440,10 @@
     wrap-ansi "^8.1.0"
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
-"@mimicprotocol/sdk@^0.0.1-rc.1":
-  version "0.0.1-rc.1"
-  resolved "https://registry.yarnpkg.com/@mimicprotocol/sdk/-/sdk-0.0.1-rc.1.tgz#54188f507f50eb8a81a21b7e1288497aa36641c7"
-  integrity sha512-AwlfIBDkoqm+dNU4iHBfy/NyF0OqsIBV3u4Iy5/OGszX+LuUkRAUrL+uejBBe5BPWX4QHRyTmZw077mGe8lRyw==
+"@mimicprotocol/sdk@^0.0.1-rc.2":
+  version "0.0.1-rc.2"
+  resolved "https://registry.yarnpkg.com/@mimicprotocol/sdk/-/sdk-0.0.1-rc.2.tgz#2aec97ac4de9ca3c7480ab238befc486cdc7351e"
+  integrity sha512-5Nwo2ZDRI+WmayegUk1QbZhVqcDbFenYR8+kqFtNH1oFRcOgvBZ/sSaJHASSXbN80VkbaniuZ6eh2C83eH/8kA==
   dependencies:
     ethers "^6.13.5"
     zod "^3.23.8"

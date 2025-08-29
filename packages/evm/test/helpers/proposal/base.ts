@@ -1,13 +1,13 @@
 import {
   BigNumberish,
-  encodeProposal,
+  hashProposal as hashRawProposal,
   MAX_UINT256,
   Proposal as RawProposal,
   PROPOSAL_712_TYPE,
   SETTLER_EIP712_DOMAIN,
 } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
-import { Contract, keccak256 } from 'ethers'
+import { Contract } from 'ethers'
 import { network } from 'hardhat'
 
 import { Account, toAddress } from '../addresses'
@@ -44,7 +44,7 @@ export function createProposal(params?: Partial<Proposal>): Proposal {
 }
 
 export function hashProposal(proposal: Proposal, intent: Intent, solver: Account): string {
-  return keccak256(encodeProposal(toRawProposal(proposal, solver), hashIntent(intent)))
+  return hashRawProposal(toRawProposal(proposal, solver), hashIntent(intent))
 }
 
 export function toRawProposal(proposal: Proposal, solver: Account): RawProposal {
