@@ -114,9 +114,14 @@ interface ISettler {
     error SettlerRescueFundsRecipientZero();
 
     /**
+     * @dev Custom events emitted for each intent
+     */
+    event IntentExecuted(address indexed user, bytes32 indexed topic, bytes32 indexed intent, bytes data);
+
+    /**
      * @dev Emitted every time an intent is fulfilled
      */
-    event Executed(bytes32 indexed proposal, uint256 index);
+    event ProposalExecuted(bytes32 indexed proposal, uint256 index);
 
     /**
      * @dev Emitted every time tokens are withdrawn from the contract balance

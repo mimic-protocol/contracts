@@ -147,7 +147,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             else if (intent.op == OpType.Call) _executeCall(intent, proposal);
             else revert SettlerUnknownIntentType(uint8(intent.op));
 
-            emit Executed(proposal.hash(intent, _msgSender()), i);
+            _emitIntentEvents(intent);
+            emit ProposalExecuted(proposal.hash(intent, _msgSender()), i);
         }
     }
 
@@ -349,6 +350,18 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
 
         return swapIntent.sourceChain == block.chainid;
+    }
+
+    /**
+     * @dev Emits intent custom events
+     * @param intent Intent to emit the custom events for
+     */
+    function _emitIntentEvents(Intent memory intent) internal {
+        bytes32 hash = intent.hash();
+        for (uint256 i = 0; i < intent.events.length; i++) {
+            IntentEvent memory intentEvent = intent.events[i];
+            emit IntentExecuted(intent.user, hash, intentEvent.topic, intentEvent.data);
+        }
     }
 
     /**

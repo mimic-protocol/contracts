@@ -483,7 +483,7 @@ describe('Settler', () => {
                                         expect(executorEvents).to.have.lengthOf(1)
 
                                         const settlerEvents = await settler.queryFilter(
-                                          settler.filters.Executed(),
+                                          settler.filters.ProposalExecuted(),
                                           tx.blockNumber
                                         )
                                         expect(settlerEvents).to.have.lengthOf(1)
@@ -675,7 +675,7 @@ describe('Settler', () => {
                                   const tx = await settler.execute([{ intent, proposal, signature }])
 
                                   const settlerEvents = await settler.queryFilter(
-                                    settler.filters.Executed(),
+                                    settler.filters.ProposalExecuted(),
                                     tx.blockNumber
                                   )
                                   expect(settlerEvents).to.have.lengthOf(1)
@@ -766,7 +766,7 @@ describe('Settler', () => {
                                   const tx = await settler.execute([{ intent, proposal, signature }])
 
                                   const settlerEvents = await settler.queryFilter(
-                                    settler.filters.Executed(),
+                                    settler.filters.ProposalExecuted(),
                                     tx.blockNumber
                                   )
                                   expect(settlerEvents).to.have.lengthOf(1)
@@ -2205,7 +2205,7 @@ describe('Settler', () => {
           const targetEvents = await target.queryFilter(target.filters.CallReceived(), tx.blockNumber)
           expect(targetEvents).to.have.lengthOf(1)
 
-          const settlerEvents = await settler.queryFilter(settler.filters.Executed(), tx.blockNumber)
+          const settlerEvents = await settler.queryFilter(settler.filters.ProposalExecuted(), tx.blockNumber)
           expect(settlerEvents).to.have.lengthOf(3)
 
           const postBalanceWethUser = await balanceOf(weth, user)
@@ -2263,7 +2263,8 @@ describe('Settler', () => {
     let executor: ReentrantExecutorMock
 
     const MAX_FEE = 'tuple(address token,uint256 amount)'
-    const INTENT = `tuple(uint8 op,address settler,address user,bytes32 nonce,uint256 deadline,bytes data,${MAX_FEE}[] maxFees)`
+    const INTENT_EVENT = 'tuple(bytes32 topic,bytes data)'
+    const INTENT = `tuple(uint8 op,address settler,address user,bytes32 nonce,uint256 deadline,bytes data,${MAX_FEE}[] maxFees,${INTENT_EVENT}[] events)`
     const PROPOSAL = 'tuple(uint256 deadline,bytes data,uint256[] fees)'
     const EXECUTIONS = `tuple(${INTENT} intent,${PROPOSAL} proposal,bytes signature)[]`
 
