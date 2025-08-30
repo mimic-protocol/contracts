@@ -26,6 +26,10 @@ struct Execution {
     bytes signature;
 }
 
+struct Validation {
+    bytes32 intent;
+}
+
 /**
  * @dev General intent structure used to abstract over different intent types.
  * @param op The type of operation this intent represents.
@@ -44,6 +48,9 @@ struct Intent {
     uint256 deadline;
     bytes data;
     MaxFee[] maxFees;
+    bytes configSig;
+    uint256 minValidations;
+    bytes[] validations;
 }
 
 /**
@@ -163,11 +170,13 @@ struct SwapProposal {
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
         keccak256(
-            'Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data,MaxFee[] maxFees)MaxFee(address token,uint256 amount)'
+            'Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data,MaxFee[] maxFees,bytes configSig,uint256 minValidations)MaxFee(address token,uint256 amount)'
         );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
         keccak256('Proposal(bytes32 intent,address solver,uint256 deadline,bytes data,uint256[] fees)');
+
+    bytes32 internal constant VALIDATION_TYPE_HASH = keccak256('Validation(bytes32 intent)');
 
     bytes32 internal constant MAX_FEE_TYPE_HASH = keccak256('MaxFee(address token,uint256 amount)');
 
@@ -182,7 +191,9 @@ library IntentsHelpers {
                     intent.nonce,
                     intent.deadline,
                     keccak256(intent.data),
-                    hash(intent.maxFees)
+                    hash(intent.maxFees),
+                    intent.configSig,
+                    intent.minValidations
                 )
             );
     }
@@ -211,5 +222,9 @@ library IntentsHelpers {
 
     function hash(uint256[] memory fees) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(fees));
+    }
+
+    function hash(Validation memory validation) internal pure returns (bytes32) {
+        return keccak256(abi.encode(VALIDATION_TYPE_HASH, validation.intent));
     }
 }
