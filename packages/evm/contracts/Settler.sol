@@ -39,6 +39,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
+    using IntentsHelpers for Validation;
 
     // Mimic controller reference
     // solhint-disable-next-line immutable-vars-naming
@@ -256,6 +257,20 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             uint256 maxFee = intent.maxFees[i].amount;
             uint256 proposalFee = proposal.fees[i];
             if (proposalFee > maxFee) revert SettlerSolverFeeTooHigh(proposalFee, maxFee);
+        }
+
+        uint8 minimumValidations = IController(controller).minimumValidations();
+        if (intent.minValidations < minimumValidations) {
+            revert SettlerIntentMinValidationsNotEnough(minimumValidations, intent.minValidations);
+        }
+        if (intent.validations.length < intent.minValidations) {
+            revert SettlerIntentValidationsNotEnough(intent.minValidations, intent.validations.length);
+        }
+        for (uint256 i = 0; i < intent.validations.length; i++) {
+            Validation memory validation = Validation(intent.hash());
+            address validator = ECDSA.recover(_hashTypedDataV4(validation.hash()), intent.validations[i]);
+            bool isValidatorNotAllowed = !IController(controller).isValidatorAllowed(validator);
+            if (isValidatorNotAllowed) revert SettlerValidatorNotAllowed(validator);
         }
 
         address signer = ECDSA.recover(_hashTypedDataV4(proposal.hash(intent, _msgSender())), signature);

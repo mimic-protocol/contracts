@@ -35,6 +35,10 @@ contract Controller is IController, Ownable {
     // List of allowed validators
     mapping (address => bool) public override isValidatorAllowed;
 
+    // Minimum number of validations allowed
+    // solhint-disable-next-line immutable-vars-naming
+    uint8 public immutable override minimumValidations;
+
     /**
      * @dev Creates a new Controller contract
      * @param owner Address that will own the contract
@@ -42,18 +46,21 @@ contract Controller is IController, Ownable {
      * @param executors List of allowed executors
      * @param proposalSigners List of allowed proposal signers
      * @param validators List of allowed validators
+     * @param _minimumValidations Minimum number of validations allowed
      */
     constructor(
         address owner,
         address[] memory solvers,
         address[] memory executors,
         address[] memory proposalSigners,
-        address[] memory validators
+        address[] memory validators,
+        uint8 _minimumValidations
     ) Ownable(owner) {
         for (uint256 i = 0; i < solvers.length; i++) _setAllowedSolver(solvers[i], true);
         for (uint256 i = 0; i < executors.length; i++) _setAllowedExecutor(executors[i], true);
         for (uint256 i = 0; i < proposalSigners.length; i++) _setAllowedProposalSigner(proposalSigners[i], true);
         for (uint256 i = 0; i < validators.length; i++) _setAllowedValidator(validators[i], true);
+        minimumValidations = _minimumValidations;
     }
 
     /**

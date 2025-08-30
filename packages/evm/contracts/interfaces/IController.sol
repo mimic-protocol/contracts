@@ -56,6 +56,11 @@ interface IController {
     function isValidatorAllowed(address validator) external view returns (bool);
 
     /**
+     * @dev Tells the minimum number of validations allowed
+     */
+    function minimumValidations() external view returns (uint8);
+
+    /**
      * @dev Sets permissions for multiple solvers
      * @param solvers List of solver addresses
      * @param alloweds List of permission statuses
