@@ -16,6 +16,7 @@ describe('Controller', () => {
   const allowedSolvers = [randomAddress(), randomAddress()]
   const allowedExecutors = [randomAddress(), randomAddress(), randomAddress()]
   const allowedProposalSigners = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
+  const allowedValidators = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
 
   beforeEach('deploy controller', async () => {
     // eslint-disable-next-line prettier/prettier
@@ -25,6 +26,7 @@ describe('Controller', () => {
       allowedSolvers,
       allowedExecutors,
       allowedProposalSigners,
+      allowedValidators,
     ])
   })
 
@@ -65,6 +67,16 @@ describe('Controller', () => {
 
       for (const address of allowedSolvers.concat(allowedExecutors)) {
         expect(await controller.isProposalSignerAllowed(address)).to.be.false
+      }
+    })
+
+    it('initializes allowed validators properly', async () => {
+      for (const address of allowedValidators) {
+        expect(await controller.isValidatorAllowed(address)).to.be.true
+      }
+
+      for (const address of allowedSolvers.concat(allowedProposalSigners)) {
+        expect(await controller.isValidatorAllowed(address)).to.be.false
       }
     })
   })
@@ -153,5 +165,9 @@ describe('Controller', () => {
 
   describe('setAllowedProposalSigners', () => {
     itHandlesControllerConfigProperly('proposalSigner')
+  })
+
+  describe('setAllowedValidators', () => {
+    itHandlesControllerConfigProperly('validator')
   })
 })
