@@ -1,6 +1,6 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
-import { AbiCoder, getBytes, Wallet } from 'ethers'
+import { AbiCoder, getBytes, HDNodeWallet, Wallet } from 'ethers'
 import { network } from 'hardhat'
 
 import {
@@ -41,7 +41,9 @@ import {
   Proposal,
   randomAddress,
   randomHex,
+  randomSig,
   shuffle,
+  signIntentHash,
   signProposal,
   SwapIntent,
   SwapProposal,
@@ -64,7 +66,7 @@ describe('Settler', () => {
   beforeEach('deploy settler', async () => {
     // eslint-disable-next-line prettier/prettier
     [, admin, owner, user, other, solver] = await ethers.getSigners()
-    controller = await ethers.deployContract('Controller', [admin, [], [], [], []])
+    controller = await ethers.deployContract('Controller', [admin, [], [], [], [], 0])
     settler = await ethers.deployContract('Settler', [controller, owner])
   })
 
@@ -252,7 +254,7 @@ describe('Settler', () => {
       const intentParams: Partial<Intent> = {}
       const proposalParams: Partial<Proposal> = {}
 
-      const itReverts = (reason: string) => {
+      const itReverts = (reason: string, validators?: HDNodeWallet[]) => {
         context('when there is one execution', () => {
           it('reverts', async () => {
             const intent = createIntent(intentParams)
@@ -271,8 +273,15 @@ describe('Settler', () => {
 
             const executor = await ethers.deployContract('EmptyExecutorMock')
             for (let i = 0; i < 5; i++) {
-              const intent = createSwapIntent({ settler })
-              const proposal = createSwapProposal({ executor })
+              const uniqueIntent = { ...intentParams }
+              if (validators) {
+                uniqueIntent.nonce = randomHex(32)
+                uniqueIntent.validations = await Promise.all(
+                  validators.map(async (v) => signIntentHash(settler, hashIntent(uniqueIntent), v))
+                )
+              }
+              const intent = createSwapIntent(uniqueIntent)
+              const proposal = createSwapProposal({ executor, ...proposalParams })
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               executions.push({ intent, proposal, signature })
             }
@@ -398,6 +407,88 @@ describe('Settler', () => {
                         proposalParams.fees = [feeAmount]
                       })
 
+                      describe.skip('test minimum validations', () => {
+                        beforeEach('setup', async () => {
+                          controller = await ethers.deployContract('Controller', [admin, [solver], [], [], [], 2])
+                          settler = await ethers.deployContract('Settler', [controller, owner])
+                          settler = settler.connect(solver)
+                          intentParams.settler = settler
+                          await feeToken.mint(user, feeAmount * BigInt(10))
+                          await feeToken.connect(user).approve(settler, feeAmount * BigInt(10))
+                        })
+
+                        context(
+                          'when the intent minimum validations is higher or equal than the controller minimum validations',
+                          () => {
+                            beforeEach('set intent min validations', async () => {
+                              intentParams.minValidations = 2
+                            })
+
+                            context('when the intent validations are more or equal than the min validations', () => {
+                              const validator1 = Wallet.createRandom()
+                              const validator2 = Wallet.createRandom()
+
+                              context('when the validators are allowed', () => {
+                                beforeEach('allow validators', async () => {
+                                  await controller
+                                    .connect(admin)
+                                    .setAllowedValidators([validator1.address, validator2.address], [true, true])
+                                })
+
+                                beforeEach('set intent validations', async () => {
+                                  const futureIntent = createSwapIntent(intentParams)
+                                  intentParams.op = futureIntent.op
+                                  intentParams.configSig = randomSig()
+                                  intentParams.data = futureIntent.data
+                                  const intentHash = hashIntent(intentParams)
+                                  const validation1 = await signIntentHash(settler, intentHash, validator1)
+                                  const validation2 = await signIntentHash(settler, intentHash, validator2)
+                                  intentParams.validations = [validation1, validation2]
+                                })
+
+                                // continue happy path...
+                                // eslint-disable-next-line no-secrets/no-secrets
+                                itReverts('ECDSAInvalidSignatureLength', [validator1, validator2])
+                              })
+
+                              context('when the validators are not allowed', () => {
+                                beforeEach('set intent validations', async () => {
+                                  intentParams.op = OpType.Transfer
+                                  intentParams.configSig = randomSig()
+                                  intentParams.data = '0x'
+                                  const intentHash = hashIntent(intentParams)
+                                  const validation1 = await signIntentHash(settler, intentHash, validator1)
+                                  const validation2 = await signIntentHash(settler, intentHash, validator2)
+                                  intentParams.validations = [validation1, validation2]
+                                })
+
+                                itReverts('SettlerValidatorNotAllowed')
+                              })
+                            })
+
+                            context('when the intent validations are less than the min validations', () => {
+                              beforeEach('set intent validations', async () => {
+                                intentParams.validations = [randomSig()]
+                              })
+
+                              itReverts('SettlerIntentValidationsNotEnough')
+                            })
+                          }
+                        )
+
+                        context(
+                          'when the intent minimum validations is lower than the controller minimum validations',
+                          () => {
+                            beforeEach('set intent min validations', async () => {
+                              intentParams.minValidations = 1
+                            })
+
+                            itReverts('SettlerIntentMinValidationsNotEnough')
+                          }
+                        )
+                      })
+
+                      // todo move from here...
                       context('when the proposal has been signed properly', () => {
                         beforeEach('allow proposal signer', async () => {
                           await controller.connect(admin).setAllowedProposalSigners([admin], [true])
@@ -821,6 +912,7 @@ describe('Settler', () => {
                           ).to.be.revertedWithCustomError(settler, 'SettlerProposalSignerNotAllowed')
                         })
                       })
+                      // todo ...to here
                     })
 
                     context('when the proposal fee is greater than the intent max fee', () => {
@@ -2263,7 +2355,7 @@ describe('Settler', () => {
     let executor: ReentrantExecutorMock
 
     const MAX_FEE = 'tuple(address token,uint256 amount)'
-    const INTENT = `tuple(uint8 op,address settler,address user,bytes32 nonce,uint256 deadline,bytes data,${MAX_FEE}[] maxFees)`
+    const INTENT = `tuple(uint8 op,address settler,address user,bytes32 nonce,uint256 deadline,bytes data,${MAX_FEE}[] maxFees,bytes configSig,uint256 minValidations,bytes[] validations)`
     const PROPOSAL = 'tuple(uint256 deadline,bytes data,uint256[] fees)'
     const EXECUTIONS = `tuple(${INTENT} intent,${PROPOSAL} proposal,bytes signature)[]`
 

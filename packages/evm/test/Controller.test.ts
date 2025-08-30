@@ -17,6 +17,7 @@ describe('Controller', () => {
   const allowedExecutors = [randomAddress(), randomAddress(), randomAddress()]
   const allowedProposalSigners = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
   const allowedValidators = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
+  const minimumValidations = 2
 
   beforeEach('deploy controller', async () => {
     // eslint-disable-next-line prettier/prettier
@@ -27,6 +28,7 @@ describe('Controller', () => {
       allowedExecutors,
       allowedProposalSigners,
       allowedValidators,
+      minimumValidations,
     ])
   })
 
@@ -78,6 +80,10 @@ describe('Controller', () => {
       for (const address of allowedSolvers.concat(allowedProposalSigners)) {
         expect(await controller.isValidatorAllowed(address)).to.be.false
       }
+    })
+
+    it('initializes minimum validations properly', async () => {
+      expect(await controller.minimumValidations()).to.be.equal(minimumValidations)
     })
   })
 
