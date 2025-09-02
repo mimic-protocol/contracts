@@ -37,7 +37,7 @@ struct Execution {
  * @param maxFees List of max fees the user is willing to pay for the intent.
  */
 struct Intent {
-    OpType op;
+    uint8 op;
     address user;
     address settler;
     bytes32 nonce;
