@@ -147,7 +147,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             else if (intent.op == OpType.Call) _executeCall(intent, proposal);
             else revert SettlerUnknownIntentType(uint8(intent.op));
 
-            _emitIntentEvents(intent);
             emit ProposalExecuted(proposal.hash(intent, _msgSender()), i);
         }
     }
@@ -174,17 +173,23 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         IExecutor(swapProposal.executor).execute(intent, proposal);
 
         if (swapIntent.destinationChain == block.chainid) {
+            uint256[] memory outputs = new uint256[](swapIntent.tokensOut.length);
             for (uint256 i = 0; i < swapIntent.tokensOut.length; i++) {
                 TokenOut memory tokenOut = swapIntent.tokensOut[i];
                 uint256 postBalanceOut = ERC20Helpers.balanceOf(tokenOut.token, address(this));
                 uint256 preBalanceOut = preBalancesOut[i];
                 if (postBalanceOut < preBalanceOut) revert SettlerPostBalanceOutLtPre(i, postBalanceOut, preBalanceOut);
 
-                uint256 amountOut = postBalanceOut - preBalanceOut;
+                outputs[i] = postBalanceOut - preBalanceOut;
                 uint256 proposedAmount = swapProposal.amountsOut[i];
-                if (amountOut < proposedAmount) revert SettlerAmountOutLtProposed(i, amountOut, proposedAmount);
+                if (outputs[i] < proposedAmount) revert SettlerAmountOutLtProposed(i, outputs[i], proposedAmount);
 
-                ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, amountOut);
+                ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, outputs[i]);
+            }
+
+            for (uint256 i = 0; i < intent.events.length; i++) {
+                IntentEvent memory intentEvent = intent.events[i];
+                emit SwapIntentExecuted(intent.user, intentEvent.topic, intent, outputs, intentEvent.data);
             }
 
             _payFees(intent, proposal, isSmartAccount);
@@ -207,6 +212,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
+        for (uint256 i = 0; i < intent.events.length; i++) {
+            IntentEvent memory intentEvent = intent.events[i];
+            emit TransferIntentExecuted(intent.user, intentEvent.topic, intent, intentEvent.data);
+        }
+
         _payFees(intent, proposal, isSmartAccount);
     }
 
@@ -220,10 +230,16 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateCallIntent(callIntent, proposal, intent.user);
 
         ISmartAccount smartAccount = ISmartAccount(intent.user);
+        bytes[] memory outputs = new bytes[](callIntent.calls.length);
         for (uint256 i = 0; i < callIntent.calls.length; i++) {
             CallData memory call = callIntent.calls[i];
             // solhint-disable-next-line avoid-low-level-calls
-            smartAccount.call(call.target, call.data, call.value);
+            outputs[i] = smartAccount.call(call.target, call.data, call.value);
+        }
+
+        for (uint256 i = 0; i < intent.events.length; i++) {
+            IntentEvent memory intentEvent = intent.events[i];
+            emit CallIntentExecuted(intent.user, intentEvent.topic, intent, outputs, intentEvent.data);
         }
 
         _payFees(intent, proposal, true);
@@ -350,18 +366,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
 
         return swapIntent.sourceChain == block.chainid;
-    }
-
-    /**
-     * @dev Emits intent custom events
-     * @param intent Intent to emit the custom events for
-     */
-    function _emitIntentEvents(Intent memory intent) internal {
-        bytes32 hash = intent.hash();
-        for (uint256 i = 0; i < intent.events.length; i++) {
-            IntentEvent memory intentEvent = intent.events[i];
-            emit IntentExecuted(intent.user, hash, intentEvent.topic, intentEvent.data);
-        }
     }
 
     /**
