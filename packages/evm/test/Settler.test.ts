@@ -169,7 +169,7 @@ describe('Settler', () => {
             const events = await settler.queryFilter(settler.filters.FundsRescued(), tx.blockNumber)
             expect(events).to.have.lengthOf(1)
 
-            expect(events[0].args.token).to.be.equal(toAddress(token))
+            expect(events[0].args.token).to.be.equal(token)
             expect(events[0].args.amount).to.be.equal(amount)
             expect(events[0].args.recipient).to.be.equal(recipient)
           })
@@ -1073,6 +1073,9 @@ describe('Settler', () => {
                 const minAmountOut = fp(1) // WETH
 
                 const _itExecutesTheIntent = (amountIn: BigNumberish) => {
+                  const eventTopic = randomHex(32)
+                  const eventData = randomHex(120)
+
                   beforeEach('create intent', async () => {
                     intent = createSwapIntent({
                       settler,
@@ -1081,6 +1084,7 @@ describe('Settler', () => {
                       destinationChain,
                       tokensIn: { token: tokenIn, amount: amountIn },
                       tokensOut: { token: tokenOut, minAmount: minAmountOut, recipient },
+                      events: [{ topic: eventTopic, data: eventData }],
                     })
                   })
 
@@ -1101,6 +1105,25 @@ describe('Settler', () => {
 
                     const postBalanceOut = await balanceOf(tokenOut, recipient)
                     expect(postBalanceOut - preBalanceOut).to.be.eq(minAmountOut)
+                  })
+
+                  it('logs the intent events correctly', async () => {
+                    const data = AbiCoder.defaultAbiCoder().encode(
+                      ['address[]', 'uint256[]'],
+                      [[toAddress(tokenOut)], [minAmountOut]]
+                    )
+                    const proposal = createSwapProposal({ executor, data, amountsOut: minAmountOut })
+                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+                    const tx = await settler.execute([{ intent, proposal, signature }])
+
+                    const events = await settler.queryFilter(settler.filters.SwapIntentExecuted(), tx.blockNumber)
+                    expect(events).to.have.lengthOf(1)
+
+                    expect(events[0].args.user).to.be.equal(intent.user)
+                    expect(events[0].args.topic).to.be.equal(eventTopic)
+                    expect(events[0].args.intent).to.not.be.undefined
+                    expect(events[0].args.outputs).to.not.be.undefined
+                    expect(events[0].args.data).to.be.equal(eventData)
                   })
                 }
 
@@ -1582,12 +1605,16 @@ describe('Settler', () => {
             const amount = fp(1)
 
             const itExecutesTheIntent = (feeAmount: BigNumberish) => {
+              const eventTopic = randomHex(32)
+              const eventData = randomHex(120)
+
               beforeEach('create intent', async () => {
                 intent = createTransferIntent({
                   settler,
                   user: toAddress(from),
                   transfers: [{ token, amount, recipient }],
                   maxFees: [{ token: feeToken, amount: feeAmount }],
+                  events: [{ topic: eventTopic, data: eventData }],
                 })
               })
 
@@ -1621,6 +1648,20 @@ describe('Settler', () => {
                 } else if (feeToken !== USD_ADDRESS) {
                   expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
                 }
+              })
+
+              it('logs the intent events correctly', async () => {
+                const proposal = createTransferProposal({ fees: [feeAmount] })
+                const signature = await signProposal(settler, intent, solver, proposal, admin)
+                const tx = await settler.execute([{ intent, proposal, signature }])
+
+                const events = await settler.queryFilter(settler.filters.TransferIntentExecuted(), tx.blockNumber)
+                expect(events).to.have.lengthOf(1)
+
+                expect(events[0].args.user).to.be.equal(intent.user)
+                expect(events[0].args.topic).to.be.equal(eventTopic)
+                expect(events[0].args.intent).to.not.be.undefined
+                expect(events[0].args.data).to.be.equal(eventData)
               })
             }
 
@@ -1870,12 +1911,16 @@ describe('Settler', () => {
                 })
 
                 const itExecutesTheIntentWithValue = (value: BigNumberish) => {
+                  const eventTopic = randomHex(32)
+                  const eventData = randomHex(120)
+
                   beforeEach('create intent', async () => {
                     intent = createCallIntent({
                       settler,
                       user,
                       maxFees: [{ token: feeToken, amount: feeAmount }],
                       calls: [{ target: target, data, value }],
+                      events: [{ topic: eventTopic, data: eventData }],
                     })
                   })
 
@@ -1902,6 +1947,21 @@ describe('Settler', () => {
 
                     const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
                     expect(postTargetBalance - preTargetBalance).to.be.eq(value)
+                  })
+
+                  it('logs the intent events correctly', async () => {
+                    const proposal = createCallProposal({ fees: [feeAmount] })
+                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+                    const tx = await settler.execute([{ intent, proposal, signature }])
+
+                    const events = await settler.queryFilter(settler.filters.CallIntentExecuted(), tx.blockNumber)
+                    expect(events).to.have.lengthOf(1)
+
+                    expect(events[0].args.user).to.be.equal(intent.user)
+                    expect(events[0].args.topic).to.be.equal(eventTopic)
+                    expect(events[0].args.intent).to.not.be.undefined
+                    expect(events[0].args.outputs).to.not.be.undefined
+                    expect(events[0].args.data).to.be.equal(eventData)
                   })
                 }
 
