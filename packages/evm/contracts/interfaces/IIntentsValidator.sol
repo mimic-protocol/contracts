@@ -21,11 +21,4 @@ interface IIntentsValidator {
      * @param safeguards Safeguards to validate the intent with
      */
     function validate(Intent memory intent, Safeguard[] memory safeguards) external pure;
-
-    /**
-     * @dev Validates an intent for a safeguard
-     * @param intent Intent to be validated
-     * @param safeguard Safeguard to validate the intent with
-     */
-    function validate(Intent memory intent, Safeguard memory safeguard) external pure;
 }
