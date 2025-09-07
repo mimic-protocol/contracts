@@ -6,9 +6,12 @@ import { IntentsValidator } from '../../types/ethers-contracts/index.js'
 import {
   CallSafeguardMode,
   createCallIntent,
+  createDeniedAccountSafeguard,
+  createDeniedChainSafeguard,
+  createDeniedSelectorSafeguard,
   createOnlyAccountSafeguard,
   createOnlyChainSafeguard,
-  createOnlyMethodSafeguard,
+  createOnlySelectorSafeguard,
   createSafeguardNone,
   createSwapIntent,
   createTransferIntent,
@@ -59,6 +62,17 @@ describe('IntentsValidator', () => {
       })
 
       context('when the source chain is denied', () => {
+        const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
+
+        it('reverts with IntentsValidatorSwapSourceChainNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorSwapSourceChainNotAllowed'
+          )
+        })
+      })
+
+      context('when the source chain is not allowed', () => {
         const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_OTHER)
 
         it('reverts with IntentsValidatorSwapSourceChainNotAllowed', async () => {
@@ -73,7 +87,7 @@ describe('IntentsValidator', () => {
     context('DestinationChain', () => {
       const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
 
-      context('when the destination chain is not denied', () => {
+      context('when the destination chain is allowed', () => {
         const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
 
         it('passes', async () => {
@@ -82,6 +96,17 @@ describe('IntentsValidator', () => {
       })
 
       context('when the destination chain is denied', () => {
+        const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
+
+        it('reverts with IntentsValidatorSwapDestinationChainNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorSwapDestinationChainNotAllowed'
+          )
+        })
+      })
+
+      context('when the destination chain is not allowed', () => {
         const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_OTHER)
 
         it('reverts with IntentsValidatorSwapDestinationChainNotAllowed', async () => {
@@ -96,16 +121,27 @@ describe('IntentsValidator', () => {
     context('TokenIn', () => {
       const intent = createSwapIntent({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
 
-      context('when the token in is not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2) // deny t2, but we use t1
+      context('when the token in is allowed', () => {
+        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
 
         it('passes', async () => {
           await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
         })
       })
 
-      context('when a token in is denied', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, [token2])
+      context('when the token in is denied', () => {
+        const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
+
+        it('reverts with IntentsValidatorSwapTokenInNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorSwapTokenInNotAllowed'
+          )
+        })
+      })
+
+      context('when a token in is not allowed', () => {
+        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2)
 
         it('reverts with IntentsValidatorSwapTokenInNotAllowed', async () => {
           await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
@@ -119,8 +155,8 @@ describe('IntentsValidator', () => {
     context('TokenOut', () => {
       const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
 
-      context('when the token out is not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token2)
+      context('when the token out is allowed', () => {
+        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
 
         it('passes', async () => {
           await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
@@ -128,7 +164,18 @@ describe('IntentsValidator', () => {
       })
 
       context('when a token out is denied', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, [token2])
+        const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
+
+        it('reverts with IntentsValidatorSwapTokenOutNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorSwapTokenOutNotAllowed'
+          )
+        })
+      })
+
+      context('when a token out is not allowed', () => {
+        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token2)
 
         it('reverts with IntentsValidatorSwapTokenOutNotAllowed', async () => {
           await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
@@ -142,8 +189,8 @@ describe('IntentsValidator', () => {
     context('Recipient', () => {
       const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
 
-      context('when the recipient is not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account2) // deny a2
+      context('when the recipient is allowed', () => {
+        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account1)
 
         it('passes', async () => {
           await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
@@ -151,7 +198,18 @@ describe('IntentsValidator', () => {
       })
 
       context('when a recipient is denied', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, [account2])
+        const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.Recipient, account1)
+
+        it('reverts with IntentsValidatorSwapRecipientNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorSwapRecipientNotAllowed'
+          )
+        })
+      })
+
+      context('when a recipient is not allowed', () => {
+        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account2)
 
         it('reverts with IntentsValidatorSwapRecipientNotAllowed', async () => {
           await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
@@ -188,6 +246,17 @@ describe('IntentsValidator', () => {
       })
 
       context('when the chain is denied', () => {
+        const safeguard = createDeniedChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
+
+        it('reverts with IntentsValidatorTransferChainNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorTransferChainNotAllowed'
+          )
+        })
+      })
+
+      context('when the chain is not allowed', () => {
         const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_OTHER)
 
         it('reverts with IntentsValidatorTransferChainNotAllowed', async () => {
@@ -203,7 +272,7 @@ describe('IntentsValidator', () => {
       const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
 
       context('when all tokens are not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token2)
+        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token1)
 
         it('passes', async () => {
           await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
@@ -211,6 +280,17 @@ describe('IntentsValidator', () => {
       })
 
       context('when a token is denied', () => {
+        const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Token, token1)
+
+        it('reverts with IntentsValidatorTransferTokenNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorTransferTokenNotAllowed'
+          )
+        })
+      })
+
+      context('when a token is not allowed', () => {
         const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token2)
 
         it('reverts with IntentsValidatorTransferTokenNotAllowed', async () => {
@@ -225,15 +305,26 @@ describe('IntentsValidator', () => {
     context('Recipient', () => {
       const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
 
-      context('when all recipients are not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account2)
+      context('when the recipient is allowed', () => {
+        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account1)
 
         it('passes', async () => {
           await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
         })
       })
 
-      context('when a recipient is denied', () => {
+      context('when the recipient is denied', () => {
+        const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Recipient, account1)
+
+        it('reverts with IntentsValidatorTransferRecipientNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorTransferRecipientNotAllowed'
+          )
+        })
+      })
+
+      context('when the recipient is not allowed', () => {
         const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account2)
 
         it('reverts with IntentsValidatorTransferRecipientNotAllowed', async () => {
@@ -274,6 +365,17 @@ describe('IntentsValidator', () => {
       })
 
       context('when the chain is denied', () => {
+        const safeguard = createDeniedChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+
+        it('reverts with IntentsValidatorCallChainNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorCallChainNotAllowed'
+          )
+        })
+      })
+
+      context('when the chain is not allowed', () => {
         const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_OTHER)
 
         it('reverts with IntentsValidatorCallChainNotAllowed', async () => {
@@ -289,14 +391,25 @@ describe('IntentsValidator', () => {
       const intent = createCallIntent({ calls: [{ target: target1, data: '0x', value: 0 }] })
 
       context('when all targets are not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target2)
+        const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
 
         it('passes', async () => {
           await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
         })
       })
 
-      context('when a target is denied', () => {
+      context('when the target is denied', () => {
+        const safeguard = createDeniedAccountSafeguard(CallSafeguardMode.Target, target1)
+
+        it('reverts with IntentsValidatorCallTargetNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorCallTargetNotAllowed'
+          )
+        })
+      })
+
+      context('when the target is not allowed', () => {
         const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target2)
 
         it('reverts with IntentsValidatorCallTargetNotAllowed', async () => {
@@ -308,25 +421,36 @@ describe('IntentsValidator', () => {
       })
     })
 
-    context('Method', () => {
+    context('Selector', () => {
       const selector = '0xa9059cbb'
       const intent = createCallIntent({ calls: [{ target: target1, data: selector, value: 0 }] })
 
-      context('when all methods are not denied', () => {
-        const safeguard = createOnlyMethodSafeguard(selector)
+      context('when the selector is allowed', () => {
+        const safeguard = createOnlySelectorSafeguard(selector)
 
         it('passes', async () => {
           await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
         })
       })
 
-      context('when a method is denied', () => {
-        const safeguard = createOnlyMethodSafeguard(randomHex(4))
+      context('when the selector is denied', () => {
+        const safeguard = createDeniedSelectorSafeguard(selector)
 
-        it('reverts with IntentsValidatorCallMethodNotAllowed', async () => {
+        it('reverts with IntentsValidatorCallSelectorNotAllowed', async () => {
           await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorCallMethodNotAllowed'
+            'IntentsValidatorCallSelectorNotAllowed'
+          )
+        })
+      })
+
+      context('when the selector is not allowed', () => {
+        const safeguard = createOnlySelectorSafeguard(randomHex(4))
+
+        it('reverts with IntentsValidatorCallSelectorNotAllowed', async () => {
+          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorCallSelectorNotAllowed'
           )
         })
       })

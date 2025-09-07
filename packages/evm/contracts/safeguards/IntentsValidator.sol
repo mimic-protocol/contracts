@@ -29,6 +29,7 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
      * @param safeguard Safeguard to validate the intent with
      */
     function validate(Intent memory intent, Safeguard memory safeguard) internal pure {
+        if (safeguard.mode == uint8(0)) _validateNone();
         if (intent.op == uint8(OpType.Swap)) _validateSwap(intent, safeguard);
         else if (intent.op == uint8(OpType.Transfer)) _validateTransfer(intent, safeguard);
         else if (intent.op == uint8(OpType.Call)) _validateCall(intent, safeguard);

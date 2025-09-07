@@ -46,8 +46,6 @@ contract TransferIntentsValidator is BaseIntentsValidator {
      * @param safeguard Safeguard to validate the intent with
      */
     function _validateTransfer(Intent memory intent, Safeguard memory safeguard) internal pure {
-        if (safeguard.mode == uint8(TransferSafeguardMode.None)) _validateNone();
-
         TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
         if (safeguard.mode == uint8(TransferSafeguardMode.Chain))
             _validateTransferChain(transferIntent.chainId, safeguard.config);

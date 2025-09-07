@@ -11,13 +11,13 @@ import '../Intents.sol';
  * @param None To ensure no calls are allowed
  * @param Chain To validate that the chain where calls execute is allowed
  * @param Target To validate that the call targets (contract addresses) are allowed
- * @param Method To validate that the function selectors being called are allowed
+ * @param Selector To validate that the function selectors being called are allowed
  */
 enum CallSafeguardMode {
     None,
     Chain,
     Target,
-    Method
+    Selector
 }
 
 /**
@@ -38,7 +38,7 @@ contract CallIntentsValidator is BaseIntentsValidator {
     /**
      * @dev Call intent function selector is not allowed
      */
-    error IntentsValidatorCallMethodNotAllowed(bytes4 selector);
+    error IntentsValidatorCallSelectorNotAllowed(bytes4 selector);
 
     /**
      * @dev Call intent ETH value is not allowed
@@ -51,14 +51,12 @@ contract CallIntentsValidator is BaseIntentsValidator {
      * @param safeguard Safeguard to validate the intent with
      */
     function _validateCall(Intent memory intent, Safeguard memory safeguard) internal pure {
-        if (safeguard.mode == uint8(CallSafeguardMode.None)) _validateNone();
-
         CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
         if (safeguard.mode == uint8(CallSafeguardMode.Chain)) _validateCallChain(callIntent.chainId, safeguard.config);
         else if (safeguard.mode == uint8(CallSafeguardMode.Target))
             _validateCallTargets(callIntent.calls, safeguard.config);
-        else if (safeguard.mode == uint8(CallSafeguardMode.Method))
-            _validateCallMethods(callIntent.calls, safeguard.config);
+        else if (safeguard.mode == uint8(CallSafeguardMode.Selector))
+            _validateCallSelectors(callIntent.calls, safeguard.config);
         else revert IntentsValidatorInvalidMode(safeguard.mode);
     }
 
@@ -82,10 +80,10 @@ contract CallIntentsValidator is BaseIntentsValidator {
     /**
      * @dev Validates that the function selectors are allowed
      */
-    function _validateCallMethods(CallData[] memory calls, bytes memory config) private pure {
+    function _validateCallSelectors(CallData[] memory calls, bytes memory config) private pure {
         for (uint256 i = 0; i < calls.length; i++) {
             bytes4 selector = bytes4(calls[i].data);
-            if (!_isSelectorAllowed(selector, config)) revert IntentsValidatorCallMethodNotAllowed(selector);
+            if (!_isSelectorAllowed(selector, config)) revert IntentsValidatorCallSelectorNotAllowed(selector);
         }
     }
 }

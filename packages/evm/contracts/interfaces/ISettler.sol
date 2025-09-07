@@ -211,7 +211,7 @@ interface ISettler {
     function appendSafeguards(Safeguard[] memory safeguards) external;
 
     /**
-     * @notice Clear all safeguards set for your address.
+     * @dev Clear all safeguards set for your address.
      */
     function clearSafeguards() external;
 

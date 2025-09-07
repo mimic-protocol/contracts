@@ -36,7 +36,7 @@ import {
   createCallIntent,
   createCallProposal,
   createIntent,
-  createOnlyMethodSafeguard,
+  createOnlySelectorSafeguard,
   createProposal,
   createSafeguard,
   createSafeguardNone,
@@ -296,7 +296,7 @@ describe('Settler', () => {
     })
 
     context('when the provided list does not exceed the maximum', () => {
-      const newSafeguards = [createSafeguardNone(), createOnlyMethodSafeguard(randomHex(4))]
+      const newSafeguards = [createSafeguardNone(), createOnlySelectorSafeguard(randomHex(4))]
 
       context('when the user had no safeguards', () => {
         it('sets the provided list and emits appended events only', async () => {
@@ -305,7 +305,7 @@ describe('Settler', () => {
           const safeguards = await settler.getUserSafeguards(user)
           expect(safeguards).to.have.lengthOf(2)
           expect(safeguards[0].mode).to.equal(CallSafeguardMode.None)
-          expect(safeguards[1].mode).to.equal(CallSafeguardMode.Method)
+          expect(safeguards[1].mode).to.equal(CallSafeguardMode.Selector)
 
           const clearedEvents = await settler.queryFilter(settler.filters.SafeguardsCleared(), tx.blockNumber)
           expect(clearedEvents).to.be.empty
@@ -328,7 +328,7 @@ describe('Settler', () => {
           const safeguards = await settler.getUserSafeguards(user)
           expect(safeguards).to.have.lengthOf(2)
           expect(safeguards[0].mode).to.equal(CallSafeguardMode.None)
-          expect(safeguards[1].mode).to.equal(CallSafeguardMode.Method)
+          expect(safeguards[1].mode).to.equal(CallSafeguardMode.Selector)
 
           const clearedEvents = await settler.queryFilter(settler.filters.SafeguardsCleared(), tx.blockNumber)
           expect(clearedEvents).to.have.lengthOf(1)
@@ -355,7 +355,7 @@ describe('Settler', () => {
   })
 
   describe('appendSafeguards', () => {
-    const newSafeguards = [createSafeguardNone(), createOnlyMethodSafeguard(randomHex(4))]
+    const newSafeguards = [createSafeguardNone(), createOnlySelectorSafeguard(randomHex(4))]
 
     beforeEach('set sender', () => {
       settler = settler.connect(user)
@@ -368,7 +368,7 @@ describe('Settler', () => {
         const safeguards = await settler.getUserSafeguards(user)
         expect(safeguards).to.have.lengthOf(2)
         expect(safeguards[0].mode).to.equal(CallSafeguardMode.None)
-        expect(safeguards[1].mode).to.equal(CallSafeguardMode.Method)
+        expect(safeguards[1].mode).to.equal(CallSafeguardMode.Selector)
 
         const events = await settler.queryFilter(settler.filters.SafeguardAppended(), tx.blockNumber)
         expect(events).to.have.lengthOf(2)
@@ -392,7 +392,7 @@ describe('Settler', () => {
           expect(safeguards).to.have.lengthOf(3)
           expect(safeguards[0].mode).to.equal(existingSafeguard.mode)
           expect(safeguards[1].mode).to.equal(CallSafeguardMode.None)
-          expect(safeguards[2].mode).to.equal(CallSafeguardMode.Method)
+          expect(safeguards[2].mode).to.equal(CallSafeguardMode.Selector)
 
           const events = await settler.queryFilter(settler.filters.SafeguardAppended(), tx.blockNumber)
           expect(events).to.have.lengthOf(2)

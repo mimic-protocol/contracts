@@ -457,7 +457,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < safeguards.length; i++) {
             list.push(safeguards[i]);
-            emit SafeguardAppended(msg.sender, safeguards[i]);
+            emit SafeguardAppended(user, safeguards[i]);
         }
     }
 

@@ -60,8 +60,6 @@ contract SwapIntentsValidator is BaseIntentsValidator {
      * @param safeguard Safeguard to validate the intent with
      */
     function _validateSwap(Intent memory intent, Safeguard memory safeguard) internal pure {
-        if (safeguard.mode == uint8(SwapSafeguardMode.None)) _validateNone();
-
         SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
         if (safeguard.mode == uint8(SwapSafeguardMode.SourceChain))
             _validateSwapSourceChain(swapIntent.sourceChain, safeguard.config);

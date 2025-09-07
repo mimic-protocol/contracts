@@ -30,7 +30,7 @@ export enum CallSafeguardMode {
   None,
   Chain,
   Target,
-  Method,
+  Selector,
 }
 
 export function createSafeguard(mode: number, config = '0x'): Safeguard {
@@ -46,12 +46,27 @@ export function createOnlyAccountSafeguard(mode: number, account: NAry<Account>)
   return createSafeguard(mode, config)
 }
 
+export function createDeniedAccountSafeguard(mode: number, account: NAry<Account>): Safeguard {
+  const config = AbiCoder.defaultAbiCoder().encode(['bool', 'address[]'], [true, toArray(account).map(toAddress)])
+  return createSafeguard(mode, config)
+}
+
 export function createOnlyChainSafeguard(mode: number, chain: NAry<number>): Safeguard {
   const config = AbiCoder.defaultAbiCoder().encode(['bool', 'uint256[]'], [false, toArray(chain)])
   return createSafeguard(mode, config)
 }
 
-export function createOnlyMethodSafeguard(method: NAry<string>): Safeguard {
-  const config = AbiCoder.defaultAbiCoder().encode(['bool', 'bytes4[]'], [false, toArray(method)])
-  return createSafeguard(CallSafeguardMode.Method, config)
+export function createDeniedChainSafeguard(mode: number, chain: NAry<number>): Safeguard {
+  const config = AbiCoder.defaultAbiCoder().encode(['bool', 'uint256[]'], [true, toArray(chain)])
+  return createSafeguard(mode, config)
+}
+
+export function createOnlySelectorSafeguard(selector: NAry<string>): Safeguard {
+  const config = AbiCoder.defaultAbiCoder().encode(['bool', 'bytes4[]'], [false, toArray(selector)])
+  return createSafeguard(CallSafeguardMode.Selector, config)
+}
+
+export function createDeniedSelectorSafeguard(selector: NAry<string>): Safeguard {
+  const config = AbiCoder.defaultAbiCoder().encode(['bool', 'bytes4[]'], [true, toArray(selector)])
+  return createSafeguard(CallSafeguardMode.Selector, config)
 }
