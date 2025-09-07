@@ -1116,13 +1116,15 @@ describe('Settler', () => {
                     const signature = await signProposal(settler, intent, solver, proposal, admin)
                     const tx = await settler.execute([{ intent, proposal, signature }])
 
-                    const events = await settler.queryFilter(settler.filters.SwapIntentExecuted(), tx.blockNumber)
+                    const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
                     expect(events).to.have.lengthOf(1)
 
                     expect(events[0].args.user).to.be.equal(intent.user)
                     expect(events[0].args.topic).to.be.equal(eventTopic)
+                    expect(events[0].args.op).to.be.equal(OpType.Swap)
                     expect(events[0].args.intent).to.not.be.undefined
-                    expect(events[0].args.outputs).to.not.be.undefined
+                    expect(events[0].args.proposal).to.not.be.undefined
+                    expect(events[0].args.output).to.not.be.undefined
                     expect(events[0].args.data).to.be.equal(eventData)
                   })
                 }
@@ -1655,12 +1657,15 @@ describe('Settler', () => {
                 const signature = await signProposal(settler, intent, solver, proposal, admin)
                 const tx = await settler.execute([{ intent, proposal, signature }])
 
-                const events = await settler.queryFilter(settler.filters.TransferIntentExecuted(), tx.blockNumber)
+                const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
                 expect(events).to.have.lengthOf(1)
 
                 expect(events[0].args.user).to.be.equal(intent.user)
                 expect(events[0].args.topic).to.be.equal(eventTopic)
+                expect(events[0].args.op).to.be.equal(OpType.Transfer)
                 expect(events[0].args.intent).to.not.be.undefined
+                expect(events[0].args.proposal).to.not.be.undefined
+                expect(events[0].args.output).to.be.eq('0x')
                 expect(events[0].args.data).to.be.equal(eventData)
               })
             }
@@ -1954,13 +1959,15 @@ describe('Settler', () => {
                     const signature = await signProposal(settler, intent, solver, proposal, admin)
                     const tx = await settler.execute([{ intent, proposal, signature }])
 
-                    const events = await settler.queryFilter(settler.filters.CallIntentExecuted(), tx.blockNumber)
+                    const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
                     expect(events).to.have.lengthOf(1)
 
                     expect(events[0].args.user).to.be.equal(intent.user)
                     expect(events[0].args.topic).to.be.equal(eventTopic)
+                    expect(events[0].args.op).to.be.equal(OpType.Call)
                     expect(events[0].args.intent).to.not.be.undefined
-                    expect(events[0].args.outputs).to.not.be.undefined
+                    expect(events[0].args.proposal).to.not.be.undefined
+                    expect(events[0].args.output).to.not.be.undefined
                     expect(events[0].args.data).to.be.equal(eventData)
                   })
                 }

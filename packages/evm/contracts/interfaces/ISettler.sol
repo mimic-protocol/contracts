@@ -114,19 +114,17 @@ interface ISettler {
     error SettlerRescueFundsRecipientZero();
 
     /**
-     * @dev Custom events emitted for each swap intent
+     * @dev Custom events emitted for each intent
      */
-    event SwapIntentExecuted(address indexed user, bytes32 indexed topic, Intent intent, uint256[] outputs, bytes data);
-
-    /**
-     * @dev Custom events emitted for each transfer intent
-     */
-    event TransferIntentExecuted(address indexed user, bytes32 indexed topic, Intent intent, bytes data);
-
-    /**
-     * @dev Custom events emitted for each call intent
-     */
-    event CallIntentExecuted(address indexed user, bytes32 indexed topic, Intent intent, bytes[] outputs, bytes data);
+    event IntentExecuted(
+        address indexed user,
+        bytes32 indexed topic,
+        uint8 indexed op,
+        Intent intent,
+        Proposal proposal,
+        bytes output,
+        bytes data
+    );
 
     /**
      * @dev Emitted every time an intent is fulfilled

@@ -35,6 +35,7 @@ struct Execution {
  * @param deadline The timestamp by which the intent must be executed.
  * @param data ABI-encoded data representing a specific intent type (e.g. SwapIntent, TransferIntent, CallIntent).
  * @param maxFees List of max fees the user is willing to pay for the intent.
+ * @param events List of custom intent events to be emitted.
  */
 struct Intent {
     OpType op;
@@ -59,8 +60,8 @@ struct MaxFee {
 
 /**
  * @dev Intent event representation
- * @param topic
- * @param data
+ * @param topic Event topic to be emitted.
+ * @param data Event data to be emitted.
  */
 struct IntentEvent {
     bytes32 topic;

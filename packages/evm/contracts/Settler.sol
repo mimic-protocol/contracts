@@ -187,11 +187,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, outputs[i]);
             }
 
-            for (uint256 i = 0; i < intent.events.length; i++) {
-                IntentEvent memory intentEvent = intent.events[i];
-                emit SwapIntentExecuted(intent.user, intentEvent.topic, intent, outputs, intentEvent.data);
-            }
-
+            _emitIntentEvents(intent, proposal, abi.encode(outputs));
             _payFees(intent, proposal, isSmartAccount);
         }
     }
@@ -212,11 +208,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        for (uint256 i = 0; i < intent.events.length; i++) {
-            IntentEvent memory intentEvent = intent.events[i];
-            emit TransferIntentExecuted(intent.user, intentEvent.topic, intent, intentEvent.data);
-        }
-
+        _emitIntentEvents(intent, proposal, new bytes(0));
         _payFees(intent, proposal, isSmartAccount);
     }
 
@@ -237,11 +229,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             outputs[i] = smartAccount.call(call.target, call.data, call.value);
         }
 
-        for (uint256 i = 0; i < intent.events.length; i++) {
-            IntentEvent memory intentEvent = intent.events[i];
-            emit CallIntentExecuted(intent.user, intentEvent.topic, intent, outputs, intentEvent.data);
-        }
-
+        _emitIntentEvents(intent, proposal, abi.encode(outputs));
         _payFees(intent, proposal, true);
     }
 
@@ -366,6 +354,25 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
 
         return swapIntent.sourceChain == block.chainid;
+    }
+
+    /**
+     * @dev Emits intent custom events
+     * @param intent Intent to emit the custom events for
+     */
+    function _emitIntentEvents(Intent memory intent, Proposal memory proposal, bytes memory output) internal {
+        for (uint256 i = 0; i < intent.events.length; i++) {
+            IntentEvent memory intentEvent = intent.events[i];
+            emit IntentExecuted(
+                intent.user,
+                intentEvent.topic,
+                uint8(intent.op),
+                intent,
+                proposal,
+                output,
+                intentEvent.data
+            );
+        }
     }
 
     /**
