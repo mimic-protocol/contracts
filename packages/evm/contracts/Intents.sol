@@ -59,7 +59,7 @@ struct MaxFee {
 }
 
 /**
- * @dev Intent event representation
+ * @dev Intent event representation.
  * @param topic Event topic to be emitted.
  * @param data Event data to be emitted.
  */

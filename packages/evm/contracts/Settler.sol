@@ -359,6 +359,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     /**
      * @dev Emits intent custom events
      * @param intent Intent to emit the custom events for
+     * @param proposal Proposal that fulfills the intent
+     * @param output Encoded array of outputs
      */
     function _emitIntentEvents(Intent memory intent, Proposal memory proposal, bytes memory output) internal {
         for (uint256 i = 0; i < intent.events.length; i++) {
