@@ -11,7 +11,7 @@ contract MintExecutorMock is IExecutor {
     event Minted();
 
     function execute(Intent memory intent, Proposal memory proposal) external override {
-        require(intent.op == OpType.Swap, 'Invalid intent type');
+        require(intent.op == uint8(OpType.Swap), 'Invalid intent type');
 
         SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
         (address[] memory tokens, uint256[] memory amounts) = abi.decode(swapProposal.data, (address[], uint256[]));

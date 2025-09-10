@@ -25,6 +25,7 @@ import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
+import './interfaces/IIntentsValidator.sol';
 import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
 import './interfaces/ISmartAccount.sol';
@@ -40,12 +41,21 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
 
+    // Hard cap to avoid bridging executions with a huge safeguard arrays
+    uint256 internal constant MAX_SAFEGUARDS = 32;
+
     // Mimic controller reference
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override controller;
 
+    // Intents validator reference
+    address public override intentsValidator;
+
     // List of block numbers at which a user nonce was used
     mapping (address => mapping (bytes32 => uint256)) public override getNonceBlock;
+
+    // List of safeguards per user
+    mapping (address => Safeguard[]) internal _userSafeguards;
 
     /**
      * @dev Modifier to tag settler functions in order to check if the sender is an allowed solver
@@ -89,6 +99,14 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
+     * @dev Tells the list of safeguards set for a user
+     * @param user Address of the user being queried
+     */
+    function getUserSafeguards(address user) external view override returns (Safeguard[] memory) {
+        return _userSafeguards[user];
+    }
+
+    /**
      * @dev It allows receiving native token transfers
      * Note: This method mainly allows supporting native tokens for swaps
      */
@@ -106,6 +124,38 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (recipient == address(0)) revert SettlerRescueFundsRecipientZero();
         ERC20Helpers.transfer(token, recipient, amount);
         emit FundsRescued(token, recipient, amount);
+    }
+
+    /**
+     * @dev Sets a new intents validator address
+     * @param newIntentsValidator New intents validator to be set
+     */
+    function setIntentsValidator(address newIntentsValidator) external override onlyOwner {
+        _setIntentsValidator(newIntentsValidator);
+    }
+
+    /**
+     * @dev Sets a list of safeguards for a user
+     * @param safeguards List of safeguards to be set
+     */
+    function setSafeguards(Safeguard[] memory safeguards) external override {
+        _clearSafeguards(msg.sender);
+        _appendSafeguards(msg.sender, safeguards);
+    }
+
+    /**
+     * @dev Appends a list of safeguards for a user
+     * @param safeguards List of safeguards to be appended
+     */
+    function appendSafeguards(Safeguard[] memory safeguards) external override {
+        _appendSafeguards(msg.sender, safeguards);
+    }
+
+    /**
+     * @notice Clear all safeguards set for your address.
+     */
+    function clearSafeguards() external override {
+        _clearSafeguards(msg.sender);
     }
 
     /**
@@ -142,9 +192,9 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _validateIntent(intent, proposal, signature, simulated);
             getNonceBlock[intent.user][intent.nonce] = block.number;
 
-            if (intent.op == OpType.Swap) _executeSwap(intent, proposal);
-            else if (intent.op == OpType.Transfer) _executeTransfer(intent, proposal);
-            else if (intent.op == OpType.Call) _executeCall(intent, proposal);
+            if (intent.op == uint8(OpType.Swap)) _executeSwap(intent, proposal);
+            else if (intent.op == uint8(OpType.Transfer)) _executeTransfer(intent, proposal);
+            else if (intent.op == uint8(OpType.Call)) _executeCall(intent, proposal);
             else revert SettlerUnknownIntentType(uint8(intent.op));
 
             emit Executed(proposal.hash(intent, _msgSender()), i);
@@ -243,10 +293,14 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
         if (getNonceBlock[intent.user][intent.nonce] != 0) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
 
+        if (intentsValidator != address(0)) {
+            Safeguard[] memory safeguards = _userSafeguards[intent.user];
+            if (safeguards.length > 0) IIntentsValidator(intentsValidator).validate(intent, safeguards);
+        }
+
         bool shouldValidateDeadlines = _shouldValidateDeadlines(intent);
         if (shouldValidateDeadlines) {
             if (intent.deadline <= block.timestamp) revert SettlerIntentPastDeadline(intent.deadline, block.timestamp);
-
             bool isProposalPastDeadline = proposal.deadline <= block.timestamp;
             if (isProposalPastDeadline) revert SettlerProposalPastDeadline(proposal.deadline, block.timestamp);
         }
@@ -343,7 +397,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param intent Intent to be fulfilled
      */
     function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
-        if (intent.op != OpType.Swap) return true;
+        if (intent.op != uint8(OpType.Swap)) return true;
 
         SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
@@ -379,6 +433,42 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             ISmartAccount(from).transfer(token, to, amount);
         } else {
             IERC20(token).safeTransferFrom(from, to, amount);
+        }
+    }
+
+    /**
+     * @dev Sets the intents validator
+     * @param newIntentsValidator New intents validator to be set
+     */
+    function _setIntentsValidator(address newIntentsValidator) internal {
+        intentsValidator = newIntentsValidator;
+        emit IntentsValidatorSet(newIntentsValidator);
+    }
+
+    /**
+     * @dev Appends a list of safeguards for a user
+     * @param user Address of the user to append the safeguards for
+     * @param safeguards List of safeguards to be appended
+     */
+    function _appendSafeguards(address user, Safeguard[] memory safeguards) internal {
+        Safeguard[] storage list = _userSafeguards[user];
+        uint256 newLength = list.length + safeguards.length;
+        if (newLength > MAX_SAFEGUARDS) revert SettlerTooManySafeguards(newLength);
+
+        for (uint256 i = 0; i < safeguards.length; i++) {
+            list.push(safeguards[i]);
+            emit SafeguardAppended(user, safeguards[i]);
+        }
+    }
+
+    /**
+     * @dev Clears the list of safeguards for a user
+     * @param user Address of the user to clear the safeguards for
+     */
+    function _clearSafeguards(address user) internal {
+        if (_userSafeguards[user].length > 0) {
+            delete _userSafeguards[user];
+            emit SafeguardsCleared(user);
         }
     }
 }

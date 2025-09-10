@@ -32,10 +32,14 @@ import {
   Account,
   CallIntent,
   CallProposal,
+  CallSafeguardMode,
   createCallIntent,
   createCallProposal,
   createIntent,
+  createOnlySelectorSafeguard,
   createProposal,
+  createSafeguard,
+  createSafeguardNone,
   createSwapIntent,
   createSwapProposal,
   createTransferIntent,
@@ -56,6 +60,8 @@ import {
 } from './helpers'
 
 const { ethers } = await network.connect()
+
+/* eslint-disable no-secrets/no-secrets */
 
 describe('Settler', () => {
   let settler: Settler, controller: Controller
@@ -79,6 +85,10 @@ describe('Settler', () => {
   describe('initialize', () => {
     it('has a reference to the controller', async () => {
       expect(await settler.controller()).to.be.equal(controller)
+    })
+
+    it('has no intents validator', async () => {
+      expect(await settler.intentsValidator()).to.be.equal(ZERO_ADDRESS)
     })
   })
 
@@ -241,9 +251,204 @@ describe('Settler', () => {
       it('reverts', async () => {
         await expect(settler.rescueFunds(ZERO_ADDRESS, ZERO_ADDRESS, 0)).to.be.revertedWithCustomError(
           settler,
-          // eslint-disable-next-line no-secrets/no-secrets
           'OwnableUnauthorizedAccount'
         )
+      })
+    })
+  })
+
+  describe('setIntentsValidator', () => {
+    const newValidator = randomAddress()
+
+    context('when the sender is the owner', () => {
+      beforeEach('set sender', () => {
+        settler = settler.connect(owner)
+      })
+
+      it('sets the intents validator and emits an event', async () => {
+        const tx = await settler.setIntentsValidator(newValidator)
+
+        expect((await settler.intentsValidator()).toLowerCase()).to.equal(newValidator)
+
+        const events = await settler.queryFilter(settler.filters.IntentsValidatorSet(), tx.blockNumber)
+        expect(events).to.have.lengthOf(1)
+        expect(events[0].args.intentsValidator.toLowerCase()).to.equal(newValidator)
+      })
+    })
+
+    context('when the sender is not the owner', () => {
+      beforeEach('set sender', () => {
+        settler = settler.connect(user)
+      })
+
+      it('reverts', async () => {
+        await expect(settler.setIntentsValidator(newValidator)).to.be.revertedWithCustomError(
+          settler,
+          'OwnableUnauthorizedAccount'
+        )
+      })
+    })
+  })
+
+  describe('setSafeguards', () => {
+    beforeEach('set sender', () => {
+      settler = settler.connect(user)
+    })
+
+    context('when the provided list does not exceed the maximum', () => {
+      const newSafeguards = [createSafeguardNone(), createOnlySelectorSafeguard(randomHex(4))]
+
+      context('when the user had no safeguards', () => {
+        it('sets the provided list and emits appended events only', async () => {
+          const tx = await settler.setSafeguards(newSafeguards)
+
+          const safeguards = await settler.getUserSafeguards(user)
+          expect(safeguards).to.have.lengthOf(2)
+          expect(safeguards[0].mode).to.equal(CallSafeguardMode.None)
+          expect(safeguards[1].mode).to.equal(CallSafeguardMode.Selector)
+
+          const clearedEvents = await settler.queryFilter(settler.filters.SafeguardsCleared(), tx.blockNumber)
+          expect(clearedEvents).to.be.empty
+
+          const appendedEvents = await settler.queryFilter(settler.filters.SafeguardAppended(), tx.blockNumber)
+          expect(appendedEvents).to.have.lengthOf(2)
+          expect(appendedEvents[0].args.user).to.equal(user)
+          expect(appendedEvents[1].args.user).to.equal(user)
+        })
+      })
+
+      context('when the user already had safeguards', () => {
+        beforeEach('set safeguards', async () => {
+          await settler.setSafeguards([createSafeguard(100)])
+        })
+
+        it('replaces the list, emits cleared and appended events', async () => {
+          const tx = await settler.setSafeguards(newSafeguards)
+
+          const safeguards = await settler.getUserSafeguards(user)
+          expect(safeguards).to.have.lengthOf(2)
+          expect(safeguards[0].mode).to.equal(CallSafeguardMode.None)
+          expect(safeguards[1].mode).to.equal(CallSafeguardMode.Selector)
+
+          const clearedEvents = await settler.queryFilter(settler.filters.SafeguardsCleared(), tx.blockNumber)
+          expect(clearedEvents).to.have.lengthOf(1)
+          expect(clearedEvents[0].args.user).to.equal(user)
+
+          const appendedEvents = await settler.queryFilter(settler.filters.SafeguardAppended(), tx.blockNumber)
+          expect(appendedEvents).to.have.lengthOf(2)
+          expect(appendedEvents[0].args.user).to.equal(user)
+          expect(appendedEvents[1].args.user).to.equal(user)
+        })
+      })
+    })
+
+    context('when the provided list exceeds the maximum', () => {
+      const safeguards = Array.from({ length: 33 }, () => createSafeguardNone())
+
+      it('reverts', async () => {
+        await expect(settler.setSafeguards(safeguards)).to.be.revertedWithCustomError(
+          settler,
+          'SettlerTooManySafeguards'
+        )
+      })
+    })
+  })
+
+  describe('appendSafeguards', () => {
+    const newSafeguards = [createSafeguardNone(), createOnlySelectorSafeguard(randomHex(4))]
+
+    beforeEach('set sender', () => {
+      settler = settler.connect(user)
+    })
+
+    context('when the user had no safeguards', () => {
+      it('appends and emits one event per safeguard', async () => {
+        const tx = await settler.appendSafeguards(newSafeguards)
+
+        const safeguards = await settler.getUserSafeguards(user)
+        expect(safeguards).to.have.lengthOf(2)
+        expect(safeguards[0].mode).to.equal(CallSafeguardMode.None)
+        expect(safeguards[1].mode).to.equal(CallSafeguardMode.Selector)
+
+        const events = await settler.queryFilter(settler.filters.SafeguardAppended(), tx.blockNumber)
+        expect(events).to.have.lengthOf(2)
+        expect(events[0].args.user).to.equal(user)
+        expect(events[1].args.user).to.equal(user)
+      })
+    })
+
+    context('when the user already had safeguards', () => {
+      context('when appending would not exceed the maximum', () => {
+        const existingSafeguard = createSafeguard(100)
+
+        beforeEach('seed safeguards', async () => {
+          await settler.setSafeguards([existingSafeguard])
+        })
+
+        it('preserves order and appends at the end', async () => {
+          const tx = await settler.appendSafeguards(newSafeguards)
+
+          const safeguards = await settler.getUserSafeguards(user)
+          expect(safeguards).to.have.lengthOf(3)
+          expect(safeguards[0].mode).to.equal(existingSafeguard.mode)
+          expect(safeguards[1].mode).to.equal(CallSafeguardMode.None)
+          expect(safeguards[2].mode).to.equal(CallSafeguardMode.Selector)
+
+          const events = await settler.queryFilter(settler.filters.SafeguardAppended(), tx.blockNumber)
+          expect(events).to.have.lengthOf(2)
+          expect(events[0].args.user).to.equal(user)
+          expect(events[1].args.user).to.equal(user)
+        })
+      })
+
+      context('when appending would exceed the maximum', () => {
+        const existingSafeguards = Array.from({ length: 32 }, () => createSafeguardNone())
+
+        beforeEach('seed safeguards', async () => {
+          await settler.setSafeguards(existingSafeguards)
+        })
+
+        it('reverts', async () => {
+          await expect(settler.appendSafeguards([createSafeguardNone()])).to.be.revertedWithCustomError(
+            settler,
+            'SettlerTooManySafeguards'
+          )
+        })
+      })
+    })
+  })
+
+  describe('clearSafeguards', () => {
+    beforeEach('set sender', () => {
+      settler = settler.connect(user)
+    })
+
+    context('when the user has safeguards', () => {
+      beforeEach('seed safeguards', async () => {
+        await settler.setSafeguards([createSafeguardNone()])
+      })
+
+      it('clears the list and emits an event', async () => {
+        const tx = await settler.clearSafeguards()
+
+        const safeguards = await settler.getUserSafeguards(user)
+        expect(safeguards.length).to.equal(0)
+
+        const events = await settler.queryFilter(settler.filters.SafeguardsCleared(), tx.blockNumber)
+        expect(events).to.have.lengthOf(1)
+        expect(events[0].args.user).to.equal(user)
+      })
+    })
+
+    context('when the user has no safeguards', () => {
+      it('does nothing and emits no event', async () => {
+        const tx = await settler.clearSafeguards()
+
+        const safeguards = await settler.getUserSafeguards(user)
+        expect(safeguards.length).to.equal(0)
+
+        const events = await settler.queryFilter(settler.filters.SafeguardsCleared(), tx.blockNumber)
+        expect(events).to.be.empty
       })
     })
   })
@@ -580,7 +785,6 @@ describe('Settler', () => {
                                 swapProposalParams.amountsOut = [minAmount, minAmount]
                               })
 
-                              // eslint-disable-next-line no-secrets/no-secrets
                               itReverts('SettlerInvalidProposedAmounts')
                             })
                           }
