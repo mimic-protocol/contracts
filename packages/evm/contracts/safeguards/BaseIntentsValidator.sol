@@ -15,16 +15,14 @@ contract BaseIntentsValidator {
     error IntentsValidatorNoneAllowed();
 
     /**
-     * @dev Invalid safeguard mode set
+     * @dev Intent type unknown
      */
-    error IntentsValidatorInvalidMode(uint8 mode);
+    error IntentsValidatorUnknownIntentType(uint8 opType);
 
     /**
-     * @dev Validates no intents are allowed
+     * @dev Invalid safeguard mode unknown
      */
-    function _validateNone() internal pure {
-        revert IntentsValidatorNoneAllowed();
-    }
+    error IntentsValidatorInvalidSafeguardMode(uint8 mode);
 
     /**
      * @dev Tells whether a chain is allowed

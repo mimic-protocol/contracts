@@ -26,60 +26,39 @@ enum TransferSafeguardMode {
  */
 contract TransferIntentsValidator is BaseIntentsValidator {
     /**
-     * @dev Transfer intent chain ID is not allowed
-     */
-    error IntentsValidatorTransferChainNotAllowed(uint256 chainId);
-
-    /**
-     * @dev Transfer intent token is not allowed
-     */
-    error IntentsValidatorTransferTokenNotAllowed(address token);
-
-    /**
-     * @dev Transfer intent recipient is not allowed
-     */
-    error IntentsValidatorTransferRecipientNotAllowed(address recipient);
-
-    /**
      * @dev Validates a transfer intent for a safeguard
      * @param intent Transfer intent to be validated
      * @param safeguard Safeguard to validate the intent with
      */
-    function _validateTransfer(Intent memory intent, Safeguard memory safeguard) internal pure {
+    function _isTransferIntentValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
         TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
         if (safeguard.mode == uint8(TransferSafeguardMode.Chain))
-            _validateTransferChain(transferIntent.chainId, safeguard.config);
+            return _isChainAllowed(transferIntent.chainId, safeguard.config);
         else if (safeguard.mode == uint8(TransferSafeguardMode.Token))
-            _validateTransferTokens(transferIntent.transfers, safeguard.config);
+            return _areTransferTokensValid(transferIntent.transfers, safeguard.config);
         else if (safeguard.mode == uint8(TransferSafeguardMode.Recipient))
-            _validateTransferRecipients(transferIntent.transfers, safeguard.config);
-        else revert IntentsValidatorInvalidMode(safeguard.mode);
-    }
-
-    /**
-     * @dev Validates that the transfer chain is allowed
-     */
-    function _validateTransferChain(uint256 chainId, bytes memory config) private pure {
-        if (!_isChainAllowed(chainId, config)) revert IntentsValidatorTransferChainNotAllowed(chainId);
+            return _areTransferRecipientsValid(transferIntent.transfers, safeguard.config);
+        else revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**
      * @dev Validates that the tokens being transferred are allowed
      */
-    function _validateTransferTokens(TransferData[] memory transfers, bytes memory config) private pure {
-        for (uint256 i = 0; i < transfers.length; i++) {
-            address token = transfers[i].token;
-            if (!_isAccountAllowed(token, config)) revert IntentsValidatorTransferTokenNotAllowed(token);
-        }
+    function _areTransferTokensValid(TransferData[] memory transfers, bytes memory config) private pure returns (bool) {
+        for (uint256 i = 0; i < transfers.length; i++) if (!_isAccountAllowed(transfers[i].token, config)) return false;
+        return true;
     }
 
     /**
      * @dev Validates that the recipients of the transfers are allowed
      */
-    function _validateTransferRecipients(TransferData[] memory transfers, bytes memory config) private pure {
-        for (uint256 i = 0; i < transfers.length; i++) {
-            address recipient = transfers[i].recipient;
-            if (!_isAccountAllowed(recipient, config)) revert IntentsValidatorTransferRecipientNotAllowed(recipient);
-        }
+    function _areTransferRecipientsValid(TransferData[] memory transfers, bytes memory config)
+        private
+        pure
+        returns (bool)
+    {
+        for (uint256 i = 0; i < transfers.length; i++)
+            if (!_isAccountAllowed(transfers[i].recipient, config)) return false;
+        return true;
     }
 }

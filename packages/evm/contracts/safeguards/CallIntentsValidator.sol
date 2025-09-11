@@ -26,64 +26,34 @@ enum CallSafeguardMode {
  */
 contract CallIntentsValidator is BaseIntentsValidator {
     /**
-     * @dev Call intent chain ID is not allowed
-     */
-    error IntentsValidatorCallChainNotAllowed(uint256 chainId);
-
-    /**
-     * @dev Call intent target contract is not allowed
-     */
-    error IntentsValidatorCallTargetNotAllowed(address target);
-
-    /**
-     * @dev Call intent function selector is not allowed
-     */
-    error IntentsValidatorCallSelectorNotAllowed(bytes4 selector);
-
-    /**
-     * @dev Call intent ETH value is not allowed
-     */
-    error IntentsValidatorCallValueNotAllowed(uint256 value);
-
-    /**
      * @dev Validates a transfer intent for a safeguard
      * @param intent Call intent to be validated
      * @param safeguard Safeguard to validate the intent with
      */
-    function _validateCall(Intent memory intent, Safeguard memory safeguard) internal pure {
+    function _isCallIntentValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
         CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
-        if (safeguard.mode == uint8(CallSafeguardMode.Chain)) _validateCallChain(callIntent.chainId, safeguard.config);
+        if (safeguard.mode == uint8(CallSafeguardMode.Chain))
+            return _isChainAllowed(callIntent.chainId, safeguard.config);
         else if (safeguard.mode == uint8(CallSafeguardMode.Target))
-            _validateCallTargets(callIntent.calls, safeguard.config);
+            return _areCallTargetsValid(callIntent.calls, safeguard.config);
         else if (safeguard.mode == uint8(CallSafeguardMode.Selector))
-            _validateCallSelectors(callIntent.calls, safeguard.config);
-        else revert IntentsValidatorInvalidMode(safeguard.mode);
-    }
-
-    /**
-     * @dev Validates that the call chain is allowed
-     */
-    function _validateCallChain(uint256 chainId, bytes memory config) private pure {
-        if (!_isChainAllowed(chainId, config)) revert IntentsValidatorCallChainNotAllowed(chainId);
+            return _areCallSelectorsValid(callIntent.calls, safeguard.config);
+        else revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**
      * @dev Validates that the call targets are allowed
      */
-    function _validateCallTargets(CallData[] memory calls, bytes memory config) private pure {
-        for (uint256 i = 0; i < calls.length; i++) {
-            address target = calls[i].target;
-            if (!_isAccountAllowed(target, config)) revert IntentsValidatorCallTargetNotAllowed(target);
-        }
+    function _areCallTargetsValid(CallData[] memory calls, bytes memory config) private pure returns (bool) {
+        for (uint256 i = 0; i < calls.length; i++) if (!_isAccountAllowed(calls[i].target, config)) return false;
+        return true;
     }
 
     /**
      * @dev Validates that the function selectors are allowed
      */
-    function _validateCallSelectors(CallData[] memory calls, bytes memory config) private pure {
-        for (uint256 i = 0; i < calls.length; i++) {
-            bytes4 selector = bytes4(calls[i].data);
-            if (!_isSelectorAllowed(selector, config)) revert IntentsValidatorCallSelectorNotAllowed(selector);
-        }
+    function _areCallSelectorsValid(CallData[] memory calls, bytes memory config) private pure returns (bool) {
+        for (uint256 i = 0; i < calls.length; i++) if (!_isSelectorAllowed(bytes4(calls[i].data), config)) return false;
+        return true;
     }
 }

@@ -11,14 +11,9 @@ import '../safeguards/Safeguards.sol';
  */
 interface IIntentsValidator {
     /**
-     * @dev Intent type unknown
-     */
-    error IntentsValidatorUnknownIntentType(uint8 opType);
-
-    /**
-     * @dev Validates an intent for a list of safeguards
+     * @dev Validates an intent for a safeguard
      * @param intent Intent to be validated
-     * @param safeguards Safeguards to validate the intent with
+     * @param config Safeguard config to validate the intent with
      */
-    function validate(Intent memory intent, Safeguard[] memory safeguards) external pure;
+    function validate(Intent memory intent, bytes memory config) external pure;
 }

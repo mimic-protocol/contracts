@@ -135,14 +135,9 @@ interface ISettler {
     event IntentsValidatorSet(address indexed intentsValidator);
 
     /**
-     * @dev Emitted every time a list of safeguards is cleared
+     * @dev Emitted every time a safeguard is set
      */
-    event SafeguardsCleared(address indexed user);
-
-    /**
-     * @dev Emitted every time a safeguard is appended
-     */
-    event SafeguardAppended(address indexed user, Safeguard safeguard);
+    event SafeguardSet(address indexed user);
 
     /**
      * @dev Tells the reference to the Mimic controller
@@ -162,10 +157,10 @@ interface ISettler {
     function getNonceBlock(address user, bytes32 nonce) external view returns (uint256);
 
     /**
-     * @dev Tells the list of safeguards set for a user
+     * @dev Tells the safeguard set for a user
      * @param user Address of the user being queried
      */
-    function getUserSafeguards(address user) external view returns (Safeguard[] memory);
+    function getUserSafeguard(address user) external view returns (bytes memory);
 
     /**
      * @dev Tells the hash of an intent
@@ -199,21 +194,10 @@ interface ISettler {
     function setIntentsValidator(address newIntentsValidator) external;
 
     /**
-     * @dev Sets a list of safeguards for a user
-     * @param safeguards List of safeguards to be set
+     * @dev Sets a safeguard for a user
+     * @param safeguard Safeguard to be set
      */
-    function setSafeguards(Safeguard[] memory safeguards) external;
-
-    /**
-     * @dev Appends a list of safeguards for a user
-     * @param safeguards List of safeguards to be appended
-     */
-    function appendSafeguards(Safeguard[] memory safeguards) external;
-
-    /**
-     * @dev Clear all safeguards set for your address.
-     */
-    function clearSafeguards() external;
+    function setSafeguard(bytes memory safeguard) external;
 
     /**
      * @dev Executes a proposal to fulfill an intent
