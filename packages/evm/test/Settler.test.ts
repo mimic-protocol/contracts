@@ -90,6 +90,10 @@ describe('Settler', () => {
     it('has no intents validator', async () => {
       expect(await settler.intentsValidator()).to.be.equal(ZERO_ADDRESS)
     })
+
+    it('has a smart accounts handler', async () => {
+      expect(await settler.smartAccountsHandler()).to.not.be.equal(ZERO_ADDRESS)
+    })
   })
 
   describe('ownable', () => {
@@ -250,6 +254,52 @@ describe('Settler', () => {
 
       it('reverts', async () => {
         await expect(settler.rescueFunds(ZERO_ADDRESS, ZERO_ADDRESS, 0)).to.be.revertedWithCustomError(
+          settler,
+          'OwnableUnauthorizedAccount'
+        )
+      })
+    })
+  })
+
+  describe('setSmartAccountsHandler', () => {
+    context('when the sender is the owner', () => {
+      beforeEach('set sender', () => {
+        settler = settler.connect(owner)
+      })
+
+      context('when the smart accounts handler is not zero', () => {
+        const newSmartAccountsHandler = randomAddress()
+
+        it('sets the smart accounts handler and emits an event', async () => {
+          const tx = await settler.setSmartAccountsHandler(newSmartAccountsHandler)
+
+          expect((await settler.smartAccountsHandler()).toLowerCase()).to.equal(newSmartAccountsHandler)
+
+          const events = await settler.queryFilter(settler.filters.SmartAccountsHandlerSet(), tx.blockNumber)
+          expect(events).to.have.lengthOf(1)
+          expect(events[0].args.smartAccountsHandler.toLowerCase()).to.equal(newSmartAccountsHandler)
+        })
+      })
+
+      context('when the smart accounts handler is zero', () => {
+        const newSmartAccountsHandler = ZERO_ADDRESS
+
+        it('reverts', async () => {
+          await expect(settler.setSmartAccountsHandler(newSmartAccountsHandler)).to.be.revertedWithCustomError(
+            settler,
+            'SmartAccountHandlerZero'
+          )
+        })
+      })
+    })
+
+    context('when the sender is not the owner', () => {
+      beforeEach('set sender', () => {
+        settler = settler.connect(user)
+      })
+
+      it('reverts', async () => {
+        await expect(settler.setSmartAccountsHandler(ZERO_ADDRESS)).to.be.revertedWithCustomError(
           settler,
           'OwnableUnauthorizedAccount'
         )

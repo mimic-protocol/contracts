@@ -28,9 +28,9 @@ import './interfaces/IController.sol';
 import './interfaces/IIntentsValidator.sol';
 import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
-import './interfaces/ISmartAccount.sol';
 import './utils/Denominations.sol';
 import './utils/ERC20Helpers.sol';
+import './smart-accounts/SmartAccountsHandler.sol';
 
 /**
  * @title Settler
@@ -47,6 +47,9 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     // Mimic controller reference
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override controller;
+
+    // Smart accounts handler reference
+    address public override smartAccountsHandler;
 
     // Intents validator reference
     address public override intentsValidator;
@@ -73,6 +76,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     constructor(address _controller, address _owner) Ownable(_owner) EIP712('Mimic Protocol Settler', '1') {
         controller = _controller;
+        smartAccountsHandler = address(new SmartAccountHandler());
     }
 
     /**
@@ -124,6 +128,14 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (recipient == address(0)) revert SettlerRescueFundsRecipientZero();
         ERC20Helpers.transfer(token, recipient, amount);
         emit FundsRescued(token, recipient, amount);
+    }
+
+    /**
+     * @dev Sets a new smart accounts handler
+     * @param newSmartAccountsHandler New smart accounts handler to be set
+     */
+    function setSmartAccountsHandler(address newSmartAccountsHandler) external override onlyOwner {
+        _setSmartAccountsHandler(newSmartAccountsHandler);
     }
 
     /**
@@ -211,7 +223,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
         _validateSwapIntent(swapIntent, swapProposal);
 
-        bool isSmartAccount = _isSmartAccount(intent.user);
+        bool isSmartAccount = ISmartAccountHandler(smartAccountsHandler).isSmartAccount(intent.user);
         if (swapIntent.sourceChain == block.chainid) {
             for (uint256 i = 0; i < swapIntent.tokensIn.length; i++) {
                 TokenIn memory tokenIn = swapIntent.tokensIn[i];
@@ -249,8 +261,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
         _validateTransferIntent(transferIntent, proposal);
 
-        bool isSmartAccount = _isSmartAccount(intent.user);
-
+        bool isSmartAccount = ISmartAccountHandler(smartAccountsHandler).isSmartAccount(intent.user);
         for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
             TransferData memory transfer = transferIntent.transfers[i];
             _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
@@ -268,11 +279,16 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
         _validateCallIntent(callIntent, proposal, intent.user);
 
-        ISmartAccount smartAccount = ISmartAccount(intent.user);
         for (uint256 i = 0; i < callIntent.calls.length; i++) {
             CallData memory call = callIntent.calls[i];
-            // solhint-disable-next-line avoid-low-level-calls
-            smartAccount.call(call.target, call.data, call.value);
+            bytes memory data = abi.encodeWithSelector(
+                ISmartAccountHandler.call.selector,
+                intent.user,
+                call.target,
+                call.data,
+                call.value
+            );
+            Address.functionDelegateCall(smartAccountsHandler, data);
         }
 
         _payFees(intent, proposal, true);
@@ -330,7 +346,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < intent.tokensOut.length; i++) {
             TokenOut memory tokenOut = intent.tokensOut[i];
-
             address recipient = tokenOut.recipient;
             if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
 
@@ -368,7 +383,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     function _validateCallIntent(CallIntent memory intent, Proposal memory proposal, address user) internal view {
         if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
         if (proposal.data.length > 0) revert SettlerProposalDataNotEmpty();
-        if (!_isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
+        if (!ISmartAccountHandler(smartAccountsHandler).isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
     }
 
     /**
@@ -385,23 +400,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Tells if an account is a smart account
-     * @param account Address of the account to be checked
-     */
-    function _isSmartAccount(address account) internal view returns (bool) {
-        return ERC165Checker.supportsInterface(account, type(ISmartAccount).interfaceId);
-    }
-
-    /**
      * @dev Tells if the intent and proposal deadlines should be validated
      * @param intent Intent to be fulfilled
      */
     function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
         if (intent.op != uint8(OpType.Swap)) return true;
-
         SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
-
         return swapIntent.sourceChain == block.chainid;
     }
 
@@ -430,10 +435,21 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _transferFrom(address token, address from, address to, uint256 amount, bool isSmartAccount) internal {
         if (isSmartAccount) {
-            ISmartAccount(from).transfer(token, to, amount);
+            bytes memory data = abi.encodeWithSelector(ISmartAccountHandler.transfer.selector, from, token, to, amount);
+            Address.functionDelegateCall(smartAccountsHandler, data);
         } else {
             IERC20(token).safeTransferFrom(from, to, amount);
         }
+    }
+
+    /**
+     * @dev Sets a new smart accounts handler
+     * @param newSmartAccountsHandler New smart accounts handler to be set
+     */
+    function _setSmartAccountsHandler(address newSmartAccountsHandler) internal {
+        if (newSmartAccountsHandler == address(0)) revert SmartAccountHandlerZero();
+        smartAccountsHandler = newSmartAccountsHandler;
+        emit SmartAccountsHandlerSet(newSmartAccountsHandler);
     }
 
     /**

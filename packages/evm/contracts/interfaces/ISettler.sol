@@ -120,6 +120,11 @@ interface ISettler {
     error SettlerTooManySafeguards(uint256 lengthRequested);
 
     /**
+     * @dev The new smart accounts handler is zero
+     */
+    error SmartAccountHandlerZero();
+
+    /**
      * @dev Emitted every time an intent is fulfilled
      */
     event Executed(bytes32 indexed proposal, uint256 index);
@@ -128,6 +133,11 @@ interface ISettler {
      * @dev Emitted every time tokens are withdrawn from the contract balance
      */
     event FundsRescued(address indexed token, address indexed recipient, uint256 amount);
+
+    /**
+     * @dev Emitted every time the smart accounts handler is set
+     */
+    event SmartAccountsHandlerSet(address indexed smartAccountsHandler);
 
     /**
      * @dev Emitted every time the intents validator is set
@@ -148,6 +158,11 @@ interface ISettler {
      * @dev Tells the reference to the Mimic controller
      */
     function controller() external view returns (address);
+
+    /**
+     * @dev Tells the reference to the smart accounts handler
+     */
+    function smartAccountsHandler() external view returns (address);
 
     /**
      * @dev Tells the reference to the intents validator
@@ -191,6 +206,12 @@ interface ISettler {
      * @param amount Amount of tokens to be withdrawn
      */
     function rescueFunds(address token, address recipient, uint256 amount) external;
+
+    /**
+     * @dev Sets a new smart accounts handler
+     * @param newSmartAccountsHandler New smart accounts handler to be set
+     */
+    function setSmartAccountsHandler(address newSmartAccountsHandler) external;
 
     /**
      * @dev Sets a new intents validator address
