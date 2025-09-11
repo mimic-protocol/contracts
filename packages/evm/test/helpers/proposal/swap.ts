@@ -1,4 +1,4 @@
-import { BigNumberish, encodeSwapProposal, randomAddress, SwapProposalData } from '@mimicprotocol/sdk'
+import { BigNumberish, encodeSwapProposal, randomEvmAddress, SwapProposalData } from '@mimicprotocol/sdk'
 
 import { Account, toAddress } from '../addresses'
 import { NAry, toArray } from '../arrays'
@@ -27,7 +27,7 @@ function toSwapProposalData(proposal: SwapProposal): SwapProposalData {
 
 function getDefaults(): Partial<SwapProposal> {
   return {
-    executor: randomAddress(),
+    executor: randomEvmAddress(),
     executorData: '0x',
     amountsOut: [],
   }

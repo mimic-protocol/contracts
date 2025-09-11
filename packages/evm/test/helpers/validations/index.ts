@@ -3,7 +3,7 @@ import { Contract } from 'ethers'
 import { network } from 'hardhat'
 
 import { hashIntent, Intent } from '../intents/index.js'
-import { DOMAIN_NAME_DEFAULTS } from '../proposal/index.js'
+import { SETTLER_EIP712_DOMAIN } from "@mimicprotocol/sdk/dist/shared/eip712Types/index.js";
 
 export const INTENT_HASH_VALIDATION_TYPE = {
   Validation: [{ name: 'intent', type: 'bytes32' }],
@@ -16,7 +16,7 @@ export async function signIntentHash(
 ): Promise<string> {
   const connection = await network.connect()
   const chainId = connection.networkConfig.chainId
-  const domain = { ...DOMAIN_NAME_DEFAULTS, chainId, verifyingContract: settler.target }
+  const domain = { ...SETTLER_EIP712_DOMAIN, chainId, verifyingContract: settler.target }
   return signer.signTypedData(domain, INTENT_HASH_VALIDATION_TYPE, { intent: intentHash })
 }
 

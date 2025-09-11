@@ -4,8 +4,9 @@ import {
   Intent as RawIntent,
   MAX_UINT256,
   OpType,
-  randomAddress,
+  randomEvmAddress,
   randomHex,
+  randomSig,
 } from '@mimicprotocol/sdk'
 
 import { Account, toAddress } from '../addresses'
@@ -23,6 +24,9 @@ export type Intent = {
   deadline: BigNumberish
   data: string
   maxFees: MaxFee[]
+  configSig: string
+  minValidations: number
+  validations: string[]
 }
 
 export function createIntent(params?: Partial<Intent>): Intent {
@@ -42,17 +46,23 @@ function toRawIntent(intent: Intent): RawIntent {
     deadline: intent.deadline.toString(),
     data: intent.data,
     maxFees: intent.maxFees.map(({ token, amount }) => ({ token: toAddress(token), amount: amount.toString() })),
+    configSig: intent.configSig,
+    minValidations: intent.minValidations,
+    validations: intent.validations,
   }
 }
 
 function getDefaults(): Intent {
   return {
     op: OpType.Transfer,
-    settler: randomAddress(),
-    user: randomAddress(),
+    settler: randomEvmAddress(),
+    user: randomEvmAddress(),
     nonce: randomHex(32),
     deadline: MAX_UINT256,
     data: '0x',
     maxFees: [],
+    configSig: randomSig(),
+    minValidations: 0,
+    validations: [],
   }
 }
