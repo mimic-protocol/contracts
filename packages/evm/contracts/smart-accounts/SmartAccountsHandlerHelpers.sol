@@ -16,15 +16,15 @@ pragma solidity ^0.8.20;
 
 import '@openzeppelin/contracts/utils/Address.sol';
 
-import '../interfaces/ISmartAccountHandler.sol';
+import '../interfaces/ISmartAccountsHandler.sol';
 
-library SmartAccountHandlerHelpers {
+library SmartAccountsHandlerHelpers {
     /**
      * @dev Tells whether an account is a supported smart account
      * @param account Address of the account being queried
      */
     function isSmartAccount(address handler, address account) internal view returns (bool) {
-        return ISmartAccountHandler(handler).isSmartAccount(account);
+        return ISmartAccountsHandler(handler).isSmartAccount(account);
     }
 
     /**
@@ -33,7 +33,7 @@ library SmartAccountHandlerHelpers {
     function transfer(address handler, address account, address token, address to, uint256 amount) internal {
         Address.functionDelegateCall(
             handler,
-            abi.encodeWithSelector(ISmartAccountHandler.transfer.selector, account, token, to, amount)
+            abi.encodeWithSelector(ISmartAccountsHandler.transfer.selector, account, token, to, amount)
         );
     }
 
@@ -47,7 +47,7 @@ library SmartAccountHandlerHelpers {
         return
             Address.functionDelegateCall(
                 handler,
-                abi.encodeWithSelector(ISmartAccountHandler.call.selector, account, target, data, value)
+                abi.encodeWithSelector(ISmartAccountsHandler.call.selector, account, target, data, value)
             );
     }
 }

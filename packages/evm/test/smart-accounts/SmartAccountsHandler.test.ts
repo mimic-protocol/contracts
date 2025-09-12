@@ -3,14 +3,14 @@ import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { network } from 'hardhat'
 
-import { CallMock, SmartAccount, SmartAccountHandler, TokenMock } from '../../types/ethers-contracts/index.js'
+import { CallMock, SmartAccount, SmartAccountsHandler, TokenMock } from '../../types/ethers-contracts/index.js'
 
 const { ethers } = await network.connect()
 
 /* eslint-disable no-secrets/no-secrets */
 
-describe('SmartAccountHandler', () => {
-  let handler: SmartAccountHandler, smartAccount: SmartAccount
+describe('SmartAccountsHandler', () => {
+  let handler: SmartAccountsHandler, smartAccount: SmartAccount
   let owner: HardhatEthersSigner
 
   beforeEach('setup signers', async () => {
@@ -19,7 +19,7 @@ describe('SmartAccountHandler', () => {
   })
 
   beforeEach('deploy contracts', async () => {
-    handler = await ethers.deployContract('SmartAccountHandler')
+    handler = await ethers.deployContract('SmartAccountsHandler')
     smartAccount = await ethers.deployContract('SmartAccount', [handler, owner])
   })
 
@@ -86,7 +86,7 @@ describe('SmartAccountHandler', () => {
       it('reverts', async () => {
         await expect(handler.transfer(handler, NATIVE_TOKEN_ADDRESS, recipient, amount)).to.be.revertedWithCustomError(
           handler,
-          'SmartAccountHandlerUnsupportedAccount'
+          'SmartAccountsHandlerUnsupportedAccount'
         )
       })
     })
@@ -152,7 +152,7 @@ describe('SmartAccountHandler', () => {
       it('reverts', async () => {
         await expect(handler.call(handler, callMock, '0x', 0)).to.be.revertedWithCustomError(
           handler,
-          'SmartAccountHandlerUnsupportedAccount'
+          'SmartAccountsHandlerUnsupportedAccount'
         )
       })
     })

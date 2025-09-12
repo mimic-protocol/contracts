@@ -14,11 +14,11 @@
 
 pragma solidity ^0.8.20;
 
-interface ISmartAccountHandler {
+interface ISmartAccountsHandler {
     /**
      * @dev The smart account given is not supported
      */
-    error SmartAccountHandlerUnsupportedAccount(address account);
+    error SmartAccountsHandlerUnsupportedAccount(address account);
 
     /**
      * @dev Tells whether an account is a supported smart account

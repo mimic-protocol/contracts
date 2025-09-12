@@ -122,7 +122,7 @@ interface ISettler {
     /**
      * @dev The new smart accounts handler is zero
      */
-    error SmartAccountHandlerZero();
+    error SmartAccountsHandlerZero();
 
     /**
      * @dev Emitted every time an intent is fulfilled

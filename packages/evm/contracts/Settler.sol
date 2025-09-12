@@ -40,7 +40,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
-    using SmartAccountHandlerHelpers for address;
+    using SmartAccountsHandlerHelpers for address;
 
     // Hard cap to avoid bridging executions with a huge safeguard arrays
     uint256 internal constant MAX_SAFEGUARDS = 32;
@@ -77,7 +77,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     constructor(address _controller, address _owner) Ownable(_owner) EIP712('Mimic Protocol Settler', '1') {
         controller = _controller;
-        smartAccountsHandler = address(new SmartAccountHandler());
+        smartAccountsHandler = address(new SmartAccountsHandler());
     }
 
     /**
@@ -441,7 +441,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param newSmartAccountsHandler New smart accounts handler to be set
      */
     function _setSmartAccountsHandler(address newSmartAccountsHandler) internal {
-        if (newSmartAccountsHandler == address(0)) revert SmartAccountHandlerZero();
+        if (newSmartAccountsHandler == address(0)) revert SmartAccountsHandlerZero();
         smartAccountsHandler = newSmartAccountsHandler;
         emit SmartAccountsHandlerSet(newSmartAccountsHandler);
     }

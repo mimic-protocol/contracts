@@ -15,9 +15,9 @@
 pragma solidity ^0.8.20;
 
 import '../interfaces/ISmartAccount.sol';
-import '../interfaces/ISmartAccountHandler.sol';
+import '../interfaces/ISmartAccountsHandler.sol';
 
-contract SmartAccountHandler is ISmartAccountHandler {
+contract SmartAccountsHandler is ISmartAccountsHandler {
     /**
      * @dev Tells whether an account is a supported smart account
      * @param account Address of the account being queried
@@ -33,7 +33,7 @@ contract SmartAccountHandler is ISmartAccountHandler {
      */
     function transfer(address account, address token, address to, uint256 amount) external override {
         if (_isMimicSmartAccount(account)) return ISmartAccount(account).transfer(token, to, amount);
-        revert SmartAccountHandlerUnsupportedAccount(account);
+        revert SmartAccountsHandlerUnsupportedAccount(account);
     }
 
     /**
@@ -46,7 +46,7 @@ contract SmartAccountHandler is ISmartAccountHandler {
     {
         // solhint-disable-next-line avoid-low-level-calls
         if (_isMimicSmartAccount(account)) return ISmartAccount(account).call(target, data, value);
-        revert SmartAccountHandlerUnsupportedAccount(account);
+        revert SmartAccountsHandlerUnsupportedAccount(account);
     }
 
     /**

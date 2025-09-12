@@ -287,7 +287,7 @@ describe('Settler', () => {
         it('reverts', async () => {
           await expect(settler.setSmartAccountsHandler(newSmartAccountsHandler)).to.be.revertedWithCustomError(
             settler,
-            'SmartAccountHandlerZero'
+            'SmartAccountsHandlerZero'
           )
         })
       })
