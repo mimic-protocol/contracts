@@ -14,25 +14,40 @@
 
 pragma solidity ^0.8.20;
 
-interface ISmartAccountHandler {
-    /**
-     * @dev The smart account given is not supported
-     */
-    error SmartAccountHandlerUnsupportedAccount(address account);
+import '@openzeppelin/contracts/utils/Address.sol';
 
+import '../interfaces/ISmartAccountHandler.sol';
+
+library SmartAccountHandlerHelpers {
     /**
      * @dev Tells whether an account is a supported smart account
      * @param account Address of the account being queried
      */
-    function isSmartAccount(address account) external view returns (bool);
+    function isSmartAccount(address handler, address account) internal view returns (bool) {
+        return ISmartAccountHandler(handler).isSmartAccount(account);
+    }
 
     /**
      * @dev Performs a transfer from a smart account
      */
-    function transfer(address account, address token, address to, uint256 amount) external;
+    function transfer(address handler, address account, address token, address to, uint256 amount) internal {
+        Address.functionDelegateCall(
+            handler,
+            abi.encodeWithSelector(ISmartAccountHandler.transfer.selector, account, token, to, amount)
+        );
+    }
 
     /**
      * @dev Performs a call from a smart account
      */
-    function call(address account, address target, bytes memory data, uint256 value) external returns (bytes memory);
+    function call(address handler, address account, address target, bytes memory data, uint256 value)
+        internal
+        returns (bytes memory)
+    {
+        return
+            Address.functionDelegateCall(
+                handler,
+                abi.encodeWithSelector(ISmartAccountHandler.call.selector, account, target, data, value)
+            );
+    }
 }

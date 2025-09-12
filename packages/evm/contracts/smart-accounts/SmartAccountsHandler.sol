@@ -39,7 +39,7 @@ contract SmartAccountHandler is ISmartAccountHandler {
     /**
      * @dev Performs a call from a smart account
      */
-    function call(address account, address target, bytes calldata data, uint256 value)
+    function call(address account, address target, bytes memory data, uint256 value)
         external
         override
         returns (bytes memory)

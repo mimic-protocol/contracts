@@ -15,7 +15,7 @@ describe('SmartAccountHandler', () => {
 
   beforeEach('setup signers', async () => {
     // eslint-disable-next-line prettier/prettier
-    ;[, owner] = await ethers.getSigners()
+    [, owner] = await ethers.getSigners()
   })
 
   beforeEach('deploy contracts', async () => {
