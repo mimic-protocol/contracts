@@ -1,9 +1,9 @@
+import { SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk/dist/shared/eip712Types/index.js'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { Contract } from 'ethers'
 import { network } from 'hardhat'
 
 import { hashIntent, Intent } from '../intents/index.js'
-import { SETTLER_EIP712_DOMAIN } from "@mimicprotocol/sdk/dist/shared/eip712Types/index.js";
 
 export const INTENT_HASH_VALIDATION_TYPE = {
   Validation: [{ name: 'intent', type: 'bytes32' }],

@@ -95,7 +95,7 @@ interface IController {
 
     /**
      * @dev Sets the minimum number of validations allowed
-     * @param _minValidations minimum number of validations allowed
+     * @param newMinValidations minimum number of validations allowed
      */
-    function setMinValidations(uint8 _minValidations) external;
+    function setMinValidations(uint8 newMinValidations) external;
 }

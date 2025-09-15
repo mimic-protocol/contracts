@@ -26,6 +26,10 @@ struct Execution {
     bytes signature;
 }
 
+/**
+ * @dev EIP-712 typed data struct representing a validator's approval of an intent.
+ * @param intent The hash of the intent being validated.
+ */
 struct Validation {
     bytes32 intent;
 }
@@ -39,6 +43,9 @@ struct Validation {
  * @param deadline The timestamp by which the intent must be executed.
  * @param data ABI-encoded data representing a specific intent type (e.g. SwapIntent, TransferIntent, CallIntent).
  * @param maxFees List of max fees the user is willing to pay for the intent.
+ * @param configSig The signature of the configuration that this intent belongs to
+ * @param minValidations The minimum number of validator approvals required for this intent to be considered valid.
+ * @param validations The list validator signatures attesting to this intent.
  */
 struct Intent {
     uint8 op;
