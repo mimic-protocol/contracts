@@ -52,8 +52,8 @@ describe('SmartAccountsHandler', () => {
     const amount = fp(1)
     const recipient = randomAddress()
 
-    context('when account is supported', () => {
-      context('when account is a Mimic smart account', () => {
+    context('when the account is supported', () => {
+      context('when the account is a Mimic smart account', () => {
         context('when transferring native tokens', () => {
           const token = NATIVE_TOKEN_ADDRESS
 
@@ -92,7 +92,7 @@ describe('SmartAccountsHandler', () => {
         })
       })
 
-      context('when account is a Safe', () => {
+      context('when the account is a Safe', () => {
         context('when transferring native tokens', () => {
           const token = NATIVE_TOKEN_ADDRESS
 
@@ -138,7 +138,7 @@ describe('SmartAccountsHandler', () => {
       })
     })
 
-    context('when account is not supported', () => {
+    context('when the account is not supported', () => {
       it('reverts', async () => {
         await expect(handler.transfer(handler, NATIVE_TOKEN_ADDRESS, recipient, amount)).to.be.revertedWithCustomError(
           handler,
@@ -156,7 +156,7 @@ describe('SmartAccountsHandler', () => {
     })
 
     context('when the account is supported', () => {
-      context('when account is a Mimic smart account', () => {
+      context('when the account is a Mimic smart account', () => {
         context('when the inner call succeeds', () => {
           let data: string
 
@@ -210,7 +210,7 @@ describe('SmartAccountsHandler', () => {
         })
       })
 
-      context('when account is a Safe', () => {
+      context('when the account is a Safe', () => {
         context('when the inner call succeeds', () => {
           let data: string
 
