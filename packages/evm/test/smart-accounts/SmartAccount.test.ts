@@ -12,9 +12,9 @@ import { expect } from 'chai'
 import { getAddress, hashMessage } from 'ethers'
 import { network } from 'hardhat'
 
-import { CallMock, SmartAccount, TokenMock } from '../types/ethers-contracts/index.js'
-import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
-import { toAddress } from './helpers'
+import { CallMock, SmartAccount, TokenMock } from '../../types/ethers-contracts/index.js'
+import itBehavesLikeOwnable from '../behaviors/Ownable.behavior'
+import { toAddress } from '../helpers'
 
 const { ethers } = await network.connect()
 
