@@ -1,4 +1,4 @@
-import { fp, NATIVE_TOKEN_ADDRESS, randomAddress, randomHex } from '@mimicprotocol/sdk'
+import { fp, NATIVE_TOKEN_ADDRESS, randomEvmAddress, randomHex } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { network } from 'hardhat'
@@ -39,7 +39,7 @@ describe('SmartAccountsHandler', () => {
 
   describe('transfer', () => {
     const amount = fp(1)
-    const recipient = randomAddress()
+    const recipient = randomEvmAddress();
 
     context('when account is supported', () => {
       context('when account is a Mimic smart account', () => {

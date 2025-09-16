@@ -270,7 +270,7 @@ describe('Settler', () => {
       })
 
       context('when the smart accounts handler is not zero', () => {
-        const newSmartAccountsHandler = randomAddress()
+        const newSmartAccountsHandler = randomEvmAddress()
 
         it('sets the smart accounts handler and emits an event', async () => {
           const tx = await settler.setSmartAccountsHandler(newSmartAccountsHandler)
