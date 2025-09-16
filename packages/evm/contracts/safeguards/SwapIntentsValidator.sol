@@ -38,22 +38,24 @@ contract SwapIntentsValidator is BaseIntentsValidator {
         SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
         if (safeguard.mode == uint8(SwapSafeguardMode.SourceChain))
             return _isChainAllowed(swapIntent.sourceChain, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.DestinationChain))
+        if (safeguard.mode == uint8(SwapSafeguardMode.DestinationChain))
             return _isChainAllowed(swapIntent.destinationChain, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.TokenIn))
+        if (safeguard.mode == uint8(SwapSafeguardMode.TokenIn))
             return _areSwapTokensInValid(swapIntent.tokensIn, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.TokenOut))
+        if (safeguard.mode == uint8(SwapSafeguardMode.TokenOut))
             return _areSwapTokensOutValid(swapIntent.tokensOut, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.Recipient))
+        if (safeguard.mode == uint8(SwapSafeguardMode.Recipient))
             return _areSwapRecipientsValid(swapIntent.tokensOut, safeguard.config);
-        else revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
+        revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**
      * @dev Validates that the tokens to be sent are allowed
      */
     function _areSwapTokensInValid(TokenIn[] memory tokensIn, bytes memory config) private pure returns (bool) {
-        for (uint256 i = 0; i < tokensIn.length; i++) if (!_isAccountAllowed(tokensIn[i].token, config)) return false;
+        for (uint256 i = 0; i < tokensIn.length; i++) {
+            if (!_isAccountAllowed(tokensIn[i].token, config)) return false;
+        }
         return true;
     }
 
@@ -61,7 +63,9 @@ contract SwapIntentsValidator is BaseIntentsValidator {
      * @dev Validates that the tokens to be received are allowed
      */
     function _areSwapTokensOutValid(TokenOut[] memory tokensOut, bytes memory config) private pure returns (bool) {
-        for (uint256 i = 0; i < tokensOut.length; i++) if (!_isAccountAllowed(tokensOut[i].token, config)) return false;
+        for (uint256 i = 0; i < tokensOut.length; i++) {
+            if (!_isAccountAllowed(tokensOut[i].token, config)) return false;
+        }
         return true;
     }
 
@@ -69,8 +73,9 @@ contract SwapIntentsValidator is BaseIntentsValidator {
      * @dev Validates that the recipients to be received are allowed
      */
     function _areSwapRecipientsValid(TokenOut[] memory tokensOut, bytes memory config) private pure returns (bool) {
-        for (uint256 i = 0; i < tokensOut.length; i++)
+        for (uint256 i = 0; i < tokensOut.length; i++) {
             if (!_isAccountAllowed(tokensOut[i].recipient, config)) return false;
+        }
         return true;
     }
 }

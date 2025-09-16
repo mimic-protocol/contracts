@@ -41,9 +41,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
 
-    // Hard cap to avoid bridging executions with a huge safeguard arrays
-    uint256 internal constant MAX_SAFEGUARDS = 32;
-
     // Mimic controller reference
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override controller;

@@ -34,18 +34,20 @@ contract TransferIntentsValidator is BaseIntentsValidator {
         TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
         if (safeguard.mode == uint8(TransferSafeguardMode.Chain))
             return _isChainAllowed(transferIntent.chainId, safeguard.config);
-        else if (safeguard.mode == uint8(TransferSafeguardMode.Token))
+        if (safeguard.mode == uint8(TransferSafeguardMode.Token))
             return _areTransferTokensValid(transferIntent.transfers, safeguard.config);
-        else if (safeguard.mode == uint8(TransferSafeguardMode.Recipient))
+        if (safeguard.mode == uint8(TransferSafeguardMode.Recipient))
             return _areTransferRecipientsValid(transferIntent.transfers, safeguard.config);
-        else revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
+        revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**
      * @dev Validates that the tokens being transferred are allowed
      */
     function _areTransferTokensValid(TransferData[] memory transfers, bytes memory config) private pure returns (bool) {
-        for (uint256 i = 0; i < transfers.length; i++) if (!_isAccountAllowed(transfers[i].token, config)) return false;
+        for (uint256 i = 0; i < transfers.length; i++) {
+            if (!_isAccountAllowed(transfers[i].token, config)) return false;
+        }
         return true;
     }
 
@@ -57,8 +59,9 @@ contract TransferIntentsValidator is BaseIntentsValidator {
         pure
         returns (bool)
     {
-        for (uint256 i = 0; i < transfers.length; i++)
+        for (uint256 i = 0; i < transfers.length; i++) {
             if (!_isAccountAllowed(transfers[i].recipient, config)) return false;
+        }
         return true;
     }
 }

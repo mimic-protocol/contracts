@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 /**
- * @dev Safeguard config modes.
+ * @dev Safeguard config modes
  * - List: Safeguard lists
  * - Tree: Safeguard groups
  */
@@ -13,7 +13,7 @@ enum SafeguardConfigMode {
 }
 
 /**
- * @dev Logical operators for safeguard groups.
+ * @dev Logical operators for safeguard groups
  * - AND: every child must pass
  * - OR:  at least one child must pass
  * - XOR: exactly one child must pass
@@ -27,7 +27,7 @@ enum SafeguardGroupLogic {
 }
 
 /**
- * @dev Flat node in the safeguard tree.
+ * @dev Flat node in the safeguard tree
  * @param logic Group operator (AND/OR/XOR/NOT)
  * @param safeguards Indices into `SafeguardTree.leaves`
  * @param children Indices into `SafeguardTree.groups`

@@ -37,8 +37,8 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
     function validate(Intent memory intent, bytes memory config) external pure override {
         (uint8 mode, bytes memory safeguard) = abi.decode(config, (uint8, bytes));
         if (mode == uint8(SafeguardConfigMode.List)) _validate(intent, abi.decode(safeguard, (Safeguard[])));
-        else if (mode == uint8(SafeguardConfigMode.Tree)) _validate(intent, _decodeSafeguardTree(safeguard));
-        else revert IntentsValidatorInvalidSafeguardConfigMode(mode);
+        if (mode == uint8(SafeguardConfigMode.Tree)) _validate(intent, _decodeSafeguardTree(safeguard));
+        revert IntentsValidatorInvalidSafeguardConfigMode(mode);
     }
 
     /**
@@ -48,8 +48,9 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
      */
     function _validate(Intent memory intent, Safeguard[] memory safeguards) internal pure {
         if (safeguards.length == 0) revert IntentsValidatorSafeguardFailed();
-        for (uint256 i = 0; i < safeguards.length; i++)
+        for (uint256 i = 0; i < safeguards.length; i++) {
             if (!_isSafeguardValid(intent, safeguards[i])) revert IntentsValidatorSafeguardFailed();
+        }
     }
 
     /**
@@ -129,9 +130,9 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
     function _isSafeguardValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
         if (safeguard.mode == uint8(0)) revert IntentsValidatorNoneAllowed();
         if (intent.op == uint8(OpType.Swap)) return _isSwapIntentValid(intent, safeguard);
-        else if (intent.op == uint8(OpType.Transfer)) return _isTransferIntentValid(intent, safeguard);
-        else if (intent.op == uint8(OpType.Call)) return _isCallIntentValid(intent, safeguard);
-        else revert IntentsValidatorUnknownIntentType(uint8(intent.op));
+        if (intent.op == uint8(OpType.Transfer)) return _isTransferIntentValid(intent, safeguard);
+        if (intent.op == uint8(OpType.Call)) return _isCallIntentValid(intent, safeguard);
+        revert IntentsValidatorUnknownIntentType(uint8(intent.op));
     }
 
     /**

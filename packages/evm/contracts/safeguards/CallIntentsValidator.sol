@@ -34,18 +34,20 @@ contract CallIntentsValidator is BaseIntentsValidator {
         CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
         if (safeguard.mode == uint8(CallSafeguardMode.Chain))
             return _isChainAllowed(callIntent.chainId, safeguard.config);
-        else if (safeguard.mode == uint8(CallSafeguardMode.Target))
+        if (safeguard.mode == uint8(CallSafeguardMode.Target))
             return _areCallTargetsValid(callIntent.calls, safeguard.config);
-        else if (safeguard.mode == uint8(CallSafeguardMode.Selector))
+        if (safeguard.mode == uint8(CallSafeguardMode.Selector))
             return _areCallSelectorsValid(callIntent.calls, safeguard.config);
-        else revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
+        revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**
      * @dev Validates that the call targets are allowed
      */
     function _areCallTargetsValid(CallData[] memory calls, bytes memory config) private pure returns (bool) {
-        for (uint256 i = 0; i < calls.length; i++) if (!_isAccountAllowed(calls[i].target, config)) return false;
+        for (uint256 i = 0; i < calls.length; i++) {
+            if (!_isAccountAllowed(calls[i].target, config)) return false;
+        }
         return true;
     }
 
@@ -53,7 +55,9 @@ contract CallIntentsValidator is BaseIntentsValidator {
      * @dev Validates that the function selectors are allowed
      */
     function _areCallSelectorsValid(CallData[] memory calls, bytes memory config) private pure returns (bool) {
-        for (uint256 i = 0; i < calls.length; i++) if (!_isSelectorAllowed(bytes4(calls[i].data), config)) return false;
+        for (uint256 i = 0; i < calls.length; i++) {
+            if (!_isSelectorAllowed(bytes4(calls[i].data), config)) return false;
+        }
         return true;
     }
 }

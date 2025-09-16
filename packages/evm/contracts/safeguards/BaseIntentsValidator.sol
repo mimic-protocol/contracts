@@ -20,7 +20,7 @@ contract BaseIntentsValidator {
     error IntentsValidatorUnknownIntentType(uint8 opType);
 
     /**
-     * @dev Invalid safeguard mode unknown
+     * @dev Invalid safeguard mode
      */
     error IntentsValidatorInvalidSafeguardMode(uint8 mode);
 
