@@ -20,8 +20,8 @@ import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
 
-import './interfaces/ISmartAccount.sol';
-import './utils/ERC20Helpers.sol';
+import '../interfaces/ISmartAccount.sol';
+import '../utils/ERC20Helpers.sol';
 
 /**
  * @title SmartAccount
