@@ -36,7 +36,7 @@ contract Controller is IController, Ownable {
     mapping (address => bool) public override isValidatorAllowed;
 
     // Minimum number of validations allowed
-    uint8 public minValidations;
+    uint8 public override minValidations;
 
     /**
      * @dev Creates a new Controller contract
@@ -59,7 +59,7 @@ contract Controller is IController, Ownable {
         for (uint256 i = 0; i < executors.length; i++) _setAllowedExecutor(executors[i], true);
         for (uint256 i = 0; i < proposalSigners.length; i++) _setAllowedProposalSigner(proposalSigners[i], true);
         for (uint256 i = 0; i < validators.length; i++) _setAllowedValidator(validators[i], true);
-        minValidations = _minValidations;
+        _setMinValidations(_minValidations);
     }
 
     /**
@@ -107,9 +107,7 @@ contract Controller is IController, Ownable {
      * @param newMinValidations minimum number of validations allowed
      */
     function setMinValidations(uint8 newMinValidations) external override onlyOwner {
-        uint8 oldMinValidations = minValidations;
-        minValidations = newMinValidations;
-        emit MinValidationSet(oldMinValidations, newMinValidations);
+        _setMinValidations(newMinValidations);
     }
 
     /**
@@ -142,5 +140,13 @@ contract Controller is IController, Ownable {
     function _setAllowedValidator(address validator, bool allowed) internal {
         isValidatorAllowed[validator] = allowed;
         emit ValidatorAllowedSet(validator, allowed);
+    }
+
+    /**
+     * @dev Sets the minimum number of validations allowed
+     */
+    function _setMinValidations(uint8 newMinValidations) internal {
+        minValidations = newMinValidations;
+        emit MinValidationSet(newMinValidations);
     }
 }

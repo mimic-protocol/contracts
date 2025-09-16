@@ -40,6 +40,11 @@ interface ISettler {
     error SettlerValidatorNotAllowed(address validator);
 
     /**
+     * @dev The validator is not allowed
+     */
+    error SettlerValidatorDuplicated(address validator);
+
+    /**
      * @dev The settler is not the current contract
      */
     error SettlerInvalidSettler(address settler);

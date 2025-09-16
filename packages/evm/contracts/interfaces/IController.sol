@@ -34,7 +34,7 @@ interface IController {
     /**
      * @dev Emitted when the minimum validations changes
      */
-    event MinValidationSet(uint8 indexed previousValue, uint8 indexed currentValue);
+    event MinValidationSet(uint8 indexed newMinValidation);
 
     /**
      * @dev Tells whether a solver is allowed
