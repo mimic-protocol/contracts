@@ -331,9 +331,15 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             revert SettlerIntentValidationsNotEnough(requiredValidations, intent.validations.length);
         }
 
+        address lastValidator = address(0);
+        Validation memory validation = Validation(intent.hash());
+        bytes32 typedDataHash = _hashTypedDataV4(validation.hash());
         for (uint256 i = 0; i < intent.validations.length; i++) {
-            Validation memory validation = Validation(intent.hash());
-            address validator = ECDSA.recover(_hashTypedDataV4(validation.hash()), intent.validations[i]);
+            address validator = ECDSA.recover(typedDataHash, intent.validations[i]);
+            if(validator <= lastValidator) {
+                revert SettlerValidatorDuplicatedOrUnsorted(lastValidator, validator);
+            }
+            lastValidator = validator;
             bool isValidatorNotAllowed = !IController(controller).isValidatorAllowed(validator);
             if (isValidatorNotAllowed) revert SettlerValidatorNotAllowed(validator);
         }

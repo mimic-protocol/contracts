@@ -40,9 +40,9 @@ interface ISettler {
     error SettlerValidatorNotAllowed(address validator);
 
     /**
-     * @dev The validator is not allowed
+     * @dev The validator is duplicated
      */
-    error SettlerValidatorDuplicated(address validator);
+    error SettlerValidatorDuplicatedOrUnsorted(address previous, address current);
 
     /**
      * @dev The settler is not the current contract

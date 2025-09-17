@@ -26,8 +26,12 @@ export async function addValidations(
   validators: HardhatEthersSigner[]
 ): Promise<void> {
   const validations = []
-  for (const validator of validators) {
+  const orderedValidators = validators.sort((a, b) =>
+    a.address.toLowerCase().localeCompare(b.address.toLowerCase())
+  )
+  for (const validator of orderedValidators) {
     validations.push(await signIntentHash(settler, hashIntent(intent), validator))
   }
+
   intent.validations = validations
 }
