@@ -30,91 +30,52 @@ enum SwapSafeguardMode {
  */
 contract SwapIntentsValidator is BaseIntentsValidator {
     /**
-     * @dev Swap intent source chain is not allowed
-     */
-    error IntentsValidatorSwapSourceChainNotAllowed(uint256 sourceChain);
-
-    /**
-     * @dev Swap intent destination chain is not allowed
-     */
-    error IntentsValidatorSwapDestinationChainNotAllowed(uint256 destinationChain);
-
-    /**
-     * @dev Swap intent token in is not allowed
-     */
-    error IntentsValidatorSwapTokenInNotAllowed(address tokenIn);
-
-    /**
-     * @dev Swap intent token out is not allowed
-     */
-    error IntentsValidatorSwapTokenOutNotAllowed(address tokenOut);
-
-    /**
-     * @dev Swap intent recipient is not allowed
-     */
-    error IntentsValidatorSwapRecipientNotAllowed(address recipient);
-
-    /**
-     * @dev Validates a swap intent for a safeguard
+     * @dev Tells whether a swap intent is valid for a safeguard
      * @param intent Swap intent to be validated
      * @param safeguard Safeguard to validate the intent with
      */
-    function _validateSwap(Intent memory intent, Safeguard memory safeguard) internal pure {
+    function _isSwapIntentValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
         SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
         if (safeguard.mode == uint8(SwapSafeguardMode.SourceChain))
-            _validateSwapSourceChain(swapIntent.sourceChain, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.DestinationChain))
-            _validateSwapDestinationChain(swapIntent.destinationChain, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.TokenIn))
-            _validateSwapTokensIn(swapIntent.tokensIn, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.TokenOut))
-            _validateSwapTokensOut(swapIntent.tokensOut, safeguard.config);
-        else if (safeguard.mode == uint8(SwapSafeguardMode.Recipient))
-            _validateSwapRecipients(swapIntent.tokensOut, safeguard.config);
-        else revert IntentsValidatorInvalidMode(safeguard.mode);
+            return _isChainAllowed(swapIntent.sourceChain, safeguard.config);
+        if (safeguard.mode == uint8(SwapSafeguardMode.DestinationChain))
+            return _isChainAllowed(swapIntent.destinationChain, safeguard.config);
+        if (safeguard.mode == uint8(SwapSafeguardMode.TokenIn))
+            return _areSwapTokensInValid(swapIntent.tokensIn, safeguard.config);
+        if (safeguard.mode == uint8(SwapSafeguardMode.TokenOut))
+            return _areSwapTokensOutValid(swapIntent.tokensOut, safeguard.config);
+        if (safeguard.mode == uint8(SwapSafeguardMode.Recipient))
+            return _areSwapRecipientsValid(swapIntent.tokensOut, safeguard.config);
+        revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**
-     * @dev Validates that the source chain is allowed
+     * @dev Tells whether the tokens to be sent are allowed
      */
-    function _validateSwapSourceChain(uint256 chain, bytes memory config) private pure {
-        if (!_isChainAllowed(chain, config)) revert IntentsValidatorSwapSourceChainNotAllowed(chain);
-    }
-
-    /**
-     * @dev Validates that the destination chain is allowed
-     */
-    function _validateSwapDestinationChain(uint256 chain, bytes memory config) private pure {
-        if (!_isChainAllowed(chain, config)) revert IntentsValidatorSwapDestinationChainNotAllowed(chain);
-    }
-
-    /**
-     * @dev Validates that the tokens to be sent are allowed
-     */
-    function _validateSwapTokensIn(TokenIn[] memory tokensIn, bytes memory config) private pure {
+    function _areSwapTokensInValid(TokenIn[] memory tokensIn, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < tokensIn.length; i++) {
-            address token = tokensIn[i].token;
-            if (!_isAccountAllowed(token, config)) revert IntentsValidatorSwapTokenInNotAllowed(token);
+            if (!_isAccountAllowed(tokensIn[i].token, config)) return false;
         }
+        return true;
     }
 
     /**
-     * @dev Validates that the tokens to be received are allowed
+     * @dev Tells whether the tokens to be received are allowed
      */
-    function _validateSwapTokensOut(TokenOut[] memory tokensOut, bytes memory config) private pure {
+    function _areSwapTokensOutValid(TokenOut[] memory tokensOut, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < tokensOut.length; i++) {
-            address token = tokensOut[i].token;
-            if (!_isAccountAllowed(token, config)) revert IntentsValidatorSwapTokenOutNotAllowed(token);
+            if (!_isAccountAllowed(tokensOut[i].token, config)) return false;
         }
+        return true;
     }
 
     /**
-     * @dev Validates that the recipients to be received are allowed
+     * @dev Tells whether the recipients to be received are allowed
      */
-    function _validateSwapRecipients(TokenOut[] memory tokensOut, bytes memory config) private pure {
+    function _areSwapRecipientsValid(TokenOut[] memory tokensOut, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < tokensOut.length; i++) {
-            address recipient = tokensOut[i].recipient;
-            if (!_isAccountAllowed(recipient, config)) revert IntentsValidatorSwapRecipientNotAllowed(recipient);
+            if (!_isAccountAllowed(tokensOut[i].recipient, config)) return false;
         }
+        return true;
     }
 }
