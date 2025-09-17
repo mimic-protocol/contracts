@@ -2,7 +2,7 @@ import {
   BigNumberish,
   fp,
   NATIVE_TOKEN_ADDRESS,
-  randomAddress,
+  randomEvmAddress,
   randomHex,
   ZERO_ADDRESS,
   ZERO_BYTES32,
@@ -79,7 +79,7 @@ describe('SmartAccount', () => {
     context('when the sender is authorized', () => {
       let token: TokenMock | string
       const amount = fp(10)
-      const recipient = randomAddress()
+      const recipient = randomEvmAddress()
 
       const itEmitsAnEvent = () => {
         it('emits an event', async () => {
@@ -278,7 +278,7 @@ describe('SmartAccount', () => {
       })
 
       context('when the new settler is not zero', () => {
-        const newSettler = randomAddress()
+        const newSettler = randomEvmAddress()
 
         it('sets the settler', async () => {
           await smartAccount.setSettler(newSettler)
@@ -383,7 +383,7 @@ describe('SmartAccount', () => {
 
       context('when the inputs lengths do not match', () => {
         it('reverts', async () => {
-          await expect(smartAccount.setAllowedSigners([], [randomAddress()])).to.be.revertedWithCustomError(
+          await expect(smartAccount.setAllowedSigners([], [randomEvmAddress()])).to.be.revertedWithCustomError(
             smartAccount,
             'SmartAccountInputInvalidLength'
           )

@@ -1,4 +1,4 @@
-import { randomAddress, randomHex } from '@mimicprotocol/sdk'
+import { randomEvmAddress, randomHex } from '@mimicprotocol/sdk'
 import { expect } from 'chai'
 import { network } from 'hardhat'
 
@@ -28,10 +28,10 @@ describe('IntentsValidator', () => {
 
   const CHAIN_LOCAL = 31337
   const CHAIN_OTHER = 100
-  const token1 = randomAddress()
-  const token2 = randomAddress()
-  const account1 = randomAddress()
-  const account2 = randomAddress()
+  const token1 = randomEvmAddress()
+  const token2 = randomEvmAddress()
+  const account1 = randomEvmAddress()
+  const account2 = randomEvmAddress()
 
   beforeEach('deploy contract', async () => {
     validator = await ethers.deployContract('IntentsValidator')
@@ -338,8 +338,8 @@ describe('IntentsValidator', () => {
   })
 
   describe('Call modes', () => {
-    const target1 = randomAddress()
-    const target2 = randomAddress()
+    const target1 = randomEvmAddress()
+    const target2 = randomEvmAddress()
 
     context('None', () => {
       const intent = createCallIntent()
