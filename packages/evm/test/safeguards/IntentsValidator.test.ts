@@ -61,7 +61,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -95,7 +95,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -129,7 +129,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -163,7 +163,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -197,7 +197,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account1)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -245,7 +245,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -279,7 +279,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token1)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -313,7 +313,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account1)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -364,7 +364,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -398,7 +398,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -433,7 +433,7 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlySelectorSafeguard(selector)
 
           it('passes', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -479,7 +479,7 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.AND, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
@@ -510,7 +510,7 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.OR, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
@@ -541,7 +541,7 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.XOR, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
@@ -577,19 +577,19 @@ describe('IntentsValidator', () => {
     describe('NOT', () => {
       context('when every child fails', () => {
         const leaves = [
-          createDeniedChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL),
-          createDeniedAccountSafeguard(TransferSafeguardMode.Token, token1),
+          createDeniedChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL),
+          createDeniedAccountSafeguard(SwapSafeguardMode.TokenIn, token1),
         ]
 
         const groups = [{ logic: SafeguardGroupLogic.NOT, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
       context('some child passes', () => {
-        const leaves = [createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)]
+        const leaves = [createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)]
 
         const groups = [{ logic: SafeguardGroupLogic.NOT, leaves: [0], children: [] }]
 
@@ -615,7 +615,7 @@ describe('IntentsValidator', () => {
       ]
 
       it('passes', async () => {
-        await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+        expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
       })
     })
   })

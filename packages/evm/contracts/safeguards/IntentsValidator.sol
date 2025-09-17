@@ -30,19 +30,19 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
     error IntentsValidatorInvalidSafeguardGroupLogicMode(uint8 mode);
 
     /**
-     * @dev Validates an intent for a safeguard
+     * @dev Tells whether an intent is valid for a safeguard
      * @param intent Intent to be validated
      * @param config Safeguard config to validate the intent with
      */
     function validate(Intent memory intent, bytes memory config) external pure override {
         (uint8 mode, bytes memory safeguard) = abi.decode(config, (uint8, bytes));
         if (mode == uint8(SafeguardConfigMode.List)) _validate(intent, abi.decode(safeguard, (Safeguard[])));
-        if (mode == uint8(SafeguardConfigMode.Tree)) _validate(intent, _decodeSafeguardTree(safeguard));
-        revert IntentsValidatorInvalidSafeguardConfigMode(mode);
+        else if (mode == uint8(SafeguardConfigMode.Tree)) _validate(intent, _decodeSafeguardTree(safeguard));
+        else revert IntentsValidatorInvalidSafeguardConfigMode(mode);
     }
 
     /**
-     * @dev Validates an intent for a safeguard
+     * @dev Tells whether an intent is valid for a safeguards list
      * @param intent Intent to be validated
      * @param safeguards Safeguard list to validate the intent with
      */
@@ -54,7 +54,7 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
     }
 
     /**
-     * @dev Validates an intent for a safeguard
+     * @dev Tells whether an intent is valid for a safeguard tree
      * @param intent Intent to be validated
      * @param tree Safeguard tree to validate the intent with
      */
@@ -64,7 +64,7 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
     }
 
     /**
-     * @dev Tells whether an intent is valid for a safeguard tree
+     * @dev Tells whether an intent is valid for a safeguard tree at a certain level
      * @param intent Intent to be validated
      * @param tree Safeguard tree to validate the intent with
      * @param index Index of the group node to evaluate

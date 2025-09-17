@@ -26,7 +26,7 @@ enum CallSafeguardMode {
  */
 contract CallIntentsValidator is BaseIntentsValidator {
     /**
-     * @dev Validates a transfer intent for a safeguard
+     * @dev Tells whether a call intent is valid for a safeguard
      * @param intent Call intent to be validated
      * @param safeguard Safeguard to validate the intent with
      */
@@ -42,7 +42,7 @@ contract CallIntentsValidator is BaseIntentsValidator {
     }
 
     /**
-     * @dev Validates that the call targets are allowed
+     * @dev Tells whether the call targets are allowed
      */
     function _areCallTargetsValid(CallData[] memory calls, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < calls.length; i++) {
@@ -52,7 +52,7 @@ contract CallIntentsValidator is BaseIntentsValidator {
     }
 
     /**
-     * @dev Validates that the function selectors are allowed
+     * @dev Tells whether the call selectors are allowed
      */
     function _areCallSelectorsValid(CallData[] memory calls, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < calls.length; i++) {

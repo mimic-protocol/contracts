@@ -26,7 +26,7 @@ enum TransferSafeguardMode {
  */
 contract TransferIntentsValidator is BaseIntentsValidator {
     /**
-     * @dev Validates a transfer intent for a safeguard
+     * @dev Tells whether a transfer intent is valid for a safeguard
      * @param intent Transfer intent to be validated
      * @param safeguard Safeguard to validate the intent with
      */
@@ -42,7 +42,7 @@ contract TransferIntentsValidator is BaseIntentsValidator {
     }
 
     /**
-     * @dev Validates that the tokens being transferred are allowed
+     * @dev Tells whether the tokens being transferred are allowed
      */
     function _areTransferTokensValid(TransferData[] memory transfers, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < transfers.length; i++) {
@@ -52,7 +52,7 @@ contract TransferIntentsValidator is BaseIntentsValidator {
     }
 
     /**
-     * @dev Validates that the recipients of the transfers are allowed
+     * @dev Tells whether the recipients of the transfers are allowed
      */
     function _areTransferRecipientsValid(TransferData[] memory transfers, bytes memory config)
         private

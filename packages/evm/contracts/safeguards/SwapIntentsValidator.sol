@@ -30,7 +30,7 @@ enum SwapSafeguardMode {
  */
 contract SwapIntentsValidator is BaseIntentsValidator {
     /**
-     * @dev Validates a swap intent for a safeguard
+     * @dev Tells whether a swap intent is valid for a safeguard
      * @param intent Swap intent to be validated
      * @param safeguard Safeguard to validate the intent with
      */
@@ -50,7 +50,7 @@ contract SwapIntentsValidator is BaseIntentsValidator {
     }
 
     /**
-     * @dev Validates that the tokens to be sent are allowed
+     * @dev Tells whether the tokens to be sent are allowed
      */
     function _areSwapTokensInValid(TokenIn[] memory tokensIn, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < tokensIn.length; i++) {
@@ -60,7 +60,7 @@ contract SwapIntentsValidator is BaseIntentsValidator {
     }
 
     /**
-     * @dev Validates that the tokens to be received are allowed
+     * @dev Tells whether the tokens to be received are allowed
      */
     function _areSwapTokensOutValid(TokenOut[] memory tokensOut, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < tokensOut.length; i++) {
@@ -70,7 +70,7 @@ contract SwapIntentsValidator is BaseIntentsValidator {
     }
 
     /**
-     * @dev Validates that the recipients to be received are allowed
+     * @dev Tells whether the recipients to be received are allowed
      */
     function _areSwapRecipientsValid(TokenOut[] memory tokensOut, bytes memory config) private pure returns (bool) {
         for (uint256 i = 0; i < tokensOut.length; i++) {
