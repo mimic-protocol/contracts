@@ -42,9 +42,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using IntentsHelpers for Proposal;
     using SmartAccountsHandlerHelpers for address;
 
-    // Hard cap to avoid bridging executions with a huge safeguard arrays
-    uint256 internal constant MAX_SAFEGUARDS = 32;
-
     // Mimic controller reference
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override controller;
@@ -58,8 +55,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     // List of block numbers at which a user nonce was used
     mapping (address => mapping (bytes32 => uint256)) public override getNonceBlock;
 
-    // List of safeguards per user
-    mapping (address => Safeguard[]) internal _userSafeguards;
+    // Safeguard config per user
+    mapping (address => bytes) internal _userSafeguard;
 
     /**
      * @dev Modifier to tag settler functions in order to check if the sender is an allowed solver
@@ -104,11 +101,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Tells the list of safeguards set for a user
+     * @dev Tells the safeguard set for a user
      * @param user Address of the user being queried
      */
-    function getUserSafeguards(address user) external view override returns (Safeguard[] memory) {
-        return _userSafeguards[user];
+    function getUserSafeguard(address user) external view override returns (bytes memory) {
+        return _userSafeguard[user];
     }
 
     /**
@@ -148,27 +145,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Sets a list of safeguards for a user
-     * @param safeguards List of safeguards to be set
+     * @dev Sets a safeguard for a user
+     * @param safeguard Safeguard to be set
      */
-    function setSafeguards(Safeguard[] memory safeguards) external override {
-        _clearSafeguards(msg.sender);
-        _appendSafeguards(msg.sender, safeguards);
-    }
-
-    /**
-     * @dev Appends a list of safeguards for a user
-     * @param safeguards List of safeguards to be appended
-     */
-    function appendSafeguards(Safeguard[] memory safeguards) external override {
-        _appendSafeguards(msg.sender, safeguards);
-    }
-
-    /**
-     * @notice Clear all safeguards set for your address.
-     */
-    function clearSafeguards() external override {
-        _clearSafeguards(msg.sender);
+    function setSafeguard(bytes memory safeguard) external override {
+        _setSafeguard(msg.sender, safeguard);
     }
 
     /**
@@ -305,8 +286,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (getNonceBlock[intent.user][intent.nonce] != 0) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
 
         if (intentsValidator != address(0)) {
-            Safeguard[] memory safeguards = _userSafeguards[intent.user];
-            if (safeguards.length > 0) IIntentsValidator(intentsValidator).validate(intent, safeguards);
+            bytes memory safeguard = _userSafeguard[intent.user];
+            if (safeguard.length > 0) IIntentsValidator(intentsValidator).validate(intent, safeguard);
         }
 
         bool shouldValidateDeadlines = _shouldValidateDeadlines(intent);
@@ -456,29 +437,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Appends a list of safeguards for a user
-     * @param user Address of the user to append the safeguards for
-     * @param safeguards List of safeguards to be appended
+     * @dev Sets a safeguard for a user
+     * @param user Address of the user to set the safeguard for
+     * @param safeguard Safeguard to be set
      */
-    function _appendSafeguards(address user, Safeguard[] memory safeguards) internal {
-        Safeguard[] storage list = _userSafeguards[user];
-        uint256 newLength = list.length + safeguards.length;
-        if (newLength > MAX_SAFEGUARDS) revert SettlerTooManySafeguards(newLength);
-
-        for (uint256 i = 0; i < safeguards.length; i++) {
-            list.push(safeguards[i]);
-            emit SafeguardAppended(user, safeguards[i]);
-        }
-    }
-
-    /**
-     * @dev Clears the list of safeguards for a user
-     * @param user Address of the user to clear the safeguards for
-     */
-    function _clearSafeguards(address user) internal {
-        if (_userSafeguards[user].length > 0) {
-            delete _userSafeguards[user];
-            emit SafeguardsCleared(user);
-        }
+    function _setSafeguard(address user, bytes memory safeguard) internal {
+        delete _userSafeguard[user];
+        _userSafeguard[user] = safeguard;
+        emit SafeguardSet(user);
     }
 }

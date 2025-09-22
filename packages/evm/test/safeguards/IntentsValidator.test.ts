@@ -9,12 +9,15 @@ import {
   createDeniedAccountSafeguard,
   createDeniedChainSafeguard,
   createDeniedSelectorSafeguard,
+  createListSafeguard,
   createOnlyAccountSafeguard,
   createOnlyChainSafeguard,
   createOnlySelectorSafeguard,
   createSafeguardNone,
   createSwapIntent,
   createTransferIntent,
+  createTreeSafeguard,
+  SafeguardGroupLogic,
   SwapSafeguardMode,
   TransferSafeguardMode,
 } from '../helpers'
@@ -37,422 +40,582 @@ describe('IntentsValidator', () => {
     validator = await ethers.deployContract('IntentsValidator')
   })
 
-  describe('Swap modes', () => {
-    context('None', () => {
-      const intent = createSwapIntent()
-      const safeguard = createSafeguardNone()
+  describe('List', () => {
+    describe('Swap modes', () => {
+      context('None', () => {
+        const intent = createSwapIntent()
+        const safeguard = createSafeguardNone()
 
-      it('always reverts with IntentsValidatorNoneAllowed', async () => {
-        await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-          validator,
-          'IntentsValidatorNoneAllowed'
-        )
+        it('always reverts with IntentsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            validator,
+            'IntentsValidatorNoneAllowed'
+          )
+        })
+      })
+
+      context('SourceChain', () => {
+        const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
+
+        context('when the source chain is not denied', () => {
+          const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the source chain is denied', () => {
+          const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the source chain is not allowed', () => {
+          const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_OTHER)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('DestinationChain', () => {
+        const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
+
+        context('when the destination chain is allowed', () => {
+          const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the destination chain is denied', () => {
+          const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the destination chain is not allowed', () => {
+          const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_OTHER)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('TokenIn', () => {
+        const intent = createSwapIntent({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
+
+        context('when the token in is allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the token in is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when a token in is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('TokenOut', () => {
+        const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
+
+        context('when the token out is allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when a token out is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when a token out is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('Recipient', () => {
+        const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
+
+        context('when the recipient is allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account1)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when a recipient is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.Recipient, account1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when a recipient is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
       })
     })
 
-    context('SourceChain', () => {
-      const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
+    describe('Transfer modes', () => {
+      context('None', () => {
+        const intent = createTransferIntent()
+        const safeguard = createSafeguardNone()
 
-      context('when the source chain is not denied', () => {
-        const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
-
-        it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
-        })
-      })
-
-      context('when the source chain is denied', () => {
-        const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
-
-        it('reverts with IntentsValidatorSwapSourceChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+        it('always reverts with IntentsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorSwapSourceChainNotAllowed'
+            'IntentsValidatorNoneAllowed'
           )
         })
       })
 
-      context('when the source chain is not allowed', () => {
-        const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_OTHER)
+      context('Chain', () => {
+        const intent = createTransferIntent({ chainId: CHAIN_LOCAL, transfers: [] })
 
-        it('reverts with IntentsValidatorSwapSourceChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapSourceChainNotAllowed'
-          )
+        context('when the chain is not denied', () => {
+          const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the chain is denied', () => {
+          const safeguard = createDeniedChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the chain is not allowed', () => {
+          const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_OTHER)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('Token', () => {
+        const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+
+        context('when all tokens are not denied', () => {
+          const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token1)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when a token is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Token, token1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when a token is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('Recipient', () => {
+        const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+
+        context('when the recipient is allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account1)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the recipient is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Recipient, account1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the recipient is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
         })
       })
     })
 
-    context('DestinationChain', () => {
-      const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
+    describe('Call modes', () => {
+      const target1 = randomAddress()
+      const target2 = randomAddress()
 
-      context('when the destination chain is allowed', () => {
-        const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
+      context('None', () => {
+        const intent = createCallIntent()
+        const safeguard = createSafeguardNone()
 
-        it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
-        })
-      })
-
-      context('when the destination chain is denied', () => {
-        const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
-
-        it('reverts with IntentsValidatorSwapDestinationChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+        it('always reverts with IntentsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorSwapDestinationChainNotAllowed'
+            'IntentsValidatorNoneAllowed'
           )
         })
       })
 
-      context('when the destination chain is not allowed', () => {
-        const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_OTHER)
+      context('Chain', () => {
+        const intent = createCallIntent({ chainId: CHAIN_LOCAL, calls: [] })
 
-        it('reverts with IntentsValidatorSwapDestinationChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapDestinationChainNotAllowed'
-          )
+        context('when the chain is not denied', () => {
+          const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
         })
-      })
-    })
 
-    context('TokenIn', () => {
-      const intent = createSwapIntent({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
+        context('when the chain is denied', () => {
+          const safeguard = createDeniedChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
 
-      context('when the token in is allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
-
-        it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
         })
-      })
 
-      context('when the token in is denied', () => {
-        const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
+        context('when the chain is not allowed', () => {
+          const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_OTHER)
 
-        it('reverts with IntentsValidatorSwapTokenInNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapTokenInNotAllowed'
-          )
-        })
-      })
-
-      context('when a token in is not allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2)
-
-        it('reverts with IntentsValidatorSwapTokenInNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapTokenInNotAllowed'
-          )
-        })
-      })
-    })
-
-    context('TokenOut', () => {
-      const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
-
-      context('when the token out is allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
-
-        it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
         })
       })
 
-      context('when a token out is denied', () => {
-        const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
+      context('Target', () => {
+        const intent = createCallIntent({ calls: [{ target: target1, data: '0x', value: 0 }] })
 
-        it('reverts with IntentsValidatorSwapTokenOutNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapTokenOutNotAllowed'
-          )
+        context('when all targets are not denied', () => {
+          const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the target is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(CallSafeguardMode.Target, target1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the target is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
         })
       })
 
-      context('when a token out is not allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token2)
+      context('Selector', () => {
+        const selector = '0xa9059cbb'
+        const intent = createCallIntent({ calls: [{ target: target1, data: selector, value: 0 }] })
 
-        it('reverts with IntentsValidatorSwapTokenOutNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapTokenOutNotAllowed'
-          )
+        context('when the selector is allowed', () => {
+          const safeguard = createOnlySelectorSafeguard(selector)
+
+          it('passes', async () => {
+            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+          })
         })
-      })
-    })
 
-    context('Recipient', () => {
-      const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
+        context('when the selector is denied', () => {
+          const safeguard = createDeniedSelectorSafeguard(selector)
 
-      context('when the recipient is allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account1)
-
-        it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
         })
-      })
 
-      context('when a recipient is denied', () => {
-        const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.Recipient, account1)
+        context('when the selector is not allowed', () => {
+          const safeguard = createOnlySelectorSafeguard(randomHex(4))
 
-        it('reverts with IntentsValidatorSwapRecipientNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapRecipientNotAllowed'
-          )
-        })
-      })
-
-      context('when a recipient is not allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account2)
-
-        it('reverts with IntentsValidatorSwapRecipientNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSwapRecipientNotAllowed'
-          )
+          it('reverts', async () => {
+            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'IntentsValidatorSafeguardFailed'
+            )
+          })
         })
       })
     })
   })
 
-  describe('Transfer modes', () => {
-    context('None', () => {
-      const intent = createTransferIntent()
-      const safeguard = createSafeguardNone()
-
-      it('always reverts with IntentsValidatorNoneAllowed', async () => {
-        await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-          validator,
-          'IntentsValidatorNoneAllowed'
-        )
-      })
+  describe('Tree', () => {
+    const intent = createSwapIntent({
+      sourceChain: CHAIN_LOCAL,
+      destinationChain: CHAIN_LOCAL,
+      tokensIn: [{ token: token1, amount: 1n }],
     })
 
-    context('Chain', () => {
-      const intent = createTransferIntent({ chainId: CHAIN_LOCAL, transfers: [] })
+    describe('AND', () => {
+      context('when all children pass', () => {
+        const leaves = [
+          createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL),
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1),
+        ]
 
-      context('when the chain is not denied', () => {
-        const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
+        const groups = [{ logic: SafeguardGroupLogic.AND, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
-      context('when the chain is denied', () => {
-        const safeguard = createDeniedChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
+      context('when one child fails', () => {
+        const leaves = [
+          createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL),
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2),
+        ]
 
-        it('reverts with IntentsValidatorTransferChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+        const groups = [{ logic: SafeguardGroupLogic.AND, leaves: [0, 1], children: [] }]
+
+        it('reverts', async () => {
+          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorTransferChainNotAllowed'
-          )
-        })
-      })
-
-      context('when the chain is not allowed', () => {
-        const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_OTHER)
-
-        it('reverts with IntentsValidatorTransferChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorTransferChainNotAllowed'
+            'IntentsValidatorSafeguardFailed'
           )
         })
       })
     })
 
-    context('Token', () => {
-      const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+    describe('OR', () => {
+      context('when at least one child passes', () => {
+        const leaves = [
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1),
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2),
+        ]
 
-      context('when all tokens are not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token1)
+        const groups = [{ logic: SafeguardGroupLogic.OR, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
-      context('when a token is denied', () => {
-        const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Token, token1)
+      context('when no child passes', () => {
+        const leaves = [
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2),
+          createDeniedChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL),
+        ]
 
-        it('reverts with IntentsValidatorTransferTokenNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+        const groups = [{ logic: SafeguardGroupLogic.OR, leaves: [0, 1], children: [] }]
+
+        it('reverts', async () => {
+          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorTransferTokenNotAllowed'
-          )
-        })
-      })
-
-      context('when a token is not allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token2)
-
-        it('reverts with IntentsValidatorTransferTokenNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorTransferTokenNotAllowed'
+            'IntentsValidatorSafeguardFailed'
           )
         })
       })
     })
 
-    context('Recipient', () => {
-      const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+    describe('XOR', () => {
+      context('when exactly one child passes', () => {
+        const leaves = [
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1),
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2),
+        ]
 
-      context('when the recipient is allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account1)
+        const groups = [{ logic: SafeguardGroupLogic.XOR, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
-      context('when the recipient is denied', () => {
-        const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Recipient, account1)
+      context('more than child one passes', () => {
+        const leaves = [
+          createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL),
+          createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1),
+        ]
 
-        it('reverts with IntentsValidatorTransferRecipientNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+        const groups = [{ logic: SafeguardGroupLogic.XOR, leaves: [0, 1], children: [] }]
+
+        it('reverts', async () => {
+          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorTransferRecipientNotAllowed'
+            'IntentsValidatorSafeguardFailed'
           )
         })
       })
 
-      context('when the recipient is not allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account2)
+      context('when no child passes', () => {
+        const leaves = [createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2)]
+        const groups = [{ logic: SafeguardGroupLogic.XOR, leaves: [0], children: [] }]
 
-        it('reverts with IntentsValidatorTransferRecipientNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+        it('reverts', async () => {
+          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorTransferRecipientNotAllowed'
+            'IntentsValidatorSafeguardFailed'
           )
         })
       })
     })
-  })
 
-  describe('Call modes', () => {
-    const target1 = randomAddress()
-    const target2 = randomAddress()
+    describe('NOT', () => {
+      context('when every child fails', () => {
+        const leaves = [
+          createDeniedChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL),
+          createDeniedAccountSafeguard(SwapSafeguardMode.TokenIn, token1),
+        ]
 
-    context('None', () => {
-      const intent = createCallIntent()
-      const safeguard = createSafeguardNone()
-
-      it('always reverts with IntentsValidatorNoneAllowed', async () => {
-        await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-          validator,
-          'IntentsValidatorNoneAllowed'
-        )
-      })
-    })
-
-    context('Chain', () => {
-      const intent = createCallIntent({ chainId: CHAIN_LOCAL, calls: [] })
-
-      context('when the chain is not denied', () => {
-        const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+        const groups = [{ logic: SafeguardGroupLogic.NOT, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
+          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
-      context('when the chain is denied', () => {
-        const safeguard = createDeniedChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+      context('some child passes', () => {
+        const leaves = [createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)]
 
-        it('reverts with IntentsValidatorCallChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
+        const groups = [{ logic: SafeguardGroupLogic.NOT, leaves: [0], children: [] }]
+
+        it('reverts', async () => {
+          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorCallChainNotAllowed'
-          )
-        })
-      })
-
-      context('when the chain is not allowed', () => {
-        const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_OTHER)
-
-        it('reverts with IntentsValidatorCallChainNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorCallChainNotAllowed'
+            'IntentsValidatorSafeguardFailed'
           )
         })
       })
     })
 
-    context('Target', () => {
-      const intent = createCallIntent({ calls: [{ target: target1, data: '0x', value: 0 }] })
+    describe('nested groups', () => {
+      const leaves = [
+        createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1),
+        createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2),
+        createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL),
+      ]
 
-      context('when all targets are not denied', () => {
-        const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
+      const groups = [
+        { logic: SafeguardGroupLogic.AND, leaves: [2], children: [1] },
+        { logic: SafeguardGroupLogic.OR, leaves: [0, 1], children: [] },
+      ]
 
-        it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
-        })
-      })
-
-      context('when the target is denied', () => {
-        const safeguard = createDeniedAccountSafeguard(CallSafeguardMode.Target, target1)
-
-        it('reverts with IntentsValidatorCallTargetNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorCallTargetNotAllowed'
-          )
-        })
-      })
-
-      context('when the target is not allowed', () => {
-        const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target2)
-
-        it('reverts with IntentsValidatorCallTargetNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorCallTargetNotAllowed'
-          )
-        })
-      })
-    })
-
-    context('Selector', () => {
-      const selector = '0xa9059cbb'
-      const intent = createCallIntent({ calls: [{ target: target1, data: selector, value: 0 }] })
-
-      context('when the selector is allowed', () => {
-        const safeguard = createOnlySelectorSafeguard(selector)
-
-        it('passes', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.not.be.reverted
-        })
-      })
-
-      context('when the selector is denied', () => {
-        const safeguard = createDeniedSelectorSafeguard(selector)
-
-        it('reverts with IntentsValidatorCallSelectorNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorCallSelectorNotAllowed'
-          )
-        })
-      })
-
-      context('when the selector is not allowed', () => {
-        const safeguard = createOnlySelectorSafeguard(randomHex(4))
-
-        it('reverts with IntentsValidatorCallSelectorNotAllowed', async () => {
-          await expect(validator.validate(intent, [safeguard])).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorCallSelectorNotAllowed'
-          )
-        })
+      it('passes', async () => {
+        expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
       })
     })
   })
