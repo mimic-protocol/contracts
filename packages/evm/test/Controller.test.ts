@@ -1,3 +1,4 @@
+import { randomEvmAddress } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { getAddress } from 'ethers'
@@ -5,7 +6,6 @@ import { network } from 'hardhat'
 
 import { Controller } from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
-import { randomAddress } from './helpers'
 
 const { ethers } = await network.connect()
 
@@ -13,9 +13,10 @@ describe('Controller', () => {
   let controller: Controller
   let owner: HardhatEthersSigner, other: HardhatEthersSigner
 
-  const allowedSolvers = [randomAddress(), randomAddress()]
-  const allowedExecutors = [randomAddress(), randomAddress(), randomAddress()]
-  const allowedProposalSigners = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
+  const allowedSolvers = [randomEvmAddress(), randomEvmAddress()]
+  const allowedExecutors = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
+  const allowedProposalSigners = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
+  const allowedValidators = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
 
   beforeEach('deploy controller', async () => {
     // eslint-disable-next-line prettier/prettier
@@ -25,6 +26,7 @@ describe('Controller', () => {
       allowedSolvers,
       allowedExecutors,
       allowedProposalSigners,
+      allowedValidators,
     ])
   })
 
@@ -67,6 +69,16 @@ describe('Controller', () => {
         expect(await controller.isProposalSignerAllowed(address)).to.be.false
       }
     })
+
+    it('initializes allowed validators properly', async () => {
+      for (const address of allowedValidators) {
+        expect(await controller.isValidatorAllowed(address)).to.be.true
+      }
+
+      for (const address of allowedSolvers.concat(allowedProposalSigners)) {
+        expect(await controller.isValidatorAllowed(address)).to.be.false
+      }
+    })
   })
 
   const itHandlesControllerConfigProperly = (config: string) => {
@@ -80,7 +92,7 @@ describe('Controller', () => {
       })
 
       context('when the inputs lengths match', () => {
-        const keys = [randomAddress(), randomAddress(), randomAddress()].map((a) => getAddress(a))
+        const keys = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress()].map((a) => getAddress(a))
         const values = [true, true, false]
 
         const itSetsTheConfigsProperly = () => {
@@ -153,5 +165,9 @@ describe('Controller', () => {
 
   describe('setAllowedProposalSigners', () => {
     itHandlesControllerConfigProperly('proposalSigner')
+  })
+
+  describe('setAllowedValidators', () => {
+    itHandlesControllerConfigProperly('validator')
   })
 })

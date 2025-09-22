@@ -13,11 +13,7 @@ contract ReentrantExecutorMock is IExecutor {
         settler = _settler;
     }
 
-    function execute(Intent memory intent, Proposal memory proposal) external override {
-        // solhint-disable-next-line custom-errors
-        require(intent.op == OpType.Swap, 'Invalid intent type');
-        SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
-        Execution[] memory executions = abi.decode(swapProposal.data, (Execution[]));
-        ISettler(settler).execute(executions);
+    function execute(Intent memory, Proposal memory) external override {
+        ISettler(settler).execute(new Execution[](0));
     }
 }

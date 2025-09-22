@@ -1,20 +1,20 @@
+import {
+  BigNumberish,
+  fp,
+  NATIVE_TOKEN_ADDRESS,
+  randomEvmAddress,
+  randomHex,
+  ZERO_ADDRESS,
+  ZERO_BYTES32,
+} from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { getAddress, hashMessage } from 'ethers'
 import { network } from 'hardhat'
 
-import { CallMock, SmartAccount, TokenMock } from '../types/ethers-contracts/index.js'
-import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
-import {
-  BigNumberish,
-  fp,
-  NATIVE_TOKEN_ADDRESS,
-  randomAddress,
-  randomHex,
-  toAddress,
-  ZERO_ADDRESS,
-  ZERO_BYTES32,
-} from './helpers'
+import { CallMock, SmartAccount, TokenMock } from '../../types/ethers-contracts/index.js'
+import itBehavesLikeOwnable from '../behaviors/Ownable.behavior'
+import { toAddress } from '../helpers'
 
 const { ethers } = await network.connect()
 
@@ -79,7 +79,7 @@ describe('SmartAccount', () => {
     context('when the sender is authorized', () => {
       let token: TokenMock | string
       const amount = fp(10)
-      const recipient = randomAddress()
+      const recipient = randomEvmAddress()
 
       const itEmitsAnEvent = () => {
         it('emits an event', async () => {
@@ -278,7 +278,7 @@ describe('SmartAccount', () => {
       })
 
       context('when the new settler is not zero', () => {
-        const newSettler = randomAddress()
+        const newSettler = randomEvmAddress()
 
         it('sets the settler', async () => {
           await smartAccount.setSettler(newSettler)
@@ -383,7 +383,7 @@ describe('SmartAccount', () => {
 
       context('when the inputs lengths do not match', () => {
         it('reverts', async () => {
-          await expect(smartAccount.setAllowedSigners([], [randomAddress()])).to.be.revertedWithCustomError(
+          await expect(smartAccount.setAllowedSigners([], [randomEvmAddress()])).to.be.revertedWithCustomError(
             smartAccount,
             'SmartAccountInputInvalidLength'
           )

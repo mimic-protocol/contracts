@@ -3,6 +3,7 @@
 pragma solidity ^0.8.20;
 
 import '../Intents.sol';
+import '../safeguards/Safeguards.sol';
 
 /**
  * @title Settler interface
@@ -114,6 +115,16 @@ interface ISettler {
     error SettlerRescueFundsRecipientZero();
 
     /**
+     * @dev The list of safeguards exceed the maximum allowed
+     */
+    error SettlerTooManySafeguards(uint256 lengthRequested);
+
+    /**
+     * @dev The new smart accounts handler is zero
+     */
+    error SmartAccountsHandlerZero();
+
+    /**
      * @dev Custom events emitted for each intent
      */
     event IntentExecuted(
@@ -137,9 +148,34 @@ interface ISettler {
     event FundsRescued(address indexed token, address indexed recipient, uint256 amount);
 
     /**
+     * @dev Emitted every time the smart accounts handler is set
+     */
+    event SmartAccountsHandlerSet(address indexed smartAccountsHandler);
+
+    /**
+     * @dev Emitted every time the intents validator is set
+     */
+    event IntentsValidatorSet(address indexed intentsValidator);
+
+    /**
+     * @dev Emitted every time a safeguard is set
+     */
+    event SafeguardSet(address indexed user);
+
+    /**
      * @dev Tells the reference to the Mimic controller
      */
     function controller() external view returns (address);
+
+    /**
+     * @dev Tells the reference to the smart accounts handler
+     */
+    function smartAccountsHandler() external view returns (address);
+
+    /**
+     * @dev Tells the reference to the intents validator
+     */
+    function intentsValidator() external view returns (address);
 
     /**
      * @dev Tells the block at which a user nonce was used. Returns 0 if unused.
@@ -147,6 +183,12 @@ interface ISettler {
      * @param nonce Nonce being queried
      */
     function getNonceBlock(address user, bytes32 nonce) external view returns (uint256);
+
+    /**
+     * @dev Tells the safeguard set for a user
+     * @param user Address of the user being queried
+     */
+    function getUserSafeguard(address user) external view returns (bytes memory);
 
     /**
      * @dev Tells the hash of an intent
@@ -172,6 +214,24 @@ interface ISettler {
      * @param amount Amount of tokens to be withdrawn
      */
     function rescueFunds(address token, address recipient, uint256 amount) external;
+
+    /**
+     * @dev Sets a new smart accounts handler
+     * @param newSmartAccountsHandler New smart accounts handler to be set
+     */
+    function setSmartAccountsHandler(address newSmartAccountsHandler) external;
+
+    /**
+     * @dev Sets a new intents validator address
+     * @param newIntentsValidator New intents validator to be set
+     */
+    function setIntentsValidator(address newIntentsValidator) external;
+
+    /**
+     * @dev Sets a safeguard for a user
+     * @param safeguard Safeguard to be set
+     */
+    function setSafeguard(bytes memory safeguard) external;
 
     /**
      * @dev Executes a proposal to fulfill an intent

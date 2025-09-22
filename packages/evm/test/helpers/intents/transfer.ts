@@ -1,9 +1,8 @@
-import { AbiCoder } from 'ethers'
+import { BigNumberish, encodeTransferIntent, OpType, TransferIntentData } from '@mimicprotocol/sdk'
 
 import { Account, toAddress } from '../addresses'
 import { NAry, toArray } from '../arrays'
-import { BigNumberish } from '../numbers'
-import { createIntent, Intent, OpType } from './base'
+import { createIntent, Intent } from './base'
 
 export type TransferIntent = Intent & {
   chainId: BigNumberish
@@ -18,25 +17,20 @@ export interface TransferData {
 
 export function createTransferIntent(params?: Partial<TransferIntent>): Intent {
   const intent = createIntent({ ...params, op: OpType.Transfer })
-  intent.data = encodeTransferIntent({ ...getDefaults(), ...params, ...intent })
+  const transferIntent = { ...getDefaults(), ...params, ...intent } as TransferIntent
+  intent.data = encodeTransferIntent(toTransferIntentData(transferIntent))
   return intent
 }
 
-function encodeTransferIntent(intent: Partial<TransferIntent>): string {
-  const TRANSFERS = 'tuple(address,uint256,address)[]'
-  return AbiCoder.defaultAbiCoder().encode(
-    [`tuple(uint256,${TRANSFERS})`],
-    [
-      [
-        intent.chainId,
-        toArray(intent.transfers).map((transferData: TransferData) => [
-          toAddress(transferData.token),
-          transferData.amount.toString(),
-          toAddress(transferData.recipient),
-        ]),
-      ],
-    ]
-  )
+function toTransferIntentData(intent: TransferIntent): TransferIntentData {
+  return {
+    chainId: intent.chainId.toString(),
+    transfers: toArray(intent.transfers).map((transfer) => ({
+      token: toAddress(transfer.token),
+      amount: transfer.amount.toString(),
+      recipient: toAddress(transfer.recipient),
+    })),
+  }
 }
 
 function getDefaults(): Partial<TransferIntent> {

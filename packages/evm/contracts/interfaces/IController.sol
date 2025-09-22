@@ -27,6 +27,11 @@ interface IController {
     event ProposalSignerAllowedSet(address indexed proposalSigner, bool allowed);
 
     /**
+     * @dev Emitted every time a validator permission is set
+     */
+    event ValidatorAllowedSet(address indexed validator, bool allowed);
+
+    /**
      * @dev Tells whether a solver is allowed
      * @param solver Address of the solver being queried
      */
@@ -43,6 +48,12 @@ interface IController {
      * @param signer Address of the proposal signer being queried
      */
     function isProposalSignerAllowed(address signer) external view returns (bool);
+
+    /**
+     * @dev Tells whether a validator is allowed
+     * @param validator Address of the validator being queried
+     */
+    function isValidatorAllowed(address validator) external view returns (bool);
 
     /**
      * @dev Sets permissions for multiple solvers
@@ -64,4 +75,11 @@ interface IController {
      * @param alloweds List of permission statuses
      */
     function setAllowedProposalSigners(address[] memory signers, bool[] memory alloweds) external;
+
+    /**
+     * @dev Sets permissions for multiple validators
+     * @param validators List of validator addresses
+     * @param alloweds List of permission statuses
+     */
+    function setAllowedValidators(address[] memory validators, bool[] memory alloweds) external;
 }

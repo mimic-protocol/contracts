@@ -38,7 +38,7 @@ struct Execution {
  * @param events List of custom intent events to be emitted.
  */
 struct Intent {
-    OpType op;
+    uint8 op;
     address user;
     address settler;
     bytes32 nonce;
@@ -175,7 +175,7 @@ struct SwapProposal {
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
         keccak256(
-            'Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data,MaxFee[] maxFees)MaxFee(address token,uint256 amount)IntentEvent(bytes32 topic,bytes data)'
+            'Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data,MaxFee[] maxFees,IntentEvent[] events)IntentEvent(bytes32 topic,bytes data)MaxFee(address token,uint256 amount)'
         );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =

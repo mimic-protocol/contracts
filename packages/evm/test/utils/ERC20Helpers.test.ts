@@ -4,11 +4,11 @@ import { network } from 'hardhat'
 
 const { ethers } = await network.connect()
 
-import { NATIVE_TOKEN_ADDRESS, randomAddress, ZERO_ADDRESS } from '../helpers'
+import { NATIVE_TOKEN_ADDRESS, randomEvmAddress, ZERO_ADDRESS } from '@mimicprotocol/sdk'
 
 describe('ERC20Helpers', () => {
   let library: Contract
-  const someone = randomAddress()
+  const someone = randomEvmAddress()
 
   beforeEach('deploy helpers', async () => {
     library = await ethers.deployContract('ERC20HelpersMock')
