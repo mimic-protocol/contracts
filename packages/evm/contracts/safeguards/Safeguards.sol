@@ -29,8 +29,8 @@ enum SafeguardGroupLogic {
 /**
  * @dev Flat node in the safeguard tree
  * @param logic Group operator (AND/OR/XOR/NOT)
- * @param safeguards Indices into `SafeguardTree.leaves`
- * @param children Indices into `SafeguardTree.groups`
+ * @param leaves Indices into `SafeguardTree.leaves`
+ * @param children Indices into `SafeguardTree.nodes`
  */
 struct SafeguardGroup {
     uint8 logic;
