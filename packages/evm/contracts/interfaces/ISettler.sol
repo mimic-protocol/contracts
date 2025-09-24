@@ -35,6 +35,16 @@ interface ISettler {
     error SettlerProposalSignerNotAllowed(address signer);
 
     /**
+     * @dev The validator is not allowed
+     */
+    error SettlerValidatorNotAllowed(address validator);
+
+    /**
+     * @dev The validator is duplicated
+     */
+    error SettlerValidatorDuplicatedOrUnsorted(address previous, address current);
+
+    /**
      * @dev The settler is not the current contract
      */
     error SettlerInvalidSettler(address settler);
@@ -98,6 +108,11 @@ interface ISettler {
      * @dev The solver fee is too high
      */
     error SettlerSolverFeeTooHigh(uint256 fee, uint256 max);
+
+    /**
+     * @dev The intent validations are not enough
+     */
+    error SettlerIntentValidationsNotEnough(uint256 min, uint256 current);
 
     /**
      * @dev The proposal deadline is in the past

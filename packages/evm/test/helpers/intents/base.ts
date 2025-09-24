@@ -6,6 +6,7 @@ import {
   OpType,
   randomEvmAddress,
   randomHex,
+  randomSig,
 } from '@mimicprotocol/sdk'
 
 import { Account, toAddress } from '../addresses'
@@ -29,6 +30,9 @@ export type Intent = {
   data: string
   maxFees: MaxFee[]
   events: IntentEvent[]
+  configSig: string
+  minValidations: number
+  validations: string[]
 }
 
 export function createIntent(params?: Partial<Intent>): Intent {
@@ -49,6 +53,8 @@ function toRawIntent(intent: Intent): RawIntent {
     data: intent.data,
     maxFees: intent.maxFees.map(({ token, amount }) => ({ token: toAddress(token), amount: amount.toString() })),
     events: intent.events.map(({ topic, data }) => ({ topic, data: data || '0x' })),
+    configSig: intent.configSig,
+    minValidations: intent.minValidations,
   }
 }
 
@@ -62,5 +68,8 @@ function getDefaults(): Intent {
     data: '0x',
     maxFees: [],
     events: [],
+    configSig: randomSig(),
+    minValidations: 0,
+    validations: [],
   }
 }

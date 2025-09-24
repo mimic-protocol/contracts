@@ -40,6 +40,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
+    using IntentsHelpers for Validation;
     using SmartAccountsHandlerHelpers for address;
 
     // Mimic controller reference
@@ -307,6 +308,26 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             uint256 maxFee = intent.maxFees[i].amount;
             uint256 proposalFee = proposal.fees[i];
             if (proposalFee > maxFee) revert SettlerSolverFeeTooHigh(proposalFee, maxFee);
+        }
+
+        uint8 minValidations = IController(controller).minValidations();
+        uint256 requiredValidations = intent.minValidations > minValidations ? intent.minValidations : minValidations;
+
+        if (intent.validations.length < requiredValidations) {
+            revert SettlerIntentValidationsNotEnough(requiredValidations, intent.validations.length);
+        }
+
+        address lastValidator = address(0);
+        Validation memory validation = Validation(intent.hash());
+        bytes32 typedDataHash = _hashTypedDataV4(validation.hash());
+        for (uint256 i = 0; i < intent.validations.length; i++) {
+            address validator = ECDSA.recover(typedDataHash, intent.validations[i]);
+            if (validator <= lastValidator) {
+                revert SettlerValidatorDuplicatedOrUnsorted(lastValidator, validator);
+            }
+            lastValidator = validator;
+            bool isValidatorNotAllowed = !IController(controller).isValidatorAllowed(validator);
+            if (isValidatorNotAllowed) revert SettlerValidatorNotAllowed(validator);
         }
 
         address signer = ECDSA.recover(_hashTypedDataV4(proposal.hash(intent, _msgSender())), signature);
