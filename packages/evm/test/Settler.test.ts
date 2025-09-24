@@ -55,7 +55,7 @@ import {
   TransferIntent,
   TransferProposal,
 } from './helpers'
-import { addValidations } from './helpers/validations/index.js'
+import { addValidations } from './helpers/validations'
 
 const { ethers } = await network.connect()
 
@@ -182,7 +182,7 @@ describe('Settler', () => {
             const events = await settler.queryFilter(settler.filters.FundsRescued(), tx.blockNumber)
             expect(events).to.have.lengthOf(1)
 
-            expect(events[0].args.token).to.be.equal(toAddress(token))
+            expect(events[0].args.token).to.be.equal(token)
             expect(events[0].args.amount).to.be.equal(amount)
             expect(events[0].args.recipient).to.be.equal(recipient)
           })
@@ -561,6 +561,7 @@ describe('Settler', () => {
                             intentParams.op = futureIntent.op
                             intentParams.configSig = randomSig()
                             intentParams.data = futureIntent.data
+                            intentParams.events = []
                           })
 
                           context('when the validations are more or equal than the required validations', () => {
@@ -615,7 +616,10 @@ describe('Settler', () => {
                                       it('reverts', async () => {
                                         const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
                                         await addValidations(settler, intent, [validator1, validator2])
-                                        const proposal = createSwapProposal({ ...proposalParams, ...swapProposalParams })
+                                        const proposal = createSwapProposal({
+                                          ...proposalParams,
+                                          ...swapProposalParams,
+                                        })
                                         const signature = await signProposal(settler, intent, solver, proposal, admin)
 
                                         await expect(
@@ -679,7 +683,7 @@ describe('Settler', () => {
                                                   expect(executorEvents).to.have.lengthOf(1)
 
                                                   const settlerEvents = await settler.queryFilter(
-                                                    settler.filters.Executed(),
+                                                    settler.filters.ProposalExecuted(),
                                                     tx.blockNumber
                                                   )
                                                   expect(settlerEvents).to.have.lengthOf(1)
@@ -828,7 +832,10 @@ describe('Settler', () => {
 
                                     const itReverts = (reason: string) => {
                                       it('reverts', async () => {
-                                        const intent = createTransferIntent({ ...intentParams, ...transferIntentParams })
+                                        const intent = createTransferIntent({
+                                          ...intentParams,
+                                          ...transferIntentParams,
+                                        })
                                         await addValidations(settler, intent, [validator1, validator2])
                                         const proposal = createTransferProposal({
                                           ...proposalParams,
@@ -877,12 +884,18 @@ describe('Settler', () => {
                                               ...proposalParams,
                                               ...transferProposalParams,
                                             })
-                                            const signature = await signProposal(settler, intent, solver, proposal, admin)
+                                            const signature = await signProposal(
+                                              settler,
+                                              intent,
+                                              solver,
+                                              proposal,
+                                              admin
+                                            )
 
                                             const tx = await settler.execute([{ intent, proposal, signature }])
 
                                             const settlerEvents = await settler.queryFilter(
-                                              settler.filters.Executed(),
+                                              settler.filters.ProposalExecuted(),
                                               tx.blockNumber
                                             )
                                             expect(settlerEvents).to.have.lengthOf(1)
@@ -933,7 +946,10 @@ describe('Settler', () => {
                                       it('reverts', async () => {
                                         const intent = createCallIntent({ ...intentParams, ...callIntentParams })
                                         await addValidations(settler, intent, [validator1, validator2])
-                                        const proposal = createCallProposal({ ...proposalParams, ...callProposalParams })
+                                        const proposal = createCallProposal({
+                                          ...proposalParams,
+                                          ...callProposalParams,
+                                        })
                                         const signature = await signProposal(settler, intent, solver, proposal, admin)
 
                                         await expect(
@@ -976,12 +992,18 @@ describe('Settler', () => {
                                               ...proposalParams,
                                               ...callProposalParams,
                                             })
-                                            const signature = await signProposal(settler, intent, solver, proposal, admin)
+                                            const signature = await signProposal(
+                                              settler,
+                                              intent,
+                                              solver,
+                                              proposal,
+                                              admin
+                                            )
 
                                             const tx = await settler.execute([{ intent, proposal, signature }])
 
                                             const settlerEvents = await settler.queryFilter(
-                                              settler.filters.Executed(),
+                                              settler.filters.ProposalExecuted(),
                                               tx.blockNumber
                                             )
                                             expect(settlerEvents).to.have.lengthOf(1)
@@ -1053,7 +1075,6 @@ describe('Settler', () => {
                                 })
                                 itReverts('SettlerValidatorDuplicatedOrUnsorted')
                               })
-
                             })
 
                             context('when the validators are not allowed', () => {
@@ -1083,6 +1104,7 @@ describe('Settler', () => {
                             intentParams.op = futureIntent.op
                             intentParams.configSig = randomSig()
                             intentParams.data = futureIntent.data
+                            intentParams.events = []
                           })
 
                           const validator1 = Wallet.createRandom()
@@ -1358,6 +1380,9 @@ describe('Settler', () => {
                 const minAmountOut = fp(1) // WETH
 
                 const _itExecutesTheIntent = (amountIn: BigNumberish) => {
+                  const eventTopic = randomHex(32)
+                  const eventData = randomHex(120)
+
                   beforeEach('create intent', async () => {
                     intent = createSwapIntent({
                       settler,
@@ -1366,6 +1391,7 @@ describe('Settler', () => {
                       destinationChain,
                       tokensIn: { token: tokenIn, amount: amountIn },
                       tokensOut: { token: tokenOut, minAmount: minAmountOut, recipient },
+                      events: [{ topic: eventTopic, data: eventData }],
                     })
                   })
 
@@ -1386,6 +1412,27 @@ describe('Settler', () => {
 
                     const postBalanceOut = await balanceOf(tokenOut, recipient)
                     expect(postBalanceOut - preBalanceOut).to.be.eq(minAmountOut)
+                  })
+
+                  it('logs the intent events correctly', async () => {
+                    const executorData = AbiCoder.defaultAbiCoder().encode(
+                      ['address[]', 'uint256[]'],
+                      [[toAddress(tokenOut)], [minAmountOut]]
+                    )
+                    const proposal = createSwapProposal({ executor, executorData, amountsOut: minAmountOut })
+                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+                    const tx = await settler.execute([{ intent, proposal, signature }])
+
+                    const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+                    expect(events).to.have.lengthOf(1)
+
+                    expect(events[0].args.user).to.be.equal(intent.user)
+                    expect(events[0].args.topic).to.be.equal(eventTopic)
+                    expect(events[0].args.op).to.be.equal(OpType.Swap)
+                    expect(events[0].args.intent).to.not.be.undefined
+                    expect(events[0].args.proposal).to.not.be.undefined
+                    expect(events[0].args.output).to.not.be.undefined
+                    expect(events[0].args.data).to.be.equal(eventData)
                   })
                 }
 
@@ -1869,12 +1916,16 @@ describe('Settler', () => {
             const amount = fp(1)
 
             const itExecutesTheIntent = (feeAmount: BigNumberish) => {
+              const eventTopic = randomHex(32)
+              const eventData = randomHex(120)
+
               beforeEach('create intent', async () => {
                 intent = createTransferIntent({
                   settler,
                   user: toAddress(from),
                   transfers: [{ token, amount, recipient }],
                   maxFees: [{ token: feeToken, amount: feeAmount }],
+                  events: [{ topic: eventTopic, data: eventData }],
                 })
               })
 
@@ -1908,6 +1959,23 @@ describe('Settler', () => {
                 } else if (feeToken !== USD_ADDRESS) {
                   expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
                 }
+              })
+
+              it('logs the intent events correctly', async () => {
+                const proposal = createTransferProposal({ fees: [feeAmount] })
+                const signature = await signProposal(settler, intent, solver, proposal, admin)
+                const tx = await settler.execute([{ intent, proposal, signature }])
+
+                const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+                expect(events).to.have.lengthOf(1)
+
+                expect(events[0].args.user).to.be.equal(intent.user)
+                expect(events[0].args.topic).to.be.equal(eventTopic)
+                expect(events[0].args.op).to.be.equal(OpType.Transfer)
+                expect(events[0].args.intent).to.not.be.undefined
+                expect(events[0].args.proposal).to.not.be.undefined
+                expect(events[0].args.output).to.be.eq('0x')
+                expect(events[0].args.data).to.be.equal(eventData)
               })
             }
 
@@ -2157,12 +2225,16 @@ describe('Settler', () => {
                 })
 
                 const itExecutesTheIntentWithValue = (value: BigNumberish) => {
+                  const eventTopic = randomHex(32)
+                  const eventData = randomHex(120)
+
                   beforeEach('create intent', async () => {
                     intent = createCallIntent({
                       settler,
                       user,
                       maxFees: [{ token: feeToken, amount: feeAmount }],
                       calls: [{ target: target, data, value }],
+                      events: [{ topic: eventTopic, data: eventData }],
                     })
                   })
 
@@ -2189,6 +2261,23 @@ describe('Settler', () => {
 
                     const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
                     expect(postTargetBalance - preTargetBalance).to.be.eq(value)
+                  })
+
+                  it('logs the intent events correctly', async () => {
+                    const proposal = createCallProposal({ fees: [feeAmount] })
+                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+                    const tx = await settler.execute([{ intent, proposal, signature }])
+
+                    const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+                    expect(events).to.have.lengthOf(1)
+
+                    expect(events[0].args.user).to.be.equal(intent.user)
+                    expect(events[0].args.topic).to.be.equal(eventTopic)
+                    expect(events[0].args.op).to.be.equal(OpType.Call)
+                    expect(events[0].args.intent).to.not.be.undefined
+                    expect(events[0].args.proposal).to.not.be.undefined
+                    expect(events[0].args.output).to.not.be.undefined
+                    expect(events[0].args.data).to.be.equal(eventData)
                   })
                 }
 
@@ -2492,7 +2581,7 @@ describe('Settler', () => {
           const targetEvents = await target.queryFilter(target.filters.CallReceived(), tx.blockNumber)
           expect(targetEvents).to.have.lengthOf(1)
 
-          const settlerEvents = await settler.queryFilter(settler.filters.Executed(), tx.blockNumber)
+          const settlerEvents = await settler.queryFilter(settler.filters.ProposalExecuted(), tx.blockNumber)
           expect(settlerEvents).to.have.lengthOf(3)
 
           const postBalanceWethUser = await balanceOf(weth, user)

@@ -341,9 +341,9 @@ describe('IntentsValidator', () => {
       })
     })
 
-  describe('Call modes', () => {
-    const target1 = randomEvmAddress()
-    const target2 = randomEvmAddress()
+    describe('Call modes', () => {
+      const target1 = randomEvmAddress()
+      const target2 = randomEvmAddress()
 
       context('None', () => {
         const intent = createCallIntent()

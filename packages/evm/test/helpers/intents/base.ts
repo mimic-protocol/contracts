@@ -16,6 +16,11 @@ export type MaxFee = {
   amount: BigNumberish
 }
 
+export type IntentEvent = {
+  topic: string
+  data?: string
+}
+
 export type Intent = {
   op: OpType
   settler: Account
@@ -24,6 +29,7 @@ export type Intent = {
   deadline: BigNumberish
   data: string
   maxFees: MaxFee[]
+  events: IntentEvent[]
   configSig: string
   minValidations: number
   validations: string[]
@@ -46,9 +52,9 @@ function toRawIntent(intent: Intent): RawIntent {
     deadline: intent.deadline.toString(),
     data: intent.data,
     maxFees: intent.maxFees.map(({ token, amount }) => ({ token: toAddress(token), amount: amount.toString() })),
+    events: intent.events.map(({ topic, data }) => ({ topic, data: data || '0x' })),
     configSig: intent.configSig,
     minValidations: intent.minValidations,
-    validations: intent.validations,
   }
 }
 
@@ -61,6 +67,7 @@ function getDefaults(): Intent {
     deadline: MAX_UINT256,
     data: '0x',
     maxFees: [],
+    events: [],
     configSig: randomSig(),
     minValidations: 0,
     validations: [],
