@@ -110,14 +110,9 @@ interface ISettler {
     error SettlerSolverFeeTooHigh(uint256 fee, uint256 max);
 
     /**
-     * @dev The intent minimum validations are not enough
-     */
-    error SettlerIntentMinValidationsNotEnough(uint256 controllerMin, uint256 intentMin);
-
-    /**
      * @dev The intent validations are not enough
      */
-    error SettlerIntentValidationsNotEnough(uint256 min, uint256 actual);
+    error SettlerIntentValidationsNotEnough(uint256 min, uint256 current);
 
     /**
      * @dev The proposal deadline is in the past
