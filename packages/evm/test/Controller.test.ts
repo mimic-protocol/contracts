@@ -1,4 +1,4 @@
-import { randomAddress } from '@mimicprotocol/sdk'
+import { randomEvmAddress } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { getAddress } from 'ethers'
@@ -13,10 +13,10 @@ describe('Controller', () => {
   let controller: Controller
   let owner: HardhatEthersSigner, other: HardhatEthersSigner
 
-  const allowedSolvers = [randomAddress(), randomAddress()]
-  const allowedExecutors = [randomAddress(), randomAddress(), randomAddress()]
-  const allowedProposalSigners = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
-  const allowedValidators = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
+  const allowedSolvers = [randomEvmAddress(), randomEvmAddress()]
+  const allowedExecutors = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
+  const allowedProposalSigners = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
+  const allowedValidators = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
 
   beforeEach('deploy controller', async () => {
     // eslint-disable-next-line prettier/prettier
@@ -92,7 +92,7 @@ describe('Controller', () => {
       })
 
       context('when the inputs lengths match', () => {
-        const keys = [randomAddress(), randomAddress(), randomAddress()].map((a) => getAddress(a))
+        const keys = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress()].map((a) => getAddress(a))
         const values = [true, true, false]
 
         const itSetsTheConfigsProperly = () => {
