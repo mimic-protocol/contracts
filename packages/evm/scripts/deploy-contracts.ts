@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   if (!process.env.VALIDATOR) throw Error('VALIDATOR env variable not provided')
   const { ADMIN, SOLVER, AXIA, VALIDATOR } = process.env
 
-  const controller = await deployCreate3(ControllerArtifact, [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR]], '0x15')
+  const controller = await deployCreate3(ControllerArtifact, [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], 1], '0x15')
   await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x16')
 }
 
