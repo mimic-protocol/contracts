@@ -32,6 +32,11 @@ interface IController {
     event ValidatorAllowedSet(address indexed validator, bool allowed);
 
     /**
+     * @dev Emitted when the minimum validations changes
+     */
+    event MinValidationSet(uint8 indexed newMinValidation);
+
+    /**
      * @dev Tells whether a solver is allowed
      * @param solver Address of the solver being queried
      */
@@ -54,6 +59,11 @@ interface IController {
      * @param validator Address of the validator being queried
      */
     function isValidatorAllowed(address validator) external view returns (bool);
+
+    /**
+     * @dev Tells the minimum number of validations allowed
+     */
+    function minValidations() external view returns (uint8);
 
     /**
      * @dev Sets permissions for multiple solvers
@@ -82,4 +92,10 @@ interface IController {
      * @param alloweds List of permission statuses
      */
     function setAllowedValidators(address[] memory validators, bool[] memory alloweds) external;
+
+    /**
+     * @dev Sets the minimum number of validations allowed
+     * @param newMinValidations minimum number of validations allowed
+     */
+    function setMinValidations(uint8 newMinValidations) external;
 }

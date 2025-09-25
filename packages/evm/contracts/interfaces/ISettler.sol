@@ -35,6 +35,16 @@ interface ISettler {
     error SettlerProposalSignerNotAllowed(address signer);
 
     /**
+     * @dev The validator is not allowed
+     */
+    error SettlerValidatorNotAllowed(address validator);
+
+    /**
+     * @dev The validator is duplicated
+     */
+    error SettlerValidatorDuplicatedOrUnsorted(address previous, address current);
+
+    /**
      * @dev The settler is not the current contract
      */
     error SettlerInvalidSettler(address settler);
@@ -100,6 +110,11 @@ interface ISettler {
     error SettlerSolverFeeTooHigh(uint256 fee, uint256 max);
 
     /**
+     * @dev The intent validations are not enough
+     */
+    error SettlerIntentValidationsNotEnough(uint256 min, uint256 current);
+
+    /**
      * @dev The proposal deadline is in the past
      */
     error SettlerProposalPastDeadline(uint256 deadline, uint256 timestamp);
@@ -125,9 +140,22 @@ interface ISettler {
     error SmartAccountsHandlerZero();
 
     /**
+     * @dev Custom events emitted for each intent
+     */
+    event IntentExecuted(
+        address indexed user,
+        bytes32 indexed topic,
+        uint8 indexed op,
+        Intent intent,
+        Proposal proposal,
+        bytes output,
+        bytes data
+    );
+
+    /**
      * @dev Emitted every time an intent is fulfilled
      */
-    event Executed(bytes32 indexed proposal, uint256 index);
+    event ProposalExecuted(bytes32 indexed proposal, uint256 index);
 
     /**
      * @dev Emitted every time tokens are withdrawn from the contract balance

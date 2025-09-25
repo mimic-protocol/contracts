@@ -1,4 +1,4 @@
-import { randomAddress } from '@mimicprotocol/sdk'
+import { randomEvmAddress } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { getAddress } from 'ethers'
@@ -13,10 +13,11 @@ describe('Controller', () => {
   let controller: Controller
   let owner: HardhatEthersSigner, other: HardhatEthersSigner
 
-  const allowedSolvers = [randomAddress(), randomAddress()]
-  const allowedExecutors = [randomAddress(), randomAddress(), randomAddress()]
-  const allowedProposalSigners = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
-  const allowedValidators = [randomAddress(), randomAddress(), randomAddress(), randomAddress()]
+  const allowedSolvers = [randomEvmAddress(), randomEvmAddress()]
+  const allowedExecutors = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
+  const allowedProposalSigners = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
+  const allowedValidators = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress(), randomEvmAddress()]
+  const minimumValidations = 2
 
   beforeEach('deploy controller', async () => {
     // eslint-disable-next-line prettier/prettier
@@ -27,6 +28,7 @@ describe('Controller', () => {
       allowedExecutors,
       allowedProposalSigners,
       allowedValidators,
+      minimumValidations,
     ])
   })
 
@@ -79,6 +81,43 @@ describe('Controller', () => {
         expect(await controller.isValidatorAllowed(address)).to.be.false
       }
     })
+
+    it('initializes minimum validations properly', async () => {
+      expect(await controller.minValidations()).to.be.equal(minimumValidations)
+    })
+  })
+
+  describe('minValidations', () => {
+    context('when the sender is the owner', () => {
+      beforeEach('set sender', () => {
+        controller = controller.connect(owner)
+      })
+
+      it('sets the min validations properly', async () => {
+        const validations = minimumValidations + 5
+        await controller.setMinValidations(validations)
+
+        expect(await controller.minValidations()).to.equal(validations)
+      })
+
+      it('emits the corresponding events', async () => {
+        expect(controller.minValidations(minimumValidations + 1)).to.emit(controller, '')
+      })
+    })
+
+    context('when the sender is not the owner', () => {
+      beforeEach('set sender', () => {
+        controller = controller.connect(other)
+      })
+
+      it('reverts', async () => {
+        expect(controller.minValidations(minimumValidations + 1)).to.be.revertedWithCustomError(
+          controller,
+          // eslint-disable-next-line no-secrets/no-secrets
+          'OwnableUnauthorizedAccount'
+        )
+      })
+    })
   })
 
   const itHandlesControllerConfigProperly = (config: string) => {
@@ -92,7 +131,7 @@ describe('Controller', () => {
       })
 
       context('when the inputs lengths match', () => {
-        const keys = [randomAddress(), randomAddress(), randomAddress()].map((a) => getAddress(a))
+        const keys = [randomEvmAddress(), randomEvmAddress(), randomEvmAddress()].map((a) => getAddress(a))
         const values = [true, true, false]
 
         const itSetsTheConfigsProperly = () => {

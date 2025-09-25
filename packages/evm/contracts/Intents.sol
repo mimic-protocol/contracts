@@ -27,6 +27,14 @@ struct Execution {
 }
 
 /**
+ * @dev EIP-712 typed data struct representing a validator's approval of an intent.
+ * @param intent The hash of the intent being validated.
+ */
+struct Validation {
+    bytes32 intent;
+}
+
+/**
  * @dev General intent structure used to abstract over different intent types.
  * @param op The type of operation this intent represents.
  * @param user The originator of the intent.
@@ -35,6 +43,10 @@ struct Execution {
  * @param deadline The timestamp by which the intent must be executed.
  * @param data ABI-encoded data representing a specific intent type (e.g. SwapIntent, TransferIntent, CallIntent).
  * @param maxFees List of max fees the user is willing to pay for the intent.
+ * @param events List of custom intent events to be emitted.
+ * @param configSig The signature of the configuration that this intent belongs to
+ * @param minValidations The minimum number of validator approvals required for this intent to be considered valid.
+ * @param validations The list validator signatures attesting to this intent.
  */
 struct Intent {
     uint8 op;
@@ -44,6 +56,10 @@ struct Intent {
     uint256 deadline;
     bytes data;
     MaxFee[] maxFees;
+    IntentEvent[] events;
+    bytes configSig;
+    uint256 minValidations;
+    bytes[] validations;
 }
 
 /**
@@ -54,6 +70,16 @@ struct Intent {
 struct MaxFee {
     address token;
     uint256 amount;
+}
+
+/**
+ * @dev Intent event representation.
+ * @param topic Event topic to be emitted.
+ * @param data Event data to be emitted.
+ */
+struct IntentEvent {
+    bytes32 topic;
+    bytes data;
 }
 
 /**
@@ -163,13 +189,17 @@ struct SwapProposal {
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
         keccak256(
-            'Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data,MaxFee[] maxFees)MaxFee(address token,uint256 amount)'
+            'Intent(uint8 op,address user,address settler,bytes32 nonce,uint256 deadline,bytes data,MaxFee[] maxFees,IntentEvent[] events,bytes configSig,uint256 minValidations)IntentEvent(bytes32 topic,bytes data)MaxFee(address token,uint256 amount)'
         );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
         keccak256('Proposal(bytes32 intent,address solver,uint256 deadline,bytes data,uint256[] fees)');
 
+    bytes32 internal constant VALIDATION_TYPE_HASH = keccak256('Validation(bytes32 intent)');
+
     bytes32 internal constant MAX_FEE_TYPE_HASH = keccak256('MaxFee(address token,uint256 amount)');
+
+    bytes32 internal constant INTENT_EVENT_TYPE_HASH = keccak256('IntentEvent(bytes32 topic,bytes data)');
 
     function hash(Intent memory intent) internal pure returns (bytes32) {
         return
@@ -182,7 +212,10 @@ library IntentsHelpers {
                     intent.nonce,
                     intent.deadline,
                     keccak256(intent.data),
-                    hash(intent.maxFees)
+                    hash(intent.maxFees),
+                    hash(intent.events),
+                    intent.configSig,
+                    intent.minValidations
                 )
             );
     }
@@ -202,14 +235,26 @@ library IntentsHelpers {
     }
 
     function hash(MaxFee[] memory fees) internal pure returns (bytes32) {
-        bytes32[] memory feeHashes = new bytes32[](fees.length);
+        bytes32[] memory hashes = new bytes32[](fees.length);
         for (uint256 i = 0; i < fees.length; i++) {
-            feeHashes[i] = keccak256(abi.encode(MAX_FEE_TYPE_HASH, fees[i].token, fees[i].amount));
+            hashes[i] = keccak256(abi.encode(MAX_FEE_TYPE_HASH, fees[i].token, fees[i].amount));
         }
-        return keccak256(abi.encodePacked(feeHashes));
+        return keccak256(abi.encodePacked(hashes));
+    }
+
+    function hash(IntentEvent[] memory events) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](events.length);
+        for (uint256 i = 0; i < events.length; i++) {
+            hashes[i] = keccak256(abi.encode(INTENT_EVENT_TYPE_HASH, events[i].topic, keccak256(events[i].data)));
+        }
+        return keccak256(abi.encodePacked(hashes));
     }
 
     function hash(uint256[] memory fees) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(fees));
+    }
+
+    function hash(Validation memory validation) internal pure returns (bytes32) {
+        return keccak256(abi.encode(VALIDATION_TYPE_HASH, validation.intent));
     }
 }
