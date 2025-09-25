@@ -7,6 +7,8 @@ import ControllerArtifact from '../artifacts/contracts/Controller.sol/Controller
 import SettlerArtifact from '../artifacts/contracts/Settler.sol/Settler.json'
 import buildCreate3Module from '../ignition/modules/Create3'
 
+const MIN_VALIDATORS = 1
+
 async function main(): Promise<void> {
   if (!process.env.AXIA) throw Error('AXIA env variable not provided')
   if (!process.env.ADMIN) throw Error('ADMIN env variable not provided')
@@ -14,8 +16,9 @@ async function main(): Promise<void> {
   if (!process.env.VALIDATOR) throw Error('VALIDATOR env variable not provided')
   const { ADMIN, SOLVER, AXIA, VALIDATOR } = process.env
 
-  const controller = await deployCreate3(ControllerArtifact, [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], 1], '0x15')
-  await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x16')
+  const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
+  const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
+  await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x18')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
