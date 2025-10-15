@@ -20,14 +20,14 @@ import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import '@openzeppelin/contracts/utils/introspection/ERC165.sol';
 
-import '../interfaces/ISmartAccount.sol';
-import '../utils/ERC20Helpers.sol';
+import '../interfaces/ISmartAccountContract.sol';
+import './SmartAccountBase.sol';
 
 /**
- * @title SmartAccount
- * @dev Provides the logic for managing assets, executing arbitrary calls, and controlling permissions
+ * @title SmartAccountContract
+ * @dev Provides the smart account logic to use as a standalone contract
  */
-contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
+contract SmartAccountContract is ISmartAccountContract, Ownable, SmartAccountBase {
     // EIP1271 magic return value
     bytes4 internal constant EIP1271_MAGIC_VALUE = 0x1626ba7e;
 
@@ -85,14 +85,6 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Tells whether the contract supports the given interface ID. Overrides ERC165 to declare support for ISmartAccount interface.
-     * @param interfaceId Interface ID is defined as the XOR of all function selectors in the interface
-     */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
-        return interfaceId == type(ISmartAccount).interfaceId || super.supportsInterface(interfaceId);
-    }
-
-    /**
      * @dev Tells whether the signature provided belongs to an allowed account.
      * @param hash Message signed by the account
      * @param signature Signature provided to be verified
@@ -108,40 +100,6 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
      */
     receive() external payable {
         // solhint-disable-previous-line no-empty-blocks
-    }
-
-    /**
-     * @dev Transfers ERC20 or native tokens to the recipient. Sender must be the owner or the settler.
-     * @param token Address of the token to be withdrawn
-     * @param recipient Address of the account receiving the tokens
-     * @param amount Amount of tokens to be withdrawn
-     */
-    function transfer(address token, address recipient, uint256 amount)
-        external
-        override
-        onlyOwnerOrSettler
-        nonReentrant
-    {
-        ERC20Helpers.transfer(token, recipient, amount);
-        emit Transferred(token, recipient, amount);
-    }
-
-    /**
-     * @dev Executes an arbitrary call from the contract. Sender must be the owner or the settler.
-     * @param target Address where the call will be sent
-     * @param data Calldata to be sent to the target
-     * @param value Native token value to send along with the call
-     * @return result Call response if it was successful, otherwise it reverts
-     */
-    function call(address target, bytes memory data, uint256 value)
-        external
-        override
-        onlyOwnerOrSettler
-        nonReentrant
-        returns (bytes memory result)
-    {
-        result = Address.functionCallWithValue(target, data, value);
-        emit Called(target, data, value, result);
     }
 
     /**
@@ -165,6 +123,37 @@ contract SmartAccount is ISmartAccount, ERC165, Ownable, ReentrancyGuard {
             isSignerAllowed[account] = allowed;
             emit SignerAllowedSet(account, allowed);
         }
+    }
+
+    /**
+     * @dev Transfers ERC20 or native tokens to the recipient. Sender must be the owner or the settler.
+     * @param token Address of the token to be withdrawn
+     * @param recipient Address of the account receiving the tokens
+     * @param amount Amount of tokens to be withdrawn
+     */
+    function transfer(address token, address recipient, uint256 amount)
+        public
+        override(ISmartAccount, SmartAccountBase)
+        onlyOwnerOrSettler
+    {
+        super.transfer(token, recipient, amount);
+    }
+
+    /**
+     * @dev Executes an arbitrary call from the contract. Sender must be the owner or the settler.
+     * @param target Address where the call will be sent
+     * @param data Calldata to be sent to the target
+     * @param value Native token value to send along with the call
+     * @return result Call response if it was successful, otherwise it reverts
+     */
+    function call(address target, bytes memory data, uint256 value)
+        public
+        override(ISmartAccount, SmartAccountBase)
+        onlyOwnerOrSettler
+        returns (bytes memory)
+    {
+        // solhint-disable-next-line avoid-low-level-calls
+        return super.call(target, data, value);
     }
 
     /**

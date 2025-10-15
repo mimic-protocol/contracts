@@ -11,8 +11,8 @@ export type CallIntent = Intent & {
 
 export interface CallData {
   target: Account
-  data: string
-  value: BigNumberish
+  data?: string
+  value?: BigNumberish
 }
 
 export function createCallIntent(params?: Partial<CallIntent>): Intent {
@@ -27,8 +27,8 @@ function toCallIntentData(intent: CallIntent): CallIntentData {
     chainId: intent.chainId,
     calls: toArray(intent.calls).map((callData: CallData) => ({
       target: toAddress(callData.target),
-      data: callData.data,
-      value: callData.value.toString(),
+      data: callData.data || '0x',
+      value: (callData.value || '0').toString(),
     })),
   }
 }

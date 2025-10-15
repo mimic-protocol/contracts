@@ -26,7 +26,7 @@ describe('SmartAccountsHandler', () => {
 
   beforeEach('deploy contracts', async () => {
     handler = await ethers.deployContract('SmartAccountsHandler')
-    smartAccount = await ethers.deployContract('SmartAccount', [handler, owner])
+    smartAccount = await ethers.deployContract('SmartAccountContract', [handler, owner])
     safe = await ethers.deployContract('SafeMock')
   })
 

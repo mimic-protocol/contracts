@@ -2,13 +2,12 @@
 
 pragma solidity ^0.8.20;
 
-import '@openzeppelin/contracts/interfaces/IERC1271.sol';
 import '@openzeppelin/contracts/utils/introspection/IERC165.sol';
 
 /**
  * @title SmartAccount interface
  */
-interface ISmartAccount is IERC165, IERC1271 {
+interface ISmartAccount is IERC165 {
     /**
      * @dev Emitted every time tokens are transferred
      */

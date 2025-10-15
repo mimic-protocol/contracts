@@ -10,7 +10,7 @@ contract CallMock {
         emit CallReceived(msg.sender, msg.value);
     }
 
-    function callError() external pure {
+    function callError() external payable {
         revert CallError();
     }
 }
