@@ -1,0 +1,19 @@
+[toolchain]
+package_manager = "yarn"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+settler = "HbNt35Ng8aM4NUy39evpCQqXEC4Nmaq16ewY8dyNF6NF"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "node --test --experimental-strip-types tests/settler.test.ts"
