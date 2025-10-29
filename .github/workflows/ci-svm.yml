@@ -1,0 +1,63 @@
+name: CI SVM
+
+env:
+  CI: true
+
+on:
+  push:
+    branches: "*"
+    paths:
+      - packages/svm/**
+  pull_request:
+    branches: "*"
+    paths:
+      - packages/svm/**
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install
+        working-directory: packages/svm
+        run: yarn
+      - name: Build
+        working-directory: packages/svm
+        run: yarn build
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install
+        working-directory: packages/svm
+        run: yarn
+      - name: Build
+        working-directory: packages/svm
+        run: yarn lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install
+        working-directory: packages/svm
+        run: yarn
+      - name: Build
+        working-directory: packages/svm
+        run: yarn build
+      - name: Test
+        working-directory: packages/svm
+        run: yarn test
