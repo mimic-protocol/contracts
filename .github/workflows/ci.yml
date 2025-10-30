@@ -75,13 +75,6 @@ jobs:
     if: ${{ contains(needs.find-changed-packages.outputs.packages, 'svm') }}
     container: solanafoundation/anchor:v0.32.1
     steps:
-      - name: Print versions
-        run: |
-          echo "Node.js version: $(node -v)"
-          echo "Yarn version: $(yarn -v)"
-          echo "Solana version: $(solana --version)"
-          echo "Anchor version: $(anchor --version)"
-          echo "LiteSVM version: $(litesvm --version)"
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up Node.js
@@ -90,20 +83,16 @@ jobs:
           node-version: "22.15.1"
       - name: Set Up Solana Test Keypair
         run: solana-keygen new --no-bip39-passphrase --silent
-      - name: Install
-        working-directory: packages/svm
-        run: yarn
       - name: Pre-clean caches
         working-directory: packages/svm
         run: |
           yarn cache clean || true
           rm -rf ~/.cargo/registry ~/.cargo/git ~/.cache || true
+      - name: Install
+        run: yarn workspace @mimicprotocol/contracts-svm install
       - name: Build Anchor Program
-        working-directory: packages/svm
         run: |
           rustup default stable
-          DEPLOYER_KEY=$(solana-keygen pubkey) anchor build
+          yarn workspace @mimicprotocol/contracts-svm build
       - name: Test
-        working-directory: packages/svm
-        run: |
-          yarn test
+        run: yarn workspace @mimicprotocol/contracts-svm test
