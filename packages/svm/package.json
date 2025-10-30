@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "anchor build",
-    "test": "NODE_ENV=test ts-mocha -r ./tests/global-hooks.ts ./tests --recursive --extension .test.ts --exit",
+    "test": "anchor test",
     "lint": "eslint . --ext .ts",
     "lint:fix": "yarn lint --fix"
   },
