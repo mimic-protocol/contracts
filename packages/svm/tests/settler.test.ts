@@ -5,10 +5,10 @@ import { Program, Wallet } from '@coral-xyz/anchor'
 import { Keypair } from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
-import { Settler } from '../target/types/settler'
-import * as SettlerIDL from '../target/idl/settler.json'
 import path from 'path'
 
+import * as SettlerIDL from '../target/idl/settler.json'
+import { Settler } from '../target/types/settler'
 import { extractLogs } from './utils'
 
 describe('Settler Program', () => {
@@ -21,9 +21,9 @@ describe('Settler Program', () => {
   before(async () => {
     admin = Keypair.generate()
     malicious = Keypair.generate()
-    
+
     client = fromWorkspace(path.join(__dirname, '../')).withBuiltins()
-    
+
     provider = new LiteSVMProvider(client, new Wallet(admin))
     program = new Program<Settler>(SettlerIDL as any, provider)
 
