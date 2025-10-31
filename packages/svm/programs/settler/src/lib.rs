@@ -46,4 +46,12 @@ pub mod settler {
     pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
         instructions::execute_proposal(ctx)
     }
+
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        instructions::initialize(ctx)
+    }
+
+    pub fn pause(ctx: Context<Pause>) -> Result<()> {
+        instructions::pause(ctx)
+    }
 }
