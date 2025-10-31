@@ -5,6 +5,6 @@ pub struct ChangeWhitelistProgram {
 
 }
 
-pub fn add_axia_sig(ctx: Context<ChangeWhitelistProgram>) -> Result<()> {
+pub fn change_whitelist_program(ctx: Context<ChangeWhitelistProgram>) -> Result<()> {
     Ok(())
 }

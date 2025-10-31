@@ -5,6 +5,6 @@ pub struct CreateIntent {
 
 }
 
-pub fn add_axia_sig(ctx: Context<CreateIntent>) -> Result<()> {
+pub fn create_intent(ctx: Context<CreateIntent>) -> Result<()> {
     Ok(())
 }

@@ -5,6 +5,6 @@ pub struct ClaimStaleProposal {
 
 }
 
-pub fn add_axia_sig(ctx: Context<ClaimStaleProposal>) -> Result<()> {
+pub fn claim_stale_proposal(ctx: Context<ClaimStaleProposal>) -> Result<()> {
     Ok(())
 }

@@ -5,6 +5,6 @@ pub struct ExecuteProposal {
 
 }
 
-pub fn add_axia_sig(ctx: Context<ExecuteProposal>) -> Result<()> {
+pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
     Ok(())
 }

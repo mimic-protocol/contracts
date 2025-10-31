@@ -5,6 +5,6 @@ pub struct CreateProposal {
 
 }
 
-pub fn add_axia_sig(ctx: Context<CreateProposal>) -> Result<()> {
+pub fn create_proposal(ctx: Context<CreateProposal>) -> Result<()> {
     Ok(())
 }

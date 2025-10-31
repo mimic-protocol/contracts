@@ -5,6 +5,6 @@ pub struct AddInstructionsToProposal {
 
 }
 
-pub fn add_axia_sig(ctx: Context<AddInstructionsToProposal>) -> Result<()> {
+pub fn add_instructions_to_proposal(ctx: Context<AddInstructionsToProposal>) -> Result<()> {
     Ok(())
 }
