@@ -1,4 +1,9 @@
 use anchor_lang::prelude::*;
 
 #[account]
-pub struct SettlerSettings {}
+#[derive(InitSpace)]
+pub struct SettlerSettings {
+    pub whitelist_program: Pubkey,
+    pub is_paused: bool,
+    pub bump: u8,
+}

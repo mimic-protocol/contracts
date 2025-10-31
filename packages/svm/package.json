@@ -5,8 +5,8 @@
   "license": "GPL-3.0",
   "type": "module",
   "scripts": {
-    "build": "anchor build",
-    "test": "anchor test",
+    "build": "DEPLOYER_KEY=$(solana-keygen pubkey) anchor build",
+    "test": "anchor run test",
     "lint": "eslint . --ext .ts",
     "lint:fix": "yarn lint --fix"
   },
