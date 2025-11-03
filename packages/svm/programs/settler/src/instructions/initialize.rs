@@ -20,7 +20,7 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn initialize(ctx: Context<Initialize>, whitelist_program: Pubkey) -> Result<()> {
+pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
     require_keys_eq!(
         ctx.accounts.deployer.key(),
         Pubkey::from_str(DEPLOYER_KEY).unwrap(),
@@ -29,7 +29,7 @@ pub fn initialize(ctx: Context<Initialize>, whitelist_program: Pubkey) -> Result
 
     let settler_settings = &mut ctx.accounts.settler_settings;
 
-    settler_settings.whitelist_program = whitelist_program;
+    settler_settings.whitelist_program = crate::whitelist::ID;
     settler_settings.is_paused = false;
     settler_settings.bump = ctx.bumps.settler_settings;
 

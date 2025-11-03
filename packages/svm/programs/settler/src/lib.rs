@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 declare_id!("HbNt35Ng8aM4NUy39evpCQqXEC4Nmaq16ewY8dyNF6NF");
+declare_program!(whitelist);
 
 pub mod constants;
 pub mod errors;
@@ -46,11 +47,11 @@ pub mod settler {
         instructions::execute_proposal(ctx)
     }
 
-    pub fn initialize(ctx: Context<Initialize>, whitelist_program: Pubkey) -> Result<()> {
-        instructions::initialize(ctx, whitelist_program)
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        instructions::initialize(ctx)
     }
 
-    pub fn pause(ctx: Context<Pause>) -> Result<()> {
-        instructions::pause(ctx)
+    pub fn set_paused_state(ctx: Context<SetPausedState>, is_paused: bool) -> Result<()> {
+        instructions::set_paused_state(ctx, is_paused)
     }
 }

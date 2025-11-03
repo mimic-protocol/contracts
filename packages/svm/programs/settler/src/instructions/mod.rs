@@ -7,7 +7,7 @@ pub mod create_intent;
 pub mod create_proposal;
 pub mod execute_proposal;
 pub mod initialize;
-pub mod pause;
+pub mod set_paused_state;
 
 pub use add_axia_sig::*;
 pub use add_instructions_to_proposal::*;
@@ -18,4 +18,4 @@ pub use create_intent::*;
 pub use create_proposal::*;
 pub use execute_proposal::*;
 pub use initialize::*;
-pub use pause::*;
+pub use set_paused_state::*;

@@ -10,8 +10,8 @@ export default class SettlerSDK {
     this.program = new Program(SettlerIDL, provider)
   }
 
-  async initializeIx(whitelistProgram: web3.PublicKey): Promise<web3.TransactionInstruction> {
-    const ix = await this.program.methods.initialize(whitelistProgram).instruction()
+  async initializeIx(): Promise<web3.TransactionInstruction> {
+    const ix = await this.program.methods.initialize().instruction()
     return ix
   }
 
