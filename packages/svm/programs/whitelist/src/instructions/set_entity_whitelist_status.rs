@@ -7,14 +7,14 @@ use crate::{
 };
 
 #[derive(Accounts)]
-#[instruction(entity_type: u8, entity_pubkey: Pubkey)]
+#[instruction(entity_type: EntityType, entity_pubkey: Pubkey)]
 pub struct SetEntityWhitelistStatus<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
         init_if_needed,
-        seeds = [b"entity-registry", entity_type.to_le_bytes().as_ref(), entity_pubkey.as_ref()],
+        seeds = [b"entity-registry".as_ref(), &[entity_type as u8], entity_pubkey.as_ref()],
         bump,
         payer = admin,
         space = 8 + EntityRegistry::INIT_SPACE

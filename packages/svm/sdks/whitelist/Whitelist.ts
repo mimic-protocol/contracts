@@ -22,7 +22,6 @@ export default class WhitelistSDK {
   }
 
   async initializeIx(
-    deployer: web3.PublicKey,
     admin: web3.PublicKey,
     proposedAdminCooldown: number
   ): Promise<web3.TransactionInstruction> {
@@ -30,7 +29,7 @@ export default class WhitelistSDK {
     const ix = await this.program.methods
       .initialize(admin, new BN(proposedAdminCooldown))
       .accountsPartial({
-        deployer,
+        deployer: this.getSignerKey(),
         globalSettings,
       })
       .instruction()
@@ -38,14 +37,13 @@ export default class WhitelistSDK {
   }
 
   async proposeAdminIx(
-    admin: web3.PublicKey,
     proposedAdmin: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
       .proposeAdmin(proposedAdmin)
       .accountsPartial({
-        admin,
+        admin: this.getSignerKey(),
         globalSettings,
       })
       .instruction()
@@ -53,7 +51,6 @@ export default class WhitelistSDK {
   }
 
   async setEntityWhitelistStatusIx(
-    admin: web3.PublicKey,
     entityType: EntityType,
     entityPubkey: web3.PublicKey,
     status: WhitelistStatus
@@ -63,7 +60,7 @@ export default class WhitelistSDK {
     const ix = await this.program.methods
       .setEntityWhitelistStatus(this.entityTypeToAnchorEnum(entityType), entityPubkey, this.whitelistStatusToAnchorEnum(status))
       .accountsPartial({
-        admin,
+        admin: this.getSignerKey(),
         entityRegistry,
         globalSettings,
       })
@@ -72,17 +69,21 @@ export default class WhitelistSDK {
   }
 
   async setProposedAdminIx(
-    proposedAdmin: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
       .setProposedAdmin()
       .accountsPartial({
-        proposedAdmin,
+        proposedAdmin: this.getSignerKey(),
         globalSettings,
       })
       .instruction()
     return ix
+  }
+
+  getSignerKey(): web3.PublicKey {
+    if (!this.program.provider.wallet) throw new Error('Must set program provider wallet')
+    return this.program.provider.wallet?.publicKey
   }
 
   getGlobalSettingsPubkey(): web3.PublicKey {

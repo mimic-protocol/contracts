@@ -1,6 +1,6 @@
 import { web3 } from '@coral-xyz/anchor'
 import { LiteSVMProvider } from 'anchor-litesvm'
-import { FailedTransactionMetadata, TransactionMetadata } from 'litesvm'
+import { Clock, FailedTransactionMetadata, TransactionMetadata } from 'litesvm'
 
 export async function signAndSendTx(
   provider: LiteSVMProvider,
@@ -21,4 +21,17 @@ export async function makeTxSignAndSend(
   ...ixs: web3.TransactionInstruction[]
 ): Promise<TransactionMetadata | FailedTransactionMetadata> {
   return signAndSendTx(provider, makeTx(...ixs))
+}
+
+export function warpSeconds(provider: LiteSVMProvider, seconds: number): void {
+  const clock = provider.client.getClock()
+  provider.client.setClock(
+    new Clock(
+      clock.slot,
+      clock.epochStartTimestamp,
+      clock.epoch,
+      clock.leaderScheduleEpoch,
+      clock.unixTimestamp + BigInt(seconds)
+    )
+  )
 }
