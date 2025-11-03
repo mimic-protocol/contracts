@@ -114,9 +114,7 @@ describe('Whitelist Program', () => {
         const ix = await adminSdk.setProposedAdminIx()
         const res = await makeTxSignAndSend(adminProvider, ix)
 
-        expect(res.toString()).to.include(
-          `Only proposed admin can call this instruction`
-        )
+        expect(res.toString()).to.include(`Only proposed admin can call this instruction`)
       })
 
       it('should propose admin successfully', async () => {
@@ -178,7 +176,6 @@ describe('Whitelist Program', () => {
         expect(updatedSettings.admin.toString()).to.be.eq(admin.publicKey.toString())
         expect(updatedSettings.proposedAdmin).to.be.null
         expect(updatedSettings.proposedAdminNextChangeTimestamp.toString()).to.be.eq('18446744073709551615') // u64::MAX
-      
       })
     })
 
@@ -229,11 +226,7 @@ describe('Whitelist Program', () => {
       })
 
       it('should set whitelist status successfully (axia)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Axia,
-          axia,
-          WhitelistStatus.Whitelisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Whitelisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -247,11 +240,7 @@ describe('Whitelist Program', () => {
       })
 
       it('should set whitelist status successfully (solver)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Solver,
-          solver,
-          WhitelistStatus.Whitelisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver, WhitelistStatus.Whitelisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -279,11 +268,7 @@ describe('Whitelist Program', () => {
       })
 
       it('should update status correctly (whitelist to blacklist transition) (axia)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Axia,
-          axia,
-          WhitelistStatus.Blacklisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Blacklisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -293,11 +278,7 @@ describe('Whitelist Program', () => {
       })
 
       it('should update status correctly (whitelist to blacklist transition) (solver)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Solver,
-         solver,
-          WhitelistStatus.Blacklisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver, WhitelistStatus.Blacklisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -321,11 +302,7 @@ describe('Whitelist Program', () => {
       })
 
       it('should update status correctly (blacklist to whitelist transition) (axia)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Axia,
-          axia,
-          WhitelistStatus.Whitelisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Whitelisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -335,11 +312,7 @@ describe('Whitelist Program', () => {
       })
 
       it('should update status correctly (blacklist to whitelist transition) (solver)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Solver,
-         solver,
-          WhitelistStatus.Whitelisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver, WhitelistStatus.Whitelisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -367,11 +340,7 @@ describe('Whitelist Program', () => {
       })
 
       it('can whitelist another axia', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Axia,
-          axia2,
-          WhitelistStatus.Whitelisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia2, WhitelistStatus.Whitelisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -385,11 +354,7 @@ describe('Whitelist Program', () => {
       })
 
       it('can whitelist another solver', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Solver,
-          solver2,
-          WhitelistStatus.Whitelisted
-        )
+        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver2, WhitelistStatus.Whitelisted)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
