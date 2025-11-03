@@ -25,8 +25,9 @@ pub fn propose_admin(ctx: Context<ProposeAdmin>, proposed_admin: Pubkey) -> Resu
     }
 
     global_settings.proposed_admin = Some(proposed_admin);
-    global_settings.proposed_admin_next_change_timestamp =
-        now + global_settings.proposed_admin_cooldown;
+    global_settings.proposed_admin_next_change_timestamp = now
+        .checked_add(global_settings.proposed_admin_cooldown)
+        .ok_or(WhitelistError::MathError)?;
 
     Ok(())
 }

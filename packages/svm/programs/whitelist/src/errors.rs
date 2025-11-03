@@ -16,4 +16,13 @@ pub enum WhitelistError {
 
     #[msg("Can't set proposed admin - either no next admin is proposed or cooldown period is not over yet")]
     SetProposedAdminError,
+
+    #[msg("Cooldown too large")]
+    CooldownTooLarge,
+
+    #[msg("Cooldown can't be zero")]
+    CooldownCantBeZero,
+
+    #[msg("Math error")]
+    MathError,
 }

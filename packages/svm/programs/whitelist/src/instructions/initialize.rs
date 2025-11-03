@@ -1,7 +1,11 @@
 use anchor_lang::prelude::*;
 use std::str::FromStr;
 
-use crate::{constants::DEPLOYER_KEY, errors::WhitelistError, state::GlobalSettings};
+use crate::{
+    constants::{DEPLOYER_KEY, MAX_COOLDOWN},
+    errors::WhitelistError,
+    state::GlobalSettings,
+};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -29,6 +33,16 @@ pub fn initialize(
         ctx.accounts.deployer.key(),
         Pubkey::from_str(DEPLOYER_KEY).unwrap(),
         WhitelistError::OnlyDeployer,
+    );
+
+    require!(
+        proposed_admin_cooldown > 0,
+        WhitelistError::CooldownCantBeZero,
+    );
+
+    require!(
+        proposed_admin_cooldown <= MAX_COOLDOWN,
+        WhitelistError::CooldownTooLarge,
     );
 
     let global_settings = &mut ctx.accounts.global_settings;
