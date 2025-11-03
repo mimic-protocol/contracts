@@ -1,0 +1,128 @@
+import { Program, Provider, web3, BN, IdlTypes } from '@coral-xyz/anchor'
+
+import * as WhitelistIDL from '../../target/idl/whitelist.json'
+import { Whitelist } from '../../target/types/whitelist'
+
+export enum EntityType {
+  Validator = 1,
+  Axia = 2,
+  Solver = 3
+}
+
+export enum WhitelistStatus {
+  Whitelisted = 1,
+  Blacklisted = 2
+}
+
+export default class WhitelistSDK {
+  protected program: Program<Whitelist>
+
+  constructor(provider: Provider) {
+    this.program = new Program(WhitelistIDL, provider)
+  }
+
+  async initializeIx(
+    deployer: web3.PublicKey,
+    admin: web3.PublicKey,
+    proposedAdminCooldown: number
+  ): Promise<web3.TransactionInstruction> {
+    const globalSettings = this.getGlobalSettingsPubkey()
+    const ix = await this.program.methods
+      .initialize(admin, new BN(proposedAdminCooldown))
+      .accountsPartial({
+        deployer,
+        globalSettings,
+      })
+      .instruction()
+    return ix
+  }
+
+  async proposeAdminIx(
+    admin: web3.PublicKey,
+    proposedAdmin: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const globalSettings = this.getGlobalSettingsPubkey()
+    const ix = await this.program.methods
+      .proposeAdmin(proposedAdmin)
+      .accountsPartial({
+        admin,
+        globalSettings,
+      })
+      .instruction()
+    return ix
+  }
+
+  async setEntityWhitelistStatusIx(
+    admin: web3.PublicKey,
+    entityType: EntityType,
+    entityPubkey: web3.PublicKey,
+    status: WhitelistStatus
+  ): Promise<web3.TransactionInstruction> {
+    const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
+    const globalSettings = this.getGlobalSettingsPubkey()
+    const ix = await this.program.methods
+      .setEntityWhitelistStatus(this.entityTypeToAnchorEnum(entityType), entityPubkey, this.whitelistStatusToAnchorEnum(status))
+      .accountsPartial({
+        admin,
+        entityRegistry,
+        globalSettings,
+      })
+      .instruction()
+    return ix
+  }
+
+  async setProposedAdminIx(
+    proposedAdmin: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const globalSettings = this.getGlobalSettingsPubkey()
+    const ix = await this.program.methods
+      .setProposedAdmin()
+      .accountsPartial({
+        proposedAdmin,
+        globalSettings,
+      })
+      .instruction()
+    return ix
+  }
+
+  getGlobalSettingsPubkey(): web3.PublicKey {
+    return web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('global-settings')],
+      this.program.programId
+    )[0]
+  }
+
+  getEntityRegistryPubkey(
+    entityType: EntityType,
+    entityPubkey: web3.PublicKey
+  ): web3.PublicKey {
+    return web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('entity-registry'),
+        Buffer.from([entityType]),
+        entityPubkey.toBuffer(),
+      ],
+      this.program.programId
+    )[0]
+  }
+
+  entityTypeToAnchorEnum(
+    entityType: EntityType
+  ): IdlTypes<Whitelist>['entityType'] {
+    if (entityType === EntityType.Validator) return { validator: {} }
+    if (entityType === EntityType.Axia) return { axia: {} }
+    if (entityType === EntityType.Solver) return { solver: {} }
+
+    throw new Error(`Unsupported entity type ${entityType}`)
+  }
+
+  whitelistStatusToAnchorEnum(
+    status: WhitelistStatus
+  ): IdlTypes<Whitelist>['whitelistStatus'] {
+    if (status === WhitelistStatus.Whitelisted) return { whitelisted: {} }
+    if (status === WhitelistStatus.Blacklisted) return { blacklisted: {} }
+
+    throw new Error(`Unsupported whitelist status ${status}`)
+  }
+}
+
