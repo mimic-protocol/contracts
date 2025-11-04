@@ -1,4 +1,4 @@
-import { BigNumberish, CallIntentData, encodeCallIntent, OpType } from '@mimicprotocol/sdk'
+import { BigNumberish, CallIntentData, encodeEvmCallIntent, OpType } from '@mimicprotocol/sdk'
 
 import { Account, toAddress } from '../addresses'
 import { NAry, toArray } from '../arrays'
@@ -18,7 +18,7 @@ export interface CallData {
 export function createCallIntent(params?: Partial<CallIntent>): Intent {
   const intent = createIntent({ ...params, op: OpType.Call })
   const callIntent = { ...getDefaults(), ...params, ...intent } as CallIntent
-  intent.data = encodeCallIntent(toCallIntentData(callIntent))
+  intent.data = encodeEvmCallIntent(toCallIntentData(callIntent))
   return intent
 }
 

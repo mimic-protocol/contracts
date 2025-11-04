@@ -1,12 +1,14 @@
 import { fp, NATIVE_TOKEN_ADDRESS, randomEvmAddress } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
+import { Authorization } from 'ethers'
 import { network } from 'hardhat'
 
 import {
   CallMock,
   SafeMock,
-  SmartAccount,
+  SmartAccount7702,
+  SmartAccountContract,
   SmartAccountsHandler,
   TokenMock,
 } from '../../types/ethers-contracts/index.js'
@@ -16,17 +18,21 @@ const { ethers } = await network.connect()
 /* eslint-disable no-secrets/no-secrets */
 
 describe('SmartAccountsHandler', () => {
-  let handler: SmartAccountsHandler, smartAccount: SmartAccount, safe: SafeMock
-  let owner: HardhatEthersSigner
+  let handler: SmartAccountsHandler,
+    smartAccountContract: SmartAccountContract,
+    smartAccount7702: SmartAccount7702,
+    safe: SafeMock
+  let owner: HardhatEthersSigner, user: HardhatEthersSigner
 
   beforeEach('setup signers', async () => {
     // eslint-disable-next-line prettier/prettier
-    [, owner] = await ethers.getSigners()
+    [, owner, user] = await ethers.getSigners()
   })
 
   beforeEach('deploy contracts', async () => {
     handler = await ethers.deployContract('SmartAccountsHandler')
-    smartAccount = await ethers.deployContract('SmartAccountContract', [handler, owner])
+    smartAccount7702 = await ethers.deployContract('SmartAccount7702', [handler])
+    smartAccountContract = await ethers.deployContract('SmartAccountContract', [handler, owner])
     safe = await ethers.deployContract('SafeMock')
   })
 
@@ -40,7 +46,7 @@ describe('SmartAccountsHandler', () => {
     })
 
     it('returns true for a Mimic SmartAccount', async () => {
-      expect(await handler.isSmartAccount(smartAccount)).to.be.true
+      expect(await handler.isSmartAccount(smartAccountContract)).to.be.true
     })
 
     it('returns true for a Safe', async () => {
@@ -58,13 +64,16 @@ describe('SmartAccountsHandler', () => {
           const token = NATIVE_TOKEN_ADDRESS
 
           beforeEach('fund smart account', async () => {
-            await owner.sendTransaction({ to: smartAccount, value: amount, data: '0x' })
+            await owner.sendTransaction({ to: smartAccountContract, value: amount, data: '0x' })
           })
 
           it('executes a transfer', async () => {
-            const tx = await handler.transfer(smartAccount, token, recipient, amount)
+            const tx = await handler.transfer(smartAccountContract, token, recipient, amount)
 
-            const events = await smartAccount.queryFilter(smartAccount.filters.Transferred(), tx.blockNumber)
+            const events = await smartAccountContract.queryFilter(
+              smartAccountContract.filters.Transferred(),
+              tx.blockNumber
+            )
             expect(events).to.have.lengthOf(1)
             expect(events[0].args.token).to.equal(token)
             expect(events[0].args.amount).to.equal(amount)
@@ -77,13 +86,61 @@ describe('SmartAccountsHandler', () => {
 
           beforeEach('deploy token', async () => {
             token = await ethers.deployContract('TokenMock', ['TKN', 18])
-            await token.mint(smartAccount, amount)
+            await token.mint(smartAccountContract, amount)
           })
 
           it('executes a transfer', async () => {
-            const tx = await handler.transfer(smartAccount, token, recipient, amount)
+            const tx = await handler.transfer(smartAccountContract, token, recipient, amount)
 
-            const events = await smartAccount.queryFilter(smartAccount.filters.Transferred(), tx.blockNumber)
+            const events = await smartAccountContract.queryFilter(
+              smartAccountContract.filters.Transferred(),
+              tx.blockNumber
+            )
+            expect(events).to.have.lengthOf(1)
+            expect(events[0].args.token).to.equal(token)
+            expect(events[0].args.amount).to.equal(amount)
+            expect(events[0].args.recipient.toLowerCase()).to.equal(recipient)
+          })
+        })
+      })
+
+      context('when the account is a Mimic 7702 smart account', () => {
+        let authorization: Authorization
+
+        beforeEach('sign authorization', async () => {
+          authorization = await user.authorize({ address: smartAccount7702 })
+        })
+
+        context('when transferring native tokens', () => {
+          const token = NATIVE_TOKEN_ADDRESS
+
+          it('executes a transfer', async () => {
+            const tx = await handler.transfer(user, token, recipient, amount, { authorizationList: [authorization] })
+
+            const userSmartAccount = await ethers.getContractAt('ISmartAccount', user)
+            const events = await userSmartAccount.queryFilter(smartAccount7702.filters.Transferred(), tx.blockNumber)
+            expect(events).to.have.lengthOf(1)
+            expect(events[0].args.token).to.equal(token)
+            expect(events[0].args.amount).to.equal(amount)
+            expect(events[0].args.recipient.toLowerCase()).to.equal(recipient)
+
+            expect(await handler.isSmartAccount(user)).to.be.true
+          })
+        })
+
+        context('when transferring ERC20', () => {
+          let token: TokenMock
+
+          beforeEach('deploy token', async () => {
+            token = await ethers.deployContract('TokenMock', ['TKN', 18])
+            await token.mint(user, amount)
+          })
+
+          it('executes a transfer', async () => {
+            const tx = await handler.transfer(user, token, recipient, amount, { authorizationList: [authorization] })
+
+            const userSmartAccount = await ethers.getContractAt('ISmartAccount', user)
+            const events = await userSmartAccount.queryFilter(smartAccount7702.filters.Transferred(), tx.blockNumber)
             expect(events).to.have.lengthOf(1)
             expect(events[0].args.token).to.equal(token)
             expect(events[0].args.amount).to.equal(amount)
@@ -166,9 +223,12 @@ describe('SmartAccountsHandler', () => {
 
           const itExecutesTheCallWithValue = (value: bigint) => {
             it('executes a call', async () => {
-              const tx = await handler.call(smartAccount, callMock, data, value)
+              const tx = await handler.call(smartAccountContract, callMock, data, value)
 
-              const events = await smartAccount.queryFilter(smartAccount.filters.Called(), tx.blockNumber)
+              const events = await smartAccountContract.queryFilter(
+                smartAccountContract.filters.Called(),
+                tx.blockNumber
+              )
               expect(events).to.have.lengthOf(1)
               expect(events[0].args.target).to.equal(callMock)
               expect(events[0].args.data).to.equal(data)
@@ -187,7 +247,7 @@ describe('SmartAccountsHandler', () => {
             const value = 1n
 
             beforeEach('fund smart account', async () => {
-              await owner.sendTransaction({ to: smartAccount, value, data: '0x' })
+              await owner.sendTransaction({ to: smartAccountContract, value, data: '0x' })
             })
 
             itExecutesTheCallWithValue(value)
@@ -202,10 +262,66 @@ describe('SmartAccountsHandler', () => {
           })
 
           it('bubbles the error', async () => {
-            await expect(handler.call(smartAccount, callMock, data, 0)).to.be.revertedWithCustomError(
+            await expect(handler.call(smartAccountContract, callMock, data, 0)).to.be.revertedWithCustomError(
               callMock,
               'CallError'
             )
+          })
+        })
+      })
+
+      context('when the account is a Mimic 7702 smart account', () => {
+        let authorization: Authorization
+
+        beforeEach('sign authorization', async () => {
+          authorization = await user.authorize({ address: smartAccount7702 })
+        })
+
+        context('when the inner call succeeds', () => {
+          let data: string
+
+          beforeEach('encode call data', () => {
+            data = callMock.interface.encodeFunctionData('call')
+          })
+
+          const itExecutesTheCallWithValue = (value: bigint) => {
+            it('executes a call', async () => {
+              const tx = await handler.call(user, callMock, data, value, { authorizationList: [authorization] })
+
+              const userSmartAccount = await ethers.getContractAt('ISmartAccount', user)
+              const events = await userSmartAccount.queryFilter(smartAccountContract.filters.Called(), tx.blockNumber)
+              expect(events).to.have.lengthOf(1)
+              expect(events[0].args.target).to.equal(callMock)
+              expect(events[0].args.data).to.equal(data)
+              expect(events[0].args.value).to.equal(value)
+              expect(events[0].args.result).to.equal('0x')
+            })
+          }
+
+          context('when sending no value', () => {
+            const value = 0n
+
+            itExecutesTheCallWithValue(value)
+          })
+
+          context('when sending value', () => {
+            const value = 1n
+
+            itExecutesTheCallWithValue(value)
+          })
+        })
+
+        context('when the inner call fails', () => {
+          let data: string
+
+          beforeEach('encode call data', () => {
+            data = callMock.interface.encodeFunctionData('callError')
+          })
+
+          it('bubbles the error', async () => {
+            await expect(
+              handler.call(user, callMock, data, 0, { authorizationList: [authorization] })
+            ).to.be.revertedWithCustomError(callMock, 'CallError')
           })
         })
       })
@@ -258,7 +374,7 @@ describe('SmartAccountsHandler', () => {
           })
 
           it('bubbles the error', async () => {
-            await expect(handler.call(smartAccount, callMock, data, 0)).to.be.revertedWithCustomError(
+            await expect(handler.call(smartAccountContract, callMock, data, 0)).to.be.revertedWithCustomError(
               callMock,
               'CallError'
             )
