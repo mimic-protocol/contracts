@@ -31,16 +31,7 @@ export default class SettlerSDK {
     params: CreateIntentParams,
     isFinal = true
   ): Promise<web3.TransactionInstruction> {
-    const {
-      op,
-      user,
-      nonceHex,
-      deadline,
-      minValidations,
-      dataHex,
-      maxFees,
-      eventsHex,
-    } = params
+    const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
 
     const intentHash = this.parseIntentHashHex(intentHashHex)
     const nonce = this.parseIntentNonceHex(nonceHex)
@@ -110,6 +101,16 @@ export default class SettlerSDK {
     if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
 
     return web3.PublicKey.findProgramAddressSync([Buffer.from('intent'), intentHash], this.program.programId)[0]
+  }
+
+  getFulfilledIntentKey(intentHashHex: string): web3.PublicKey {
+    const intentHash = Buffer.from(intentHashHex, 'hex')
+    if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
+
+    return web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('fulfilled-intent'), intentHash],
+      this.program.programId
+    )[0]
   }
 
   getSignerKey(): web3.PublicKey {

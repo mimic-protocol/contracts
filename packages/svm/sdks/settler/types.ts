@@ -20,14 +20,14 @@ export enum OpType {
 }
 
 export type CreateIntentParams = {
-    op: OpType,
-    user: web3.PublicKey,
-    nonceHex: string,
-    deadline: number,
-    minValidations: number,
-    dataHex: string,
-    maxFees: MaxFee[],
-    eventsHex: IntentEvent[],
+  op: OpType
+  user: web3.PublicKey
+  nonceHex: string
+  deadline: number
+  minValidations: number
+  dataHex: string
+  maxFees: MaxFee[]
+  eventsHex: IntentEvent[]
 }
 
 export type ExtendIntentParams = {
