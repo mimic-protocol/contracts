@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import { Program, Wallet } from '@coral-xyz/anchor'
-import { Keypair } from '@solana/web3.js'
+import { BN, Program, Wallet } from '@coral-xyz/anchor'
+import { Keypair, PublicKey } from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import fs from 'fs'
@@ -12,8 +12,10 @@ import path from 'path'
 
 import SettlerSDK from '../sdks/settler/Settler'
 import * as SettlerIDL from '../target/idl/settler.json'
+import * as WhitelistIDL from '../target/idl/whitelist.json'
 import { Settler } from '../target/types/settler'
-import { makeTxSignAndSend } from './utils'
+import { makeTxSignAndSend, warpSeconds } from './utils'
+import { OpType } from '../sdks/settler/types'
 
 describe('Settler Program', () => {
   let client: LiteSVM
@@ -53,35 +55,32 @@ describe('Settler Program', () => {
   describe('Settler', () => {
     describe('initialize', () => {
       it('cant initialize if not deployer', async () => {
-        const whitelistProgram = Keypair.generate().publicKey
-
-        const ix = await maliciousSdk.initializeIx(whitelistProgram)
+        const ix = await maliciousSdk.initializeIx()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expect(res.toString()).to.include(`Only Deployer can call this instruction.`)
       })
 
       it('should call initialize', async () => {
-        const whitelistProgram = Keypair.generate().publicKey
-
-        const ix = await sdk.initializeIx(whitelistProgram)
+        const ix = await sdk.initializeIx()
         await makeTxSignAndSend(provider, ix)
 
         const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
-        expect(settings.whitelistProgram.toString()).to.be.eq(whitelistProgram.toString())
+        expect(settings.whitelistProgram.toString()).to.be.eq(WhitelistIDL.address)
         expect(settings.isPaused).to.be.false
       })
 
       it('cant call initialize again', async () => {
-        const whitelistProgram = Keypair.generate().publicKey
-
-        const ix = await sdk.initializeIx(whitelistProgram)
+        const ix = await sdk.initializeIx()
         const res = await makeTxSignAndSend(provider, ix)
 
         expect(res.toString()).to.include(
           `Allocate: account Address { address: ${sdk.getSettlerSettingsPubkey()}, base: None } already in use`
         )
       })
+    })
+
+    describe('create_intent', () => {
     })
   })
 })

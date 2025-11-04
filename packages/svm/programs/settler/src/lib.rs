@@ -9,7 +9,7 @@ pub mod instructions;
 pub mod state;
 pub mod types;
 
-use crate::instructions::*;
+use crate::{instructions::*, types::*};
 
 #[program]
 pub mod settler {
@@ -31,12 +31,40 @@ pub mod settler {
         instructions::change_whitelist_program(ctx)
     }
 
+    pub fn claim_stale_intent(ctx: Context<ClaimStaleIntent>) -> Result<()> {
+        instructions::claim_stale_intent(ctx)
+    }
+
     pub fn claim_stale_proposal(ctx: Context<ClaimStaleProposal>) -> Result<()> {
         instructions::claim_stale_proposal(ctx)
     }
 
-    pub fn create_intent(ctx: Context<CreateIntent>) -> Result<()> {
-        instructions::create_intent(ctx)
+    pub fn create_intent(
+        ctx: Context<CreateIntent>,
+        intent_hash: [u8; 32],
+        data: Vec<u8>,
+        max_fees: Vec<MaxFee>,
+        events: Vec<IntentEvent>,
+        op: OpType,
+        user: Pubkey,
+        nonce: [u8; 32],
+        deadline: u64,
+        min_validations: u16,
+        is_final: bool,
+    ) -> Result<()> {
+        instructions::create_intent(
+            ctx,
+            intent_hash,
+            data,
+            max_fees,
+            events,
+            op,
+            user,
+            nonce,
+            deadline,
+            min_validations,
+            is_final,
+        )
     }
 
     pub fn create_proposal(ctx: Context<CreateProposal>) -> Result<()> {
@@ -45,6 +73,16 @@ pub mod settler {
 
     pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
         instructions::execute_proposal(ctx)
+    }
+
+    pub fn extend_intent(
+        ctx: Context<ExtendIntent>,
+        more_data: Option<Vec<u8>>,
+        more_max_fees: Option<Vec<MaxFee>>,
+        more_events: Option<Vec<IntentEvent>>,
+        finalize: bool,
+    ) -> Result<()> {
+        instructions::extend_intent(ctx, more_data, more_max_fees, more_events, finalize)
     }
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
