@@ -27,6 +27,7 @@ pub struct AddInstructionsToProposal<'info> {
 pub fn add_instructions_to_proposal(
     ctx: Context<AddInstructionsToProposal>,
     more_instructions: Vec<ProposalInstruction>,
+    finalize: bool,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp as u64;
     let proposal = &mut ctx.accounts.proposal;
@@ -35,6 +36,10 @@ pub fn add_instructions_to_proposal(
     require!(!proposal.is_final, SettlerError::ProposalIsFinal);
 
     proposal.instructions.extend_from_slice(&more_instructions);
+
+    if finalize {
+        proposal.is_final = true;
+    }
 
     Ok(())
 }

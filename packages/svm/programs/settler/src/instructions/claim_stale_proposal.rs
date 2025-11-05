@@ -6,13 +6,6 @@ use crate::{errors::SettlerError, state::Proposal};
 pub struct ClaimStaleProposal<'info> {
     #[account(mut)]
     pub proposal_creator: Signer<'info>,
-
-    #[account(
-        mut,
-        close = proposal_creator,
-        has_one = proposal_creator @ SettlerError::IncorrectProposalCreator
-    )]
-    pub proposal: Box<Account<'info, Proposal>>,
     //
     // remaining_accounts (N):
     //

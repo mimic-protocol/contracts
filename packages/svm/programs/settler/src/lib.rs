@@ -22,8 +22,9 @@ pub mod settler {
     pub fn add_instructions_to_proposal(
         ctx: Context<AddInstructionsToProposal>,
         more_instructions: Vec<ProposalInstruction>,
+        finalize: bool,
     ) -> Result<()> {
-        instructions::add_instructions_to_proposal(ctx, more_instructions)
+        instructions::add_instructions_to_proposal(ctx, more_instructions, finalize)
     }
 
     pub fn add_validator_sigs(ctx: Context<AddValidatorSigs>) -> Result<()> {

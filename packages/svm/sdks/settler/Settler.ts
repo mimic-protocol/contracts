@@ -80,7 +80,7 @@ export default class SettlerSDK {
   async extendIntentIx(
     intentHashHex: string,
     params: ExtendIntentParams,
-    isFinal = true
+    finalize = true
   ): Promise<web3.TransactionInstruction> {
     const { moreDataHex = '', moreMaxFees = [], moreEventsHex = [] } = params
 
@@ -89,7 +89,7 @@ export default class SettlerSDK {
     const moreEvents = this.parseIntentEventsHex(moreEventsHex)
 
     const ix = await this.program.methods
-      .extendIntent(moreData, moreMaxFeesBn, moreEvents, isFinal)
+      .extendIntent(moreData, moreMaxFeesBn, moreEvents, finalize)
       .accountsPartial({
         intentCreator: this.getSignerKey(),
         intent: this.getIntentKey(intentHashHex),
@@ -135,13 +135,14 @@ export default class SettlerSDK {
   async addInstructionsToProposalIx(
     intentHashHex: string,
     moreInstructions: ProposalInstruction[],
+    finalize = true,
     solverPubkey?: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const parsedInstructions = this.parseProposalInstructions(moreInstructions)
     const solver = solverPubkey || this.getSignerKey()
 
     const ix = await this.program.methods
-      .addInstructionsToProposal(parsedInstructions)
+      .addInstructionsToProposal(parsedInstructions, finalize)
       .accountsPartial({
         proposalCreator: this.getSignerKey(),
         proposal: this.getProposalKey(intentHashHex, solver),
@@ -152,17 +153,21 @@ export default class SettlerSDK {
   }
 
   async claimStaleProposalIx(
-    intentHashHex: string,
+    intentHashesHex: string[],
     solverPubkey?: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
-    const solver = solverPubkey || this.getSignerKey()
-
     const ix = await this.program.methods
       .claimStaleProposal()
       .accountsPartial({
         proposalCreator: this.getSignerKey(),
-        proposal: this.getProposalKey(intentHashHex, solver),
       })
+      .remainingAccounts(
+        intentHashesHex.map((intentHashHex) => ({
+          pubkey: this.getProposalKey(intentHashHex, solverPubkey),
+          isWritable: true,
+          isSigner: false,
+        }))
+      )
       .instruction()
 
     return ix

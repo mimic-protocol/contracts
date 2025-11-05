@@ -866,5 +866,971 @@ describe('Settler Program', () => {
         expect(errorMsg.includes(`AccountNotInitialized`)).to.be.true
       })
     })
+
+    describe('create_proposal', () => {
+      const generateIntentHash = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      const generateNonce = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      const createValidatedIntent = async (isFinal = true): Promise<string> => {
+        const intentHash = generateIntentHash()
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 3600
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: 1,
+          dataHex: '010203',
+          maxFees: [],
+          eventsHex: [],
+        }
+
+        const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        // Set validations to meet min_validations requirement
+        const intentKey = sdk.getIntentKey(intentHash)
+        const intentAccount = client.getAccount(intentKey)
+        if (intentAccount) {
+          const intentData = Buffer.from(intentAccount.data)
+          // validations is at offset: 8 (disc) + 1 (op) + 32 (user) + 32 (intent_creator) + 32 (intent_hash) + 32 (nonce) + 8 (deadline) + 2 (min_validations) = 147
+          // validations is u16, so 2 bytes
+          intentData.writeUInt16LE(1, 147)
+          client.setAccount(intentKey, {
+            ...intentAccount,
+            data: intentData,
+          })
+        }
+
+        return intentHash
+      }
+
+      it('should create a proposal', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [
+              {
+                pubkey: Keypair.generate().publicKey,
+                isSigner: false,
+                isWritable: true,
+              },
+            ],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.intent.toString()).to.be.eq(sdk.getIntentKey(intentHash).toString())
+        expect(proposal.proposalCreator.toString()).to.be.eq(solver.publicKey.toString())
+        expect(proposal.deadline.toNumber()).to.be.eq(deadline)
+        expect(proposal.isFinal).to.be.true
+        expect(proposal.instructions.length).to.be.eq(1)
+        expect(proposal.instructions[0].programId.toString()).to.be.eq(instructions[0].programId.toString())
+        expect(Buffer.from(proposal.instructions[0].data).toString('hex')).to.be.eq('deadbeef')
+        expect(proposal.instructions[0].accounts.length).to.be.eq(1)
+        expect(proposal.instructions[0].accounts[0].pubkey.toString()).to.be.eq(
+          instructions[0].accounts[0].pubkey.toString()
+        )
+        expect(proposal.instructions[0].accounts[0].isSigner).to.be.eq(false)
+        expect(proposal.instructions[0].accounts[0].isWritable).to.be.eq(true)
+      })
+
+      it('should create a proposal with multiple instructions', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [
+              {
+                pubkey: Keypair.generate().publicKey,
+                isSigner: false,
+                isWritable: true,
+              },
+            ],
+            data: '010203',
+          },
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [
+              {
+                pubkey: Keypair.generate().publicKey,
+                isSigner: true,
+                isWritable: false,
+              },
+            ],
+            data: '040506',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.instructions.length).to.be.eq(2)
+        expect(Buffer.from(proposal.instructions[0].data).toString('hex')).to.be.eq('010203')
+        expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq('040506')
+        expect(proposal.isFinal).to.be.true
+        expect(proposal.instructions[0].accounts.length).to.be.eq(1)
+        expect(proposal.instructions[0].accounts[0].pubkey.toString()).to.be.eq(
+          instructions[0].accounts[0].pubkey.toString()
+        )
+        expect(proposal.instructions[0].accounts[0].isSigner).to.be.eq(false)
+        expect(proposal.instructions[0].accounts[0].isWritable).to.be.eq(true)
+        expect(proposal.instructions[1].accounts.length).to.be.eq(1)
+        expect(proposal.instructions[1].accounts[0].pubkey.toString()).to.be.eq(
+          instructions[1].accounts[0].pubkey.toString()
+        )
+        expect(proposal.instructions[1].accounts[0].isSigner).to.be.eq(true)
+        expect(proposal.instructions[1].accounts[0].isWritable).to.be.eq(false)
+      })
+
+      it('should create a proposal with empty instructions', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions: any[] = []
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.instructions.length).to.be.eq(0)
+      })
+
+      it('cant create proposal if not whitelisted solver', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await maliciousSdk.createProposalIx(intentHash, instructions, deadline)
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
+        expect(res.toString()).to.include(
+          'AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized'
+        )
+      })
+
+      it('cant create proposal with deadline in the past', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now - 100
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`Deadline must be in the future`)
+      })
+
+      it('cant create proposal with deadline equal to now', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`Deadline must be in the future`)
+      })
+
+      it('cant create proposal if intent deadline has passed', async () => {
+        const intentHash = generateIntentHash()
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const intentDeadline = now + 100
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline: intentDeadline,
+          minValidations: 1,
+          dataHex: '010203',
+          maxFees: [],
+          eventsHex: [],
+        }
+
+        const ix = await solverSdk.createIntentIx(intentHash, params)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        // Set validations
+        const intentKey = sdk.getIntentKey(intentHash)
+        const intentAccount = client.getAccount(intentKey)
+        if (intentAccount) {
+          const intentData = Buffer.from(intentAccount.data)
+          intentData.writeUInt16LE(1, 147)
+          client.setAccount(intentKey, {
+            ...intentAccount,
+            data: intentData,
+          })
+        }
+
+        warpSeconds(provider, 101)
+
+        const proposalDeadline = now + 200
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix2 = await solverSdk.createProposalIx(intentHash, instructions, proposalDeadline)
+        const res = await makeTxSignAndSend(solverProvider, ix2)
+
+        expect(res.toString()).to.include(`Intent has already expired`)
+      })
+
+      it('cant create proposal if proposal deadline exceeds intent deadline', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const intentDeadline = Number((await program.account.intent.fetch(sdk.getIntentKey(intentHash))).deadline)
+        const proposalDeadline = intentDeadline + 100
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, proposalDeadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`Proposal deadline can't be after the Intent's deadline`)
+      })
+
+      it('cant create proposal if intent has insufficient validations', async () => {
+        const intentHash = generateIntentHash()
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 3600
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: 2,
+          dataHex: '010203',
+          maxFees: [],
+          eventsHex: [],
+        }
+
+        const ix = await solverSdk.createIntentIx(intentHash, params)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        // Set validations to 1 (less than min_validations of 2)
+        const intentKey = sdk.getIntentKey(intentHash)
+        const intentAccount = client.getAccount(intentKey)
+        if (intentAccount) {
+          const intentData = Buffer.from(intentAccount.data)
+          intentData.writeUInt16LE(1, 147)
+          client.setAccount(intentKey, {
+            ...intentAccount,
+            data: intentData,
+          })
+        }
+
+        const proposalDeadline = now + 1800
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix2 = await solverSdk.createProposalIx(intentHash, instructions, proposalDeadline)
+        const res = await makeTxSignAndSend(solverProvider, ix2)
+
+        expect(res.toString()).to.include(`Intent has insufficient validations`)
+      })
+
+      it('cant create proposal if intent is not final', async () => {
+        const intentHash = await createValidatedIntent(false)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`Intent is not final`)
+      })
+
+      it('cant create proposal if fulfilled_intent PDA already exists', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        // Mock FulfilledIntent
+        const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
+        client.setAccount(fulfilledIntent, {
+          executable: false,
+          lamports: 1002240,
+          owner: program.programId,
+          data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
+        })
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(
+          `AnchorError caused by account: fulfilled_intent. Error Code: AccountNotSystemOwned. Error Number: 3011. Error Message: The given account is not owned by the system program`
+        )
+      })
+
+      it('cant create proposal with same intent_hash and solver twice', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        client.expireBlockhash()
+        const ix2 = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix2)
+
+        expect(res.toString()).to.include(`already in use`)
+      })
+
+      it('cant create proposal for non-existent intent', async () => {
+        const intentHash = generateIntentHash()
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: 'deadbeef',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`AccountNotInitialized`)
+      })
+    })
+
+    describe('add_instructions_to_proposal', () => {
+      const generateIntentHash = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      const generateNonce = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      const createValidatedIntent = async (isFinal = true): Promise<string> => {
+        const intentHash = generateIntentHash()
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 3600
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: 1,
+          dataHex: '010203',
+          maxFees: [],
+          eventsHex: [],
+        }
+
+        const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        // Set validations
+        const intentKey = sdk.getIntentKey(intentHash)
+        const intentAccount = client.getAccount(intentKey)
+        if (intentAccount) {
+          const intentData = Buffer.from(intentAccount.data)
+          intentData.writeUInt16LE(1, 147)
+          client.setAccount(intentKey, {
+            ...intentAccount,
+            data: intentData,
+          })
+        }
+
+        return intentHash
+      }
+
+      const createTestProposal = async (isFinal = false): Promise<string> => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 1800
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [
+              {
+                pubkey: Keypair.generate().publicKey,
+                isSigner: false,
+                isWritable: true,
+              },
+            ],
+            data: '010203',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline, isFinal)
+        await makeTxSignAndSend(solverProvider, ix)
+        return intentHash
+      }
+
+      it('should add instructions to proposal', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [
+              {
+                pubkey: Keypair.generate().publicKey,
+                isSigner: false,
+                isWritable: true,
+              },
+            ],
+            data: '040506',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.instructions.length).to.be.eq(2)
+        expect(Buffer.from(proposal.instructions[0].data).toString('hex')).to.be.eq('010203')
+        expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq('040506')
+        expect(proposal.isFinal).to.be.false
+        expect(proposal.instructions[1].accounts.length).to.be.eq(1)
+        expect(proposal.instructions[1].accounts[0].pubkey.toString()).to.be.eq(
+          moreInstructions[0].accounts[0].pubkey.toString()
+        )
+        expect(proposal.instructions[1].accounts[0].isSigner).to.be.eq(false)
+        expect(proposal.instructions[1].accounts[0].isWritable).to.be.eq(true)
+      })
+
+      it('should add multiple instructions to proposal', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '070809',
+          },
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '0a0b0c',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.instructions.length).to.be.eq(3)
+        expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq('070809')
+        expect(Buffer.from(proposal.instructions[2].data).toString('hex')).to.be.eq('0a0b0c')
+        expect(proposal.isFinal).to.be.false
+      })
+
+      it('should add instructions to proposal multiple times', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions1 = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '0d0e0f',
+          },
+        ]
+        const ix1 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions1, false)
+        await makeTxSignAndSend(solverProvider, ix1)
+
+        const moreInstructions2 = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '101112',
+          },
+        ]
+        const ix2 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions2, false)
+        await makeTxSignAndSend(solverProvider, ix2)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.instructions.length).to.be.eq(3)
+        expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq('0d0e0f')
+        expect(Buffer.from(proposal.instructions[2].data).toString('hex')).to.be.eq('101112')
+        expect(proposal.isFinal).to.be.false
+      })
+
+      it('cant add instructions if not proposal creator', async () => {
+        const intentHash = await createTestProposal(false)
+        const proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash)))
+          .proposalCreator
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '131415',
+          },
+        ]
+
+        const ix = await maliciousSdk.addInstructionsToProposalIx(
+          intentHash,
+          moreInstructions,
+          undefined,
+          proposalCreator
+        )
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
+
+        expect(res.toString()).to.include(`Signer must be proposal creator`)
+      })
+
+      it('cant add instructions to non-existent proposal', async () => {
+        const intentHash = generateIntentHash()
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '161718',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`AccountNotInitialized`)
+      })
+
+      it('cant add instructions if proposal deadline has passed', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 50
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '010203',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline, false)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        warpSeconds(provider, 51)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '19202a',
+          },
+        ]
+
+        const ix2 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+        const res = await makeTxSignAndSend(solverProvider, ix2)
+
+        expect(res.toString()).to.include(`Proposal has already expired`)
+      })
+
+      it('cant add instructions if proposal deadline equals now', async () => {
+        const intentHash = await createValidatedIntent(true)
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 100
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '010203',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline, false)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        warpSeconds(provider, 100)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '1b1c1d',
+          },
+        ]
+
+        const ix2 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+        const res = await makeTxSignAndSend(solverProvider, ix2)
+
+        expect(res.toString()).to.include(`Proposal has already expired`)
+      })
+
+      it('cant add instructions if proposal is final', async () => {
+        const intentHash = await createTestProposal(true)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '1e1f20',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`Proposal is already final`)
+      })
+
+      it('should finalize proposal when adding instructions with finalize=true', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '212223',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, true)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.isFinal).to.be.true
+        expect(proposal.instructions.length).to.be.eq(2)
+      })
+
+      it('should not finalize proposal when adding instructions with finalize=false', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '242526',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.isFinal).to.be.false
+        expect(proposal.instructions.length).to.be.eq(2)
+      })
+
+      it('should finalize proposal by default when adding instructions', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '272829',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.isFinal).to.be.true
+        expect(proposal.instructions.length).to.be.eq(2)
+      })
+    })
+
+    describe('claim_stale_proposal', () => {
+      const generateIntentHash = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      const generateNonce = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      const createValidatedIntent = async (isFinal = true): Promise<string> => {
+        const intentHash = generateIntentHash()
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 3600
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: 1,
+          dataHex: '010203',
+          maxFees: [],
+          eventsHex: [],
+        }
+
+        const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        // Set validations
+        const intentKey = sdk.getIntentKey(intentHash)
+        const intentAccount = client.getAccount(intentKey)
+        if (intentAccount) {
+          const intentData = Buffer.from(intentAccount.data)
+          intentData.writeUInt16LE(1, 147)
+          client.setAccount(intentKey, {
+            ...intentAccount,
+            data: intentData,
+          })
+        }
+
+        return intentHash
+      }
+
+      const createTestProposalWithDeadline = async (deadline: number): Promise<string> => {
+        const intentHash = await createValidatedIntent(true)
+
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [
+              {
+                pubkey: Keypair.generate().publicKey,
+                isSigner: false,
+                isWritable: true,
+              },
+            ],
+            data: '010203',
+          },
+        ]
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, deadline, false)
+        await makeTxSignAndSend(solverProvider, ix)
+        return intentHash
+      }
+
+      it('should claim stale proposal', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 50
+        const intentHash = await createTestProposalWithDeadline(deadline)
+
+        const proposalBefore = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposalBefore).to.not.be.null
+
+        warpSeconds(provider, 51)
+
+        const proposalBalanceBefore =
+          Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
+        const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.proposalCreator)) || 0
+
+        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposalBalanceAfter =
+          Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
+        const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.proposalCreator)) || 0
+
+        try {
+          await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+          expect.fail('Proposal account should be closed')
+        } catch (error: any) {
+          expect(error.message).to.include(`Account does not exist`)
+        }
+
+        expect(proposalCreatorBalanceAfter).to.be.eq(proposalCreatorBalanceBefore + proposalBalanceBefore - 5000)
+        expect(proposalBalanceAfter).to.be.eq(0)
+      })
+
+      it('should claim multiple stale proposals', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 50
+        const intentHashes = await Promise.all(
+          Array.from({ length: 20 }, async () => await createTestProposalWithDeadline(deadline))
+        )
+
+        for (const intentHash of intentHashes) {
+          const proposalBefore = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+          expect(proposalBefore).to.not.be.null
+        }
+
+        warpSeconds(provider, 51)
+
+        const proposalBalancesBefore = intentHashes.reduce(
+          (acc, intentHash) =>
+            acc + Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0,
+          0
+        )
+        const proposalCreatorBalanceBefore = Number(provider.client.getBalance(solver.publicKey)) || 0
+
+        const ix = await solverSdk.claimStaleProposalIx(intentHashes)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposalBalancesAfter = intentHashes.reduce(
+          (acc, intentHash) =>
+            acc + Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0,
+          0
+        )
+        const proposalCreatorBalanceAfter = Number(provider.client.getBalance(solver.publicKey)) || 0
+
+        for (const intentHash of intentHashes) {
+          try {
+            await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+            expect.fail('Proposal account should be closed')
+          } catch (error: any) {
+            expect(error.message).to.include(`Account does not exist`)
+          }
+        }
+
+        expect(proposalCreatorBalanceAfter).to.be.eq(proposalCreatorBalanceBefore + proposalBalancesBefore - 5000)
+        expect(proposalBalancesAfter).to.be.eq(0)
+      })
+
+      it('cant claim proposal if deadline has not passed', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 500
+        const intentHash = await createTestProposalWithDeadline(deadline)
+
+        warpSeconds(provider, 100)
+
+        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`Proposal not yet expired`)
+      })
+
+      it('cant claim proposal if deadline equals now', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 300
+        const intentHash = await createTestProposalWithDeadline(deadline)
+
+        warpSeconds(provider, 300)
+
+        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`Proposal not yet expired`)
+      })
+
+      it('cant claim stale proposal if not proposal creator', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 80
+        const intentHash = await createTestProposalWithDeadline(deadline)
+
+        warpSeconds(provider, 81)
+
+        const ix = await maliciousSdk.claimStaleProposalIx([intentHash], solver.publicKey)
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
+
+        expect(res.toString()).to.include(`Signer must be proposal creator`)
+      })
+
+      it('cant claim non-existent proposal', async () => {
+        const intentHash = generateIntentHash()
+
+        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expect(res.toString()).to.include(`AccountNotInitialized`)
+      })
+
+      it('cant claim proposal twice', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 90
+        const intentHash = await createTestProposalWithDeadline(deadline)
+
+        warpSeconds(provider, 91)
+
+        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        await makeTxSignAndSend(solverProvider, ix)
+
+        client.expireBlockhash()
+        const ix2 = await solverSdk.claimStaleProposalIx([intentHash])
+        const res = await makeTxSignAndSend(solverProvider, ix2)
+
+        const errorMsg = res.toString()
+        expect(errorMsg.includes(`AccountNotInitialized`)).to.be.true
+      })
+    })
   })
 })
