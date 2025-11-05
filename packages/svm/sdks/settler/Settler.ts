@@ -4,7 +4,15 @@ import * as SettlerIDL from '../../target/idl/settler.json'
 import * as WhitelistIDL from '../../target/idl/whitelist.json'
 import { Settler } from '../../target/types/settler'
 import { EntityType } from '../whitelist/Whitelist'
-import { CreateIntentParams, ExtendIntentParams, IntentEvent, MaxFee, OpType } from './types'
+import {
+  CreateIntentParams,
+  ExtendIntentParams,
+  IntentEvent,
+  MaxFee,
+  OpType,
+  ProposalInstruction,
+  ProposalInstructionAccountMeta,
+} from './types'
 
 type MaxFeeAnchor = {
   mint: web3.PublicKey
@@ -13,6 +21,12 @@ type MaxFeeAnchor = {
 
 type IntentEventAnchor = {
   topic: number[]
+  data: Buffer
+}
+
+type ProposalInstructionAnchor = {
+  programId: web3.PublicKey
+  accounts: ProposalInstructionAccountMeta[]
   data: Buffer
 }
 
@@ -97,6 +111,63 @@ export default class SettlerSDK {
     return ix
   }
 
+  async createProposalIx(
+    intentHashHex: string,
+    instructions: ProposalInstruction[],
+    deadline: number,
+    isFinal = true
+  ): Promise<web3.TransactionInstruction> {
+    const parsedInstructions = this.parseProposalInstructions(instructions)
+
+    const ix = await this.program.methods
+      .createProposal(parsedInstructions, new BN(deadline), isFinal)
+      .accountsPartial({
+        solver: this.getSignerKey(),
+        solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
+        intent: this.getIntentKey(intentHashHex),
+        fulfilledIntent: this.getFulfilledIntentKey(intentHashHex),
+      })
+      .instruction()
+
+    return ix
+  }
+
+  async addInstructionsToProposalIx(
+    intentHashHex: string,
+    moreInstructions: ProposalInstruction[],
+    solverPubkey?: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const parsedInstructions = this.parseProposalInstructions(moreInstructions)
+    const solver = solverPubkey || this.getSignerKey()
+
+    const ix = await this.program.methods
+      .addInstructionsToProposal(parsedInstructions)
+      .accountsPartial({
+        proposalCreator: this.getSignerKey(),
+        proposal: this.getProposalKey(intentHashHex, solver),
+      })
+      .instruction()
+
+    return ix
+  }
+
+  async claimStaleProposalIx(
+    intentHashHex: string,
+    solverPubkey?: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const solver = solverPubkey || this.getSignerKey()
+
+    const ix = await this.program.methods
+      .claimStaleProposal()
+      .accountsPartial({
+        proposalCreator: this.getSignerKey(),
+        proposal: this.getProposalKey(intentHashHex, solver),
+      })
+      .instruction()
+
+    return ix
+  }
+
   getSettlerSettingsPubkey(): web3.PublicKey {
     return web3.PublicKey.findProgramAddressSync([Buffer.from('settler-settings')], this.program.programId)[0]
   }
@@ -114,6 +185,19 @@ export default class SettlerSDK {
 
     return web3.PublicKey.findProgramAddressSync(
       [Buffer.from('fulfilled-intent'), intentHash],
+      this.program.programId
+    )[0]
+  }
+
+  getProposalKey(intentHashHex: string, solverPubkey?: web3.PublicKey): web3.PublicKey {
+    const intentHash = Buffer.from(intentHashHex, 'hex')
+    if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
+
+    const intentKey = this.getIntentKey(intentHashHex)
+    const solver = solverPubkey || this.getSignerKey()
+
+    return web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('proposal'), intentKey.toBuffer(), solver.toBuffer()],
       this.program.programId
     )[0]
   }
@@ -163,6 +247,13 @@ export default class SettlerSDK {
     return maxFees.map((maxFee) => ({
       ...maxFee,
       amount: new BN(maxFee.amount),
+    }))
+  }
+
+  private parseProposalInstructions(instructions: ProposalInstruction[]): ProposalInstructionAnchor[] {
+    return instructions.map((instruction) => ({
+      ...instruction,
+      data: typeof instruction.data === 'string' ? Buffer.from(instruction.data, 'hex') : instruction.data,
     }))
   }
 }

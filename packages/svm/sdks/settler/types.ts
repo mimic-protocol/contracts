@@ -35,3 +35,15 @@ export type ExtendIntentParams = {
   moreMaxFees?: MaxFee[]
   moreEventsHex?: IntentEvent[]
 }
+
+export type ProposalInstructionAccountMeta = {
+  pubkey: web3.PublicKey
+  isSigner: boolean
+  isWritable: boolean
+}
+
+export type ProposalInstruction = {
+  programId: web3.PublicKey
+  accounts: ProposalInstructionAccountMeta[]
+  data: Buffer | string
+}
