@@ -18,7 +18,7 @@ pub struct CreateIntent<'info> {
     pub solver: Signer<'info>,
 
     #[account(
-        seeds = [b"entity-registry".as_ref(), &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
+        seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
         seeds::program = crate::whitelist::ID,
         constraint =
@@ -70,6 +70,7 @@ pub fn create_intent(
     intent.op = op;
     intent.user = user;
     intent.intent_creator = ctx.accounts.solver.key();
+    intent.intent_hash = intent_hash;
     intent.nonce = nonce;
     intent.deadline = deadline;
     intent.min_validations = min_validations;

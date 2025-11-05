@@ -343,7 +343,7 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, false)
         const res = await makeTxSignAndSend(solverProvider, ix)
 
-        expect(res.toString()).to.include(`Deadline can't be in the past`)
+        expect(res.toString()).to.include(`Deadline must be in the future`)
       })
 
       it('cant create intent with deadline equal to now', async () => {
@@ -367,7 +367,7 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, false)
         const res = await makeTxSignAndSend(solverProvider, ix)
 
-        expect(res.toString()).to.include(`Deadline can't be in the past`)
+        expect(res.toString()).to.include(`Deadline must be in the future`)
       })
 
       it('cant create intent if fulfilled_intent PDA already exists', async () => {
@@ -639,7 +639,7 @@ describe('Settler Program', () => {
         expect(intent.maxFees.length).to.be.eq(58)
         expect(intent.events.length).to.be.eq(51)
         expect(intent.isFinal).to.be.false
-        expect(intentAcc?.data.length).to.be.eq(19293)
+        expect(intentAcc?.data.length).to.be.eq(19325)
       })
 
       it('should finalize an intent', async () => {

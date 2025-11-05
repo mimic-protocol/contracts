@@ -9,7 +9,7 @@ pub mod instructions;
 pub mod state;
 pub mod types;
 
-use crate::{instructions::*, types::*};
+use crate::{instructions::*, state::*, types::*};
 
 #[program]
 pub mod settler {
@@ -19,8 +19,11 @@ pub mod settler {
         instructions::add_axia_sig(ctx)
     }
 
-    pub fn add_instructions_to_proposal(ctx: Context<AddInstructionsToProposal>) -> Result<()> {
-        instructions::add_instructions_to_proposal(ctx)
+    pub fn add_instructions_to_proposal(
+        ctx: Context<AddInstructionsToProposal>,
+        more_instructions: Vec<ProposalInstruction>,
+    ) -> Result<()> {
+        instructions::add_instructions_to_proposal(ctx, more_instructions)
     }
 
     pub fn add_validator_sigs(ctx: Context<AddValidatorSigs>) -> Result<()> {
@@ -35,7 +38,9 @@ pub mod settler {
         instructions::claim_stale_intent(ctx)
     }
 
-    pub fn claim_stale_proposal(ctx: Context<ClaimStaleProposal>) -> Result<()> {
+    pub fn claim_stale_proposal<'info>(
+        ctx: Context<'_, '_, 'info, 'info, ClaimStaleProposal<'info>>,
+    ) -> Result<()> {
         instructions::claim_stale_proposal(ctx)
     }
 
@@ -67,8 +72,13 @@ pub mod settler {
         )
     }
 
-    pub fn create_proposal(ctx: Context<CreateProposal>) -> Result<()> {
-        instructions::create_proposal(ctx)
+    pub fn create_proposal(
+        ctx: Context<CreateProposal>,
+        instructions: Vec<ProposalInstruction>,
+        deadline: u64,
+        is_final: bool,
+    ) -> Result<()> {
+        instructions::create_proposal(ctx, instructions, deadline, is_final)
     }
 
     pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
