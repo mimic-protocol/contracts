@@ -17,14 +17,15 @@ pub struct CreateIntent<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
 
-    // #[account(
-    //     seeds = [b"entity-registry".as_ref(), &[EntityType::Solver as u8], solver.key().as_ref()],
-    //     bump = solver_registry.bump,
-    //     seeds::program = crate::whitelist::ID,
-    //     constraint =
-    //         solver_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::OnlySolver
-    // )]
-    // pub solver_registry: Box<Account<'info, EntityRegistry>>,
+    #[account(
+        seeds = [b"entity-registry".as_ref(), &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
+        bump = solver_registry.bump,
+        seeds::program = crate::whitelist::ID,
+        constraint =
+            solver_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::OnlySolver
+    )]
+    pub solver_registry: Box<Account<'info, EntityRegistry>>,
+
     #[account(
         init,
         seeds = [b"intent", intent_hash.as_ref()],
@@ -74,7 +75,7 @@ pub fn create_intent(
     intent.min_validations = min_validations;
     intent.validations = 0;
     intent.is_final = is_final;
-    intent.data = data;
+    intent.intent_data = data;
     intent.max_fees = max_fees;
     intent.events = events;
     intent.bump = ctx.bumps.intent;

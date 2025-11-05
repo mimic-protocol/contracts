@@ -36,7 +36,7 @@ pub fn extend_intent(
     let intent = &mut ctx.accounts.intent;
 
     if let Some(_more_data) = more_data {
-        intent.data.extend_from_slice(&_more_data);
+        intent.intent_data.extend_from_slice(&_more_data);
     }
 
     if let Some(_more_max_fees) = more_max_fees {

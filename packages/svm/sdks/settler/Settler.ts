@@ -1,7 +1,9 @@
 import { BN, IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
 
 import * as SettlerIDL from '../../target/idl/settler.json'
+import * as WhitelistIDL from '../../target/idl/whitelist.json'
 import { Settler } from '../../target/types/settler'
+import { EntityType } from '../whitelist/Whitelist'
 import { CreateIntentParams, ExtendIntentParams, IntentEvent, MaxFee, OpType } from './types'
 
 type MaxFeeAnchor = {
@@ -52,7 +54,10 @@ export default class SettlerSDK {
         minValidations,
         isFinal
       )
-      .accountsPartial({ solver: this.getSignerKey() })
+      .accountsPartial({
+        solver: this.getSignerKey(),
+        solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
+      })
       .instruction()
 
     return ix
@@ -110,6 +115,13 @@ export default class SettlerSDK {
     return web3.PublicKey.findProgramAddressSync(
       [Buffer.from('fulfilled-intent'), intentHash],
       this.program.programId
+    )[0]
+  }
+
+  getEntityRegistryPubkey(entityType: EntityType, entityPubkey: web3.PublicKey): web3.PublicKey {
+    return web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('entity-registry'), Buffer.from([entityType]), entityPubkey.toBuffer()],
+      new web3.PublicKey(WhitelistIDL.address)
     )[0]
   }
 

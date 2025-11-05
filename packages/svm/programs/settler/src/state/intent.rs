@@ -12,7 +12,7 @@ pub struct Intent {
     pub min_validations: u16,
     pub validations: u16,
     pub is_final: bool,
-    pub data: Vec<u8>,
+    pub intent_data: Vec<u8>,
     pub max_fees: Vec<MaxFee>,
     pub events: Vec<IntentEvent>,
     pub bump: u8,
