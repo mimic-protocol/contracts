@@ -1,0 +1,98 @@
+name: CI
+
+env:
+  CI: true
+
+on:
+  push:
+    branches: "*"
+    paths:
+      - packages/**
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - packages/**
+
+jobs:
+  find-changed-packages:
+    runs-on: ubuntu-22.04
+    outputs:
+      packages: ${{ steps.write-output.outputs.packages }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Find changed packages
+        id: changed-packages
+        uses: tj-actions/changed-files@v39
+        with:
+          files: packages/**
+          dir_names: true
+      - name: Write output
+        id: write-output
+        run: |
+          PACKAGES=$(echo ${{ steps.changed-packages.outputs.all_changed_files }} | tr -s ' '  '\n' | grep -oP '(?<=packages/)([\w-]*)' | sort --unique | paste -sd ' ' | sed 's/\//-/g')
+          LIST="[\"$(echo ${PACKAGES// /\", \"})\"]"
+          echo "List: $LIST"
+          echo "packages={\"package\":$LIST}" >> "$GITHUB_OUTPUT"
+
+  lint:
+    runs-on: ubuntu-22.04
+    needs: find-changed-packages
+    strategy:
+      matrix: ${{fromJson(needs.find-changed-packages.outputs.packages)}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install
+        run: yarn workspace @mimicprotocol/contracts-${{ matrix.package }} install
+      - name: Lint
+        run: yarn workspace @mimicprotocol/contracts-${{ matrix.package }} lint
+
+  test-evm:
+    runs-on: ubuntu-latest
+    needs: find-changed-packages
+    if: ${{ contains(needs.find-changed-packages.outputs.packages, 'evm') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install
+        run: yarn workspace @mimicprotocol/contracts-evm install
+      - name: Build
+        run: yarn workspace @mimicprotocol/contracts-evm build
+      - name: Test
+        run: yarn workspace @mimicprotocol/contracts-evm test
+
+  test-solana:
+    runs-on: ubuntu-22.04
+    needs: find-changed-packages
+    if: ${{ contains(needs.find-changed-packages.outputs.packages, 'svm') }}
+    container: solanafoundation/anchor:v0.32.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.15.1"
+      - name: Set Up Solana Test Keypair
+        run: solana-keygen new --no-bip39-passphrase --silent
+      - name: Pre-clean caches
+        working-directory: packages/svm
+        run: |
+          yarn cache clean || true
+          rm -rf ~/.cargo/registry ~/.cargo/git ~/.cache || true
+      - name: Install
+        run: yarn workspace @mimicprotocol/contracts-svm install
+      - name: Build Anchor Program
+        run: |
+          rustup default stable
+          yarn workspace @mimicprotocol/contracts-svm build
+      - name: Test
+        run: yarn workspace @mimicprotocol/contracts-svm test
