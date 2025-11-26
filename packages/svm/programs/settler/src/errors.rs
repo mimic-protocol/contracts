@@ -14,6 +14,9 @@ pub enum SettlerError {
     #[msg("Only a whitelisted validator can call this instruction")]
     OnlyValidator,
 
+    #[msg("Validator is not whitelisted")]
+    ValidatorNotWhitelisted,
+
     #[msg("Signer must be intent creator")]
     IncorrectIntentCreator,
 
@@ -49,4 +52,10 @@ pub enum SettlerError {
 
     #[msg("Intent has insufficient validations")]
     InsufficientIntentValidations,
+
+    #[msg("Signature verification failed")]
+    SigVerificationFailed,
+
+    #[msg("Math Error")]
+    MathError,
 }

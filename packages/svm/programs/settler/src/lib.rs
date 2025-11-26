@@ -8,6 +8,7 @@ pub mod errors;
 pub mod instructions;
 pub mod state;
 pub mod types;
+pub mod utils;
 
 use crate::{instructions::*, state::*, types::*};
 
@@ -27,8 +28,8 @@ pub mod settler {
         instructions::add_instructions_to_proposal(ctx, more_instructions, finalize)
     }
 
-    pub fn add_validator_sigs(ctx: Context<AddValidatorSigs>) -> Result<()> {
-        instructions::add_validator_sigs(ctx)
+    pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
+        instructions::add_validator_sig(ctx)
     }
 
     pub fn change_whitelist_program(ctx: Context<ChangeWhitelistProgram>) -> Result<()> {

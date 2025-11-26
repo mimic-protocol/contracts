@@ -12,6 +12,8 @@ pub struct Intent {
     pub deadline: u64,
     pub min_validations: u16,
     pub validations: u16,
+    // max 10
+    pub validators: Vec<[u8; 32]>, // TODO: how to store more efficiently? how to know max beforehand? is min enough?
     pub is_final: bool,
     pub intent_data: Vec<u8>,
     pub max_fees: Vec<MaxFee>,
@@ -30,6 +32,7 @@ impl Intent {
         8 + // deadline
         2 + // min_validations
         2 + // validations
+        4 + 32 * 10 + // validators // TODO: rethink
         1 + // is_final
         1 // bump
     ;

@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Program, Wallet } from '@coral-xyz/anchor'
+import { signAsync } from '@noble/ed25519'
 import { Keypair } from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
@@ -639,7 +640,7 @@ describe('Settler Program', () => {
         expect(intent.maxFees.length).to.be.eq(58)
         expect(intent.events.length).to.be.eq(51)
         expect(intent.isFinal).to.be.false
-        expect(intentAcc?.data.length).to.be.eq(19325)
+        expect(intentAcc?.data.length).to.be.eq(19649)
       })
 
       it('should finalize an intent', async () => {
@@ -1830,6 +1831,74 @@ describe('Settler Program', () => {
 
         const errorMsg = res.toString()
         expect(errorMsg.includes(`AccountNotInitialized`)).to.be.true
+      })
+    })
+
+    describe('add_validator_sigs', () => {
+      const generateIntentHash = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      const generateNonce = (): string => {
+        return Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('hex')
+      }
+
+      it('debug', async () => {
+        const intentHash = generateIntentHash()
+        const intentKey = sdk.getIntentKey(intentHash)
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + 3600
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: 1,
+          dataHex: '010203',
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
+          eventsHex: [
+            {
+              topicHex: Buffer.from(Array(32).fill(1)).toString('hex'),
+              dataHex: '040506',
+            },
+          ],
+        }
+
+        const createIntentIx = await solverSdk.createIntentIx(intentHash, params, true)
+        await makeTxSignAndSend(solverProvider, createIntentIx)
+
+        const validator = Keypair.generate()
+
+        const whitelistValidatorIx = await whitelistSdk.setEntityWhitelistStatusIx(
+          EntityType.Validator,
+          validator.publicKey,
+          WhitelistStatus.Whitelisted
+        )
+        await makeTxSignAndSend(provider, whitelistValidatorIx)
+
+        // New stuff
+
+        const signature = await signAsync(Buffer.from(intentHash, 'hex'), validator.secretKey.slice(0, 32))
+        const sigBytes: Uint8Array = new Uint8Array(signature)
+        const sigNums: number[] = Array.from(sigBytes)
+
+        const ixs = await solverSdk.addValidatorSigIxs(
+          intentKey,
+          Buffer.from(intentHash, 'hex'),
+          validator.publicKey,
+          sigNums
+        )
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+
+        console.log(res.toString())
       })
     })
   })
