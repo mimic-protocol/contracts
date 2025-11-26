@@ -25,7 +25,7 @@ This repo contains all the packages related to Mimic Protocol contracts.
 
 ## Setup
 
-To set up this project you'll need [git](https://git-scm.com) and [yarn](https://classic.yarnpkg.com) installed.
+To set up this project you'll need [git](https://git-scm.com), [yarn](https://classic.yarnpkg.com) and [Anchor](https://www.anchor-lang.com/docs/installation) installed.
 From your command line:
 
 ```bash
