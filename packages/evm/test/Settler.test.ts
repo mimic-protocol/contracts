@@ -486,7 +486,7 @@ describe('Settler', () => {
 
         context('when the intent is a call', () => {
           beforeEach('set intent type', async () => {
-            intentParams.op = OpType.Call
+            intentParams.op = OpType.EvmCall
           })
 
           itReverts(reason)
@@ -2273,7 +2273,7 @@ describe('Settler', () => {
 
                     expect(events[0].args.user).to.be.equal(intent.user)
                     expect(events[0].args.topic).to.be.equal(eventTopic)
-                    expect(events[0].args.op).to.be.equal(OpType.Call)
+                    expect(events[0].args.op).to.be.equal(OpType.EvmCall)
                     expect(events[0].args.intent).to.not.be.undefined
                     expect(events[0].args.proposal).to.not.be.undefined
                     expect(events[0].args.output).to.not.be.undefined

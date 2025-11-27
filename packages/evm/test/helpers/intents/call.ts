@@ -16,7 +16,7 @@ export interface CallData {
 }
 
 export function createCallIntent(params?: Partial<CallIntent>): Intent {
-  const intent = createIntent({ ...params, op: OpType.Call })
+  const intent = createIntent({ ...params, op: OpType.EvmCall })
   const callIntent = { ...getDefaults(), ...params, ...intent } as CallIntent
   intent.data = encodeEvmCallIntent(toCallIntentData(callIntent))
   return intent

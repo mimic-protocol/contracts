@@ -445,7 +445,7 @@
     wrap-ansi "^8.1.0"
     wrap-ansi-cjs "npm:wrap-ansi@^7.0.0"
 
-"@mimicprotocol/sdk@^0.0.1-rc.20":
+"@mimicprotocol/sdk@0.0.1-rc.20":
   version "0.0.1-rc.20"
   resolved "https://registry.yarnpkg.com/@mimicprotocol/sdk/-/sdk-0.0.1-rc.20.tgz#a2a29c53b17901c38c25e39304ddcf46a72058f2"
   integrity sha512-Hdw9jvyVI3ox6SbY/AI22yi55gDlf1Qx33UHdN1jCR+IL350rHBKO2b+L2zvSYIH4mcJWhXAofREM4zwKuqVBw==
