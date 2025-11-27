@@ -1,0 +1,518 @@
+{
+  "address": "7PwVkjnnapxytWFW69WFDLhfVZZgKhBE9m3zwcDZmncr",
+  "metadata": {
+    "name": "whitelist",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "deployer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_settings",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "admin",
+          "type": "pubkey"
+        },
+        {
+          "name": "proposed_admin_cooldown",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "propose_admin",
+      "discriminator": [
+        121,
+        214,
+        199,
+        212,
+        87,
+        39,
+        117,
+        234
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_settings"
+          ]
+        },
+        {
+          "name": "global_settings",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "proposed_admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_entity_whitelist_status",
+      "discriminator": [
+        100,
+        20,
+        23,
+        73,
+        220,
+        118,
+        179,
+        50
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_settings"
+          ]
+        },
+        {
+          "name": "entity_registry",
+          "writable": true
+        },
+        {
+          "name": "global_settings",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "entity_type",
+          "type": {
+            "defined": {
+              "name": "EntityType"
+            }
+          }
+        },
+        {
+          "name": "entity_pubkey",
+          "type": "pubkey"
+        },
+        {
+          "name": "status",
+          "type": {
+            "defined": {
+              "name": "WhitelistStatus"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_proposed_admin",
+      "discriminator": [
+        160,
+        170,
+        199,
+        240,
+        246,
+        244,
+        199,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "proposed_admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "global_settings",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "EntityRegistry",
+      "discriminator": [
+        206,
+        167,
+        4,
+        107,
+        132,
+        162,
+        158,
+        163
+      ]
+    },
+    {
+      "name": "GlobalSettings",
+      "discriminator": [
+        109,
+        67,
+        50,
+        55,
+        2,
+        20,
+        148,
+        62
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "SetEntityWhitelistStatusEvent",
+      "discriminator": [
+        137,
+        194,
+        109,
+        101,
+        80,
+        30,
+        4,
+        114
+      ]
+    },
+    {
+      "name": "SetProposedAdminEvent",
+      "discriminator": [
+        153,
+        83,
+        248,
+        103,
+        132,
+        126,
+        171,
+        96
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "OnlyDeployer",
+      "msg": "Only deployer can call this instruction"
+    },
+    {
+      "code": 6001,
+      "name": "OnlyAdmin",
+      "msg": "Only admin can call this instruction"
+    },
+    {
+      "code": 6002,
+      "name": "OnlyProposedAdmin",
+      "msg": "Only proposed admin can call this instruction"
+    },
+    {
+      "code": 6003,
+      "name": "ProposedAdminIsAlreadySet",
+      "msg": "Proposed admin is already set"
+    },
+    {
+      "code": 6004,
+      "name": "SetProposedAdminError",
+      "msg": "Can't set proposed admin - either no next admin is proposed or cooldown period is not over yet"
+    },
+    {
+      "code": 6005,
+      "name": "CooldownTooLarge",
+      "msg": "Cooldown too large"
+    },
+    {
+      "code": 6006,
+      "name": "CooldownCantBeZero",
+      "msg": "Cooldown can't be zero"
+    },
+    {
+      "code": 6007,
+      "name": "MathError",
+      "msg": "Math error"
+    }
+  ],
+  "types": [
+    {
+      "name": "EntityRegistry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entity_type",
+            "type": {
+              "defined": {
+                "name": "EntityType"
+              }
+            }
+          },
+          {
+            "name": "entity_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "WhitelistStatus"
+              }
+            }
+          },
+          {
+            "name": "last_update",
+            "type": "u64"
+          },
+          {
+            "name": "updated_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntityType",
+      "repr": {
+        "kind": "rust"
+      },
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Validator"
+          },
+          {
+            "name": "Axia"
+          },
+          {
+            "name": "Solver"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GlobalSettings",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposed_admin",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "proposed_admin_cooldown",
+            "type": "u64"
+          },
+          {
+            "name": "proposed_admin_next_change_timestamp",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetEntityWhitelistStatusEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entity_type",
+            "type": {
+              "defined": {
+                "name": "EntityType"
+              }
+            }
+          },
+          {
+            "name": "entity_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "WhitelistStatus"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "u64"
+          },
+          {
+            "name": "updated_by",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetProposedAdminEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "old_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_admin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WhitelistStatus",
+      "repr": {
+        "kind": "rust"
+      },
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Whitelisted"
+          },
+          {
+            "name": "Blacklisted"
+          }
+        ]
+      }
+    }
+  ]
+}
