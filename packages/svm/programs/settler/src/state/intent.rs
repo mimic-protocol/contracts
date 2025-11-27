@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::{
     types::{IntentEvent, MaxFee, OpType},
-    utils::{add, sub, mul},
+    utils::{add, mul, sub},
 };
 
 #[account]
@@ -16,7 +16,7 @@ pub struct Intent {
     pub min_validations: u16,
     pub validations: u16,
     pub is_final: bool,
-    pub validators: Vec<[u8; 32]>, // TODO: how to store more efficiently?
+    pub validators: Vec<Pubkey>, // TODO: how to store more efficiently?
     pub intent_data: Vec<u8>,
     pub max_fees: Vec<MaxFee>,
     pub events: Vec<IntentEvent>,
@@ -61,7 +61,9 @@ impl Intent {
     }
 
     pub fn events_size(events: &[IntentEvent]) -> Result<usize> {
-        let sum = events.iter().try_fold(0usize, |acc, e| add(acc, e.size()))?;
+        let sum = events
+            .iter()
+            .try_fold(0usize, |acc, e| add(acc, e.size()))?;
         add(4, sum)
     }
 

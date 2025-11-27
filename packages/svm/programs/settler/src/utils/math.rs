@@ -1,5 +1,5 @@
-use anchor_lang::prelude::*;
 use crate::errors::SettlerError;
+use anchor_lang::prelude::*;
 
 #[inline]
 pub fn add(a: usize, b: usize) -> Result<usize> {

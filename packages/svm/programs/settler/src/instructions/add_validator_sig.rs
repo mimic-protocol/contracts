@@ -94,7 +94,9 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
         return Ok(());
     }
 
-    if intent.validators.contains(ed25519_ix_args.pubkey) {
+    let ed25519_pubkey = Pubkey::try_from_slice(ed25519_ix_args.pubkey)?;
+
+    if intent.validators.contains(&ed25519_pubkey) {
         return Ok(());
     }
 
@@ -102,8 +104,8 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
         .validations
         .checked_add(1)
         .ok_or(SettlerError::MathError)?;
-    
-    intent.validators.push(*ed25519_ix_args.pubkey);
+
+    intent.validators.push(ed25519_pubkey);
 
     Ok(())
 }
