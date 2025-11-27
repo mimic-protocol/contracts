@@ -52,11 +52,11 @@ pub mod settler {
         data: Vec<u8>,
         max_fees: Vec<MaxFee>,
         events: Vec<IntentEvent>,
+        min_validations: u16,
         op: OpType,
         user: Pubkey,
         nonce: [u8; 32],
         deadline: u64,
-        min_validations: u16,
         is_final: bool,
     ) -> Result<()> {
         instructions::create_intent(
@@ -65,11 +65,11 @@ pub mod settler {
             data,
             max_fees,
             events,
+            min_validations,
             op,
             user,
             nonce,
             deadline,
-            min_validations,
             is_final,
         )
     }

@@ -156,6 +156,7 @@ describe('Settler Program', () => {
         expect(intent.maxFees[0].mint.toString()).to.be.eq(params.maxFees[0].mint.toString())
         expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
         expect(intent.events.length).to.be.eq(1)
+        expect(intent.validators.length).to.be.eq(0)
         expect(Buffer.from(intent.events[0].topic).toString('hex')).to.be.eq(params.eventsHex[0].topicHex)
         expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq('040506')
       })
@@ -640,7 +641,7 @@ describe('Settler Program', () => {
         expect(intent.maxFees.length).to.be.eq(58)
         expect(intent.events.length).to.be.eq(51)
         expect(intent.isFinal).to.be.false
-        expect(intentAcc?.data.length).to.be.eq(19649)
+        expect(intentAcc?.data.length).to.be.eq(19361)
       })
 
       it('should finalize an intent', async () => {

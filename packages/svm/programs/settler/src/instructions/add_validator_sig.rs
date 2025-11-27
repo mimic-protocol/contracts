@@ -1,5 +1,6 @@
-use anchor_lang::prelude::{
-    instruction::Instruction, sysvar::instructions::get_instruction_relative, *,
+use anchor_lang::{
+    prelude::{instruction::Instruction, sysvar::instructions::get_instruction_relative, *},
+    solana_program::sysvar::instructions::ID as IX_ID,
 };
 
 use crate::{
@@ -11,7 +12,6 @@ use crate::{
         types::{EntityType, WhitelistStatus},
     },
 };
-use anchor_lang::solana_program::sysvar::instructions::{load_instruction_at_checked, ID as IX_ID};
 
 #[derive(Accounts)]
 pub struct AddValidatorSig<'info> {
@@ -88,15 +88,21 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
         SettlerError::ValidatorNotWhitelisted,
     );
 
-    // Updates intent PDA
-    // TODO: add step if intent.validators is at max size (realloc? return?)
+    // Updates intent PDA if signature not present and min_validations not met
+
+    if intent.validators.len() == intent.min_validations as usize {
+        return Ok(());
+    }
+
     if intent.validators.contains(ed25519_ix_args.pubkey) {
         return Ok(());
     }
+
     intent.validations = intent
         .validations
         .checked_add(1)
         .ok_or(SettlerError::MathError)?;
+    
     intent.validators.push(*ed25519_ix_args.pubkey);
 
     Ok(())

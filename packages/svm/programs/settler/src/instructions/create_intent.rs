@@ -12,7 +12,7 @@ use crate::{
 
 #[derive(Accounts)]
 // TODO: can we optimize this deser? we just need the three Vec<T> for their length
-#[instruction(intent_hash: [u8; 32], data: Vec<u8>, max_fees: Vec<MaxFee>, events: Vec<IntentEvent>)]
+#[instruction(intent_hash: [u8; 32], data: Vec<u8>, max_fees: Vec<MaxFee>, events: Vec<IntentEvent>, min_validations: u16)]
 pub struct CreateIntent<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
@@ -31,7 +31,7 @@ pub struct CreateIntent<'info> {
         seeds = [b"intent", intent_hash.as_ref()],
         bump,
         payer = solver,
-        space = 8 + Intent::BASE_LEN + Intent::data_size(data.len()) + Intent::max_fees_size(max_fees.len()) + Intent::events_size(&events)
+        space = Intent::total_size(data.len(), max_fees.len(), &events, min_validations)?
     )]
     // TODO: change to AccountLoader?
     // TODO: init within the handler body to save compute?
@@ -53,11 +53,11 @@ pub fn create_intent(
     data: Vec<u8>,
     max_fees: Vec<MaxFee>,
     events: Vec<IntentEvent>,
+    min_validations: u16,
     op: OpType,
     user: Pubkey,
     nonce: [u8; 32],
     deadline: u64,
-    min_validations: u16,
     is_final: bool,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp as u64;
@@ -79,6 +79,7 @@ pub fn create_intent(
     intent.intent_data = data;
     intent.max_fees = max_fees;
     intent.events = events;
+    intent.validators = vec![];
     intent.bump = ctx.bumps.intent;
 
     Ok(())

@@ -61,11 +61,11 @@ export default class SettlerSDK {
         data,
         maxFeesBn,
         events,
+        minValidations,
         this.opTypeToAnchorEnum(op),
         user,
         nonce,
         new BN(deadline),
-        minValidations,
         isFinal
       )
       .accountsPartial({

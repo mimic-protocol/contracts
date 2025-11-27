@@ -17,7 +17,7 @@ pub struct ExtendIntent<'info> {
         has_one = intent_creator @ SettlerError::IncorrectIntentCreator,
         constraint = !intent.is_final @ SettlerError::IntentIsFinal,
         realloc =
-            Intent::extended_size(intent.to_account_info().data_len(), &more_data, &more_max_fees, &more_events),
+            Intent::extended_size(intent.to_account_info().data_len(), &more_data, &more_max_fees, &more_events)?,
         realloc::payer = intent_creator,
         realloc::zero = true
     )]
