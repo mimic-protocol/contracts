@@ -20,14 +20,14 @@ const { ethers } = await network.connect()
 
 /* eslint-disable no-secrets/no-secrets */
 
-describe('SmartAccount', () => {
+describe('SmartAccountContract', () => {
   let smartAccount: SmartAccount
   let owner: HardhatEthersSigner, settler: HardhatEthersSigner, other: HardhatEthersSigner
 
   beforeEach('deploy smart account', async () => {
     // eslint-disable-next-line prettier/prettier
     [, owner, settler, other] = await ethers.getSigners()
-    smartAccount = await ethers.deployContract('SmartAccount', [settler.address, owner.address])
+    smartAccount = await ethers.deployContract('SmartAccountContract', [settler.address, owner.address])
   })
 
   describe('ownable', () => {

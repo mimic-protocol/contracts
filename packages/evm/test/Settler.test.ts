@@ -486,7 +486,7 @@ describe('Settler', () => {
 
         context('when the intent is a call', () => {
           beforeEach('set intent type', async () => {
-            intentParams.op = OpType.Call
+            intentParams.op = OpType.EvmCall
           })
 
           itReverts(reason)
@@ -978,7 +978,7 @@ describe('Settler', () => {
 
                                         context('when the user is a smart account', () => {
                                           beforeEach('set intent user', async () => {
-                                            intentParams.user = await ethers.deployContract('SmartAccount', [
+                                            intentParams.user = await ethers.deployContract('SmartAccountContract', [
                                               settler,
                                               owner,
                                             ])
@@ -1458,7 +1458,7 @@ describe('Settler', () => {
 
                 context('when the user is a smart account', () => {
                   beforeEach('set from', async () => {
-                    from = await ethers.deployContract('SmartAccount', [settler, owner])
+                    from = await ethers.deployContract('SmartAccountContract', [settler, owner])
                   })
 
                   context('when the token in is an ERC20', () => {
@@ -1981,7 +1981,7 @@ describe('Settler', () => {
 
             context('when the user is a smart account', () => {
               beforeEach('set intent user', async () => {
-                from = await ethers.deployContract('SmartAccount', [settler, owner])
+                from = await ethers.deployContract('SmartAccountContract', [settler, owner])
               })
 
               context('when the token is an ERC20', () => {
@@ -2207,7 +2207,7 @@ describe('Settler', () => {
             let user: SmartAccount
 
             beforeEach('deploy smart account', async () => {
-              user = await ethers.deployContract('SmartAccount', [settler, owner])
+              user = await ethers.deployContract('SmartAccountContract', [settler, owner])
             })
 
             context('when the target is not the settler', () => {
@@ -2273,7 +2273,7 @@ describe('Settler', () => {
 
                     expect(events[0].args.user).to.be.equal(intent.user)
                     expect(events[0].args.topic).to.be.equal(eventTopic)
-                    expect(events[0].args.op).to.be.equal(OpType.Call)
+                    expect(events[0].args.op).to.be.equal(OpType.EvmCall)
                     expect(events[0].args.intent).to.not.be.undefined
                     expect(events[0].args.proposal).to.not.be.undefined
                     expect(events[0].args.output).to.not.be.undefined
@@ -2407,7 +2407,7 @@ describe('Settler', () => {
             const feeAmount = fp(0.01)
 
             beforeEach('deploy smart account', async () => {
-              user = await ethers.deployContract('SmartAccount', [settler, owner])
+              user = await ethers.deployContract('SmartAccountContract', [settler, owner])
             })
 
             beforeEach('set targets and data', async () => {
@@ -2497,7 +2497,7 @@ describe('Settler', () => {
         const value = fp(0.5)
 
         beforeEach('set smart account', async () => {
-          smartAccount = await ethers.deployContract('SmartAccount', [settler, owner])
+          smartAccount = await ethers.deployContract('SmartAccountContract', [settler, owner])
         })
 
         beforeEach('set token', async () => {
