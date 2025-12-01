@@ -51,6 +51,12 @@ const config: HardhatUserConfig = {
       url: process.env.SONIC_RPC_URL || 'https://rpc.soniclabs.com',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
     },
+    baseSepolia: {
+      type: 'http',
+      chainId: 84532,
+      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
   },
   verify: {
     etherscan: {
