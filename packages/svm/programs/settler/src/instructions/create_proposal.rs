@@ -73,6 +73,7 @@ pub fn create_proposal(
     proposal.proposal_creator = ctx.accounts.solver.key();
     proposal.deadline = deadline;
     proposal.is_final = is_final;
+    proposal.is_signed = false;
     proposal.instructions = instructions;
     proposal.bump = ctx.bumps.proposal;
 

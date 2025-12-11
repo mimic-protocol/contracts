@@ -58,7 +58,7 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp as u64;
     let intent = &mut ctx.accounts.intent;
 
-    require!(intent.deadline > now, SettlerError::IntentIsExpired,);
+    require!(intent.deadline > now, SettlerError::IntentIsExpired);
 
     // Get Ed25519 instruction
     let ed25519_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;

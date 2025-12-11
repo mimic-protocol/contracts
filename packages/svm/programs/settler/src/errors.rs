@@ -8,8 +8,8 @@ pub enum SettlerError {
     #[msg("Only a whitelisted solver can call this instruction")]
     OnlySolver,
 
-    #[msg("Only a whitelisted Axia address can call this instruction")]
-    OnlyAxia,
+    #[msg("Provided Axia address is not whitelisted")]
+    AxiaNotWhitelisted,
 
     #[msg("Only a whitelisted validator can call this instruction")]
     OnlyValidator,
@@ -31,6 +31,9 @@ pub enum SettlerError {
 
     #[msg("Proposal is already final")]
     ProposalIsFinal,
+
+    #[msg("Proposal is not final")]
+    ProposalIsNotFinal,
 
     #[msg("Intent not yet expired. Please wait for the deadline to pass")]
     IntentNotYetExpired,

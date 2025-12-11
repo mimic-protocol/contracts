@@ -6,6 +6,7 @@ pub struct Proposal {
     pub proposal_creator: Pubkey,
     pub deadline: u64,
     pub is_final: bool,
+    pub is_signed: bool,
     pub instructions: Vec<ProposalInstruction>,
     pub bump: u8,
 }
@@ -17,6 +18,7 @@ impl Proposal {
         32 + // proposal_creator
         8 + // deadline
         1 + // is_final
+        1 + // is_signed
         1 // bump
     ;
 
