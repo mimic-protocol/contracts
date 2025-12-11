@@ -44,7 +44,10 @@ pub fn get_args_from_ed25519_ix_data(data: &[u8]) -> Result<Ed25519Args<'_>> {
     let exp_signature_offset: u16 = exp_public_key_offset + 32_u16;
     let exp_message_data_offset: u16 = exp_signature_offset + 64_u16;
     let exp_num_signatures: u8 = 1;
-    let exp_message_data_size: u16 = msg.len().try_into().map_err(|_| SettlerError::SigVerificationFailed)?;
+    let exp_message_data_size: u16 = msg
+        .len()
+        .try_into()
+        .map_err(|_| SettlerError::SigVerificationFailed)?;
 
     // Header
     if num_signatures != &exp_num_signatures.to_le_bytes()

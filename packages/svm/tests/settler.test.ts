@@ -2307,7 +2307,9 @@ describe('Settler Program', () => {
         return intentHash
       }
 
-      const createFinalizedProposal = async (deadline?: number): Promise<{ intentHash: string; proposalKey: PublicKey }> => {
+      const createFinalizedProposal = async (
+        deadline?: number
+      ): Promise<{ intentHash: string; proposalKey: PublicKey }> => {
         const intentHash = await createValidatedIntent(true)
         const now = Number(client.getClock().unixTimestamp)
         const proposalDeadline = deadline || now + 1800
@@ -2505,7 +2507,9 @@ describe('Settler Program', () => {
 
         const res = await makeTxSignAndSend(solverProvider, ed25519Ix, ix)
 
-        expect(res.toString()).to.include(`Program log: AnchorError caused by account: proposal. Error Code: AccountNotInitialized`)
+        expect(res.toString()).to.include(
+          `Program log: AnchorError caused by account: proposal. Error Code: AccountNotInitialized`
+        )
       })
 
       it('cant add signature if proposal deadline equals now', async () => {
@@ -2630,7 +2634,12 @@ describe('Settler Program', () => {
         const corruptedEd25519Ix = new TransactionInstruction({
           programId: Keypair.generate().publicKey,
           keys: [],
-          data: Buffer.from([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+          data: Buffer.from([
+            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0,
+          ]),
         })
 
         const ix = await program.methods
@@ -2647,6 +2656,7 @@ describe('Settler Program', () => {
         const res = await makeTxSignAndSend(solverProvider, corruptedEd25519Ix, ix)
 
         expect(res.toString()).to.be.eq(
+          // eslint-disable-next-line no-secrets/no-secrets
           `FailedTransactionMetadata(FailedTransactionMetadata { err: InvalidProgramForExecution, meta: TransactionMetadata { signature: 1111111111111111111111111111111111111111111111111111111111111111, logs: [], inner_instructions: [], compute_units_consumed: 0, return_data: TransactionReturnData { program_id: 11111111111111111111111111111111, data: [] } } })`
         )
       })
