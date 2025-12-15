@@ -59,6 +59,18 @@ pub enum SettlerError {
     #[msg("Signature verification failed")]
     SigVerificationFailed,
 
+    #[msg("Incorrect intent for proposal")]
+    IncorrectIntentForProposal,
+
+    #[msg("Proposal is not signed by Axia")]
+    ProposalIsNotSigned,
+
+    #[msg("Invalid fee mint")]
+    InvalidFeeMint,
+
+    #[msg("Fee amount exceeds max fee")]
+    FeeAmountExceedsMaxFee,
+
     #[msg("Math Error")]
     MathError,
 }

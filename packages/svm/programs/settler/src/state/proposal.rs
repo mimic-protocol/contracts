@@ -1,5 +1,10 @@
 use anchor_lang::prelude::*;
 
+use crate::{
+    types::TokenFee,
+    utils::{add, mul, sub},
+};
+
 #[account]
 pub struct Proposal {
     pub intent: Pubkey,
@@ -8,6 +13,7 @@ pub struct Proposal {
     pub is_final: bool,
     pub is_signed: bool,
     pub instructions: Vec<ProposalInstruction>,
+    pub fees: Vec<TokenFee>,
     pub bump: u8,
 }
 
@@ -22,15 +28,32 @@ impl Proposal {
         1 // bump
     ;
 
-    pub fn instructions_size(instructions: &Vec<ProposalInstruction>) -> usize {
-        4 + instructions
-            .iter()
-            .map(|instruction| instruction.size())
-            .sum::<usize>()
+    pub fn total_size(instructions: &Vec<ProposalInstruction>, fees_len: usize) -> Result<usize> {
+        let size = add(8, Proposal::BASE_LEN)?;
+        let size = add(size, Proposal::instructions_size(instructions)?)?;
+        let size = add(size, Proposal::fees_size(fees_len)?)?;
+        Ok(size)
     }
 
-    pub fn extended_size(size: usize, more_instructions: &Vec<ProposalInstruction>) -> usize {
-        size + Proposal::instructions_size(more_instructions) - 4
+    pub fn instructions_size(instructions: &Vec<ProposalInstruction>) -> Result<usize> {
+        let sum = instructions
+            .iter()
+            .try_fold(0usize, |acc, ix| add(acc, ix.size()))?;
+        add(4, sum)
+    }
+
+    pub fn fees_size(len: usize) -> Result<usize> {
+        add(4, mul(TokenFee::INIT_SPACE, len)?)
+    }
+
+    pub fn extended_size(
+        size: usize,
+        more_instructions: &Vec<ProposalInstruction>,
+    ) -> Result<usize> {
+        sub(
+            add(size, Proposal::instructions_size(more_instructions)?)?,
+            4,
+        )
     }
 }
 

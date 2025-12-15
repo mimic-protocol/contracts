@@ -13,7 +13,7 @@ pub struct AddInstructionsToProposal<'info> {
 
     #[account(
         mut,
-        realloc = Proposal::extended_size(proposal.to_account_info().data_len(), &more_instructions),
+        realloc = Proposal::extended_size(proposal.to_account_info().data_len(), &more_instructions)?,
         realloc::payer = proposal_creator,
         realloc::zero = true,
         has_one = proposal_creator @ SettlerError::IncorrectProposalCreator

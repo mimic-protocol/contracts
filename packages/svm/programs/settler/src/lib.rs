@@ -50,7 +50,7 @@ pub mod settler {
         ctx: Context<CreateIntent>,
         intent_hash: [u8; 32],
         data: Vec<u8>,
-        max_fees: Vec<MaxFee>,
+        max_fees: Vec<TokenFee>,
         events: Vec<IntentEvent>,
         min_validations: u16,
         op: OpType,
@@ -77,10 +77,11 @@ pub mod settler {
     pub fn create_proposal(
         ctx: Context<CreateProposal>,
         instructions: Vec<ProposalInstruction>,
+        fees: Vec<TokenFee>,
         deadline: u64,
         is_final: bool,
     ) -> Result<()> {
-        instructions::create_proposal(ctx, instructions, deadline, is_final)
+        instructions::create_proposal(ctx, instructions, fees, deadline, is_final)
     }
 
     pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
@@ -90,7 +91,7 @@ pub mod settler {
     pub fn extend_intent(
         ctx: Context<ExtendIntent>,
         more_data: Option<Vec<u8>>,
-        more_max_fees: Option<Vec<MaxFee>>,
+        more_max_fees: Option<Vec<TokenFee>>,
         more_events: Option<Vec<IntentEvent>>,
         finalize: bool,
     ) -> Result<()> {

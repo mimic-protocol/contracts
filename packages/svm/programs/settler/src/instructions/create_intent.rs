@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::{
     errors::SettlerError,
     state::Intent,
-    types::{IntentEvent, MaxFee, OpType},
+    types::{IntentEvent, OpType, TokenFee},
     whitelist::{
         accounts::EntityRegistry,
         types::{EntityType, WhitelistStatus},
@@ -12,7 +12,7 @@ use crate::{
 
 #[derive(Accounts)]
 // TODO: can we optimize this deser? we just need the three Vec<T> for their length
-#[instruction(intent_hash: [u8; 32], data: Vec<u8>, max_fees: Vec<MaxFee>, events: Vec<IntentEvent>, min_validations: u16)]
+#[instruction(intent_hash: [u8; 32], data: Vec<u8>, max_fees: Vec<TokenFee>, events: Vec<IntentEvent>, min_validations: u16)]
 pub struct CreateIntent<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
@@ -51,7 +51,7 @@ pub fn create_intent(
     ctx: Context<CreateIntent>,
     intent_hash: [u8; 32],
     data: Vec<u8>,
-    max_fees: Vec<MaxFee>,
+    max_fees: Vec<TokenFee>,
     events: Vec<IntentEvent>,
     min_validations: u16,
     op: OpType,

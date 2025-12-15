@@ -8,13 +8,13 @@ import {
   CreateIntentParams,
   ExtendIntentParams,
   IntentEvent,
-  MaxFee,
   OpType,
   ProposalInstruction,
   ProposalInstructionAccountMeta,
+  TokenFee,
 } from './types'
 
-type MaxFeeAnchor = {
+type TokenFeeAnchor = {
   mint: web3.PublicKey
   amount: BN
 }
@@ -52,7 +52,7 @@ export default class SettlerSDK {
     const intentHash = this.parseIntentHashHex(intentHashHex)
     const nonce = this.parseIntentNonceHex(nonceHex)
     const data = Buffer.from(dataHex, 'hex')
-    const maxFeesBn = this.parseIntentMaxFees(maxFees)
+    const maxFeesBn = this.parseTokenFees(maxFees)
     const events = this.parseIntentEventsHex(eventsHex)
 
     const ix = await this.program.methods
@@ -85,7 +85,7 @@ export default class SettlerSDK {
     const { moreDataHex = '', moreMaxFees = [], moreEventsHex = [] } = params
 
     const moreData = Buffer.from(moreDataHex, 'hex')
-    const moreMaxFeesBn = this.parseIntentMaxFees(moreMaxFees)
+    const moreMaxFeesBn = this.parseTokenFees(moreMaxFees)
     const moreEvents = this.parseIntentEventsHex(moreEventsHex)
 
     const ix = await this.program.methods
@@ -114,13 +114,15 @@ export default class SettlerSDK {
   async createProposalIx(
     intentHashHex: string,
     instructions: ProposalInstruction[],
+    fees: TokenFee[],
     deadline: number,
     isFinal = true
   ): Promise<web3.TransactionInstruction> {
     const parsedInstructions = this.parseProposalInstructions(instructions)
+    const parsedFees = this.parseTokenFees(fees)
 
     const ix = await this.program.methods
-      .createProposal(parsedInstructions, new BN(deadline), isFinal)
+      .createProposal(parsedInstructions, parsedFees, new BN(deadline), isFinal)
       .accountsPartial({
         solver: this.getSignerKey(),
         solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
@@ -299,10 +301,10 @@ export default class SettlerSDK {
     return events
   }
 
-  private parseIntentMaxFees(maxFees: MaxFee[]): MaxFeeAnchor[] {
-    return maxFees.map((maxFee) => ({
-      ...maxFee,
-      amount: new BN(maxFee.amount),
+  private parseTokenFees(tokenFees: TokenFee[]): TokenFeeAnchor[] {
+    return tokenFees.map((tokenFee) => ({
+      ...tokenFee,
+      amount: new BN(tokenFee.amount),
     }))
   }
 

@@ -3,11 +3,11 @@ use anchor_lang::prelude::*;
 use crate::{
     errors::SettlerError,
     state::Intent,
-    types::{IntentEvent, MaxFee},
+    types::{IntentEvent, TokenFee},
 };
 
 #[derive(Accounts)]
-#[instruction(more_data: Option<Vec<u8>>, more_max_fees: Option<Vec<MaxFee>>, more_events: Option<Vec<IntentEvent>>)]
+#[instruction(more_data: Option<Vec<u8>>, more_max_fees: Option<Vec<TokenFee>>, more_events: Option<Vec<IntentEvent>>)]
 pub struct ExtendIntent<'info> {
     #[account(mut)]
     pub intent_creator: Signer<'info>,
@@ -29,7 +29,7 @@ pub struct ExtendIntent<'info> {
 pub fn extend_intent(
     ctx: Context<ExtendIntent>,
     more_data: Option<Vec<u8>>,
-    more_max_fees: Option<Vec<MaxFee>>,
+    more_max_fees: Option<Vec<TokenFee>>,
     more_events: Option<Vec<IntentEvent>>,
     finalize: bool,
 ) -> Result<()> {

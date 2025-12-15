@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    types::{IntentEvent, MaxFee, OpType},
+    types::{IntentEvent, OpType, TokenFee},
     utils::{add, mul, sub},
 };
 
@@ -18,7 +18,7 @@ pub struct Intent {
     pub is_final: bool,
     pub validators: Vec<Pubkey>, // TODO: how to store more efficiently?
     pub intent_data: Vec<u8>,
-    pub max_fees: Vec<MaxFee>,
+    pub max_fees: Vec<TokenFee>,
     pub events: Vec<IntentEvent>,
     pub bump: u8,
 }
@@ -57,7 +57,7 @@ impl Intent {
     }
 
     pub fn max_fees_size(len: usize) -> Result<usize> {
-        add(4, mul(MaxFee::INIT_SPACE, len)?)
+        add(4, mul(TokenFee::INIT_SPACE, len)?)
     }
 
     pub fn events_size(events: &[IntentEvent]) -> Result<usize> {
@@ -74,7 +74,7 @@ impl Intent {
     pub fn extended_size(
         size: usize,
         more_data: &Option<Vec<u8>>,
-        more_max_fees: &Option<Vec<MaxFee>>,
+        more_max_fees: &Option<Vec<TokenFee>>,
         more_events: &Option<Vec<IntentEvent>>,
     ) -> Result<usize> {
         let mut size = size;

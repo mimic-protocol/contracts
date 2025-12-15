@@ -1,6 +1,6 @@
 import { web3 } from '@coral-xyz/anchor'
 
-export type MaxFee = {
+export type TokenFee = {
   mint: web3.PublicKey
   amount: number
 }
@@ -26,13 +26,13 @@ export type CreateIntentParams = {
   deadline: number
   minValidations: number
   dataHex: string
-  maxFees: MaxFee[]
+  maxFees: TokenFee[]
   eventsHex: IntentEvent[]
 }
 
 export type ExtendIntentParams = {
   moreDataHex?: string
-  moreMaxFees?: MaxFee[]
+  moreMaxFees?: TokenFee[]
   moreEventsHex?: IntentEvent[]
 }
 
