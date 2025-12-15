@@ -8,8 +8,17 @@ dotenv.config()
 const config: HardhatUserConfig = {
   plugins: [hardhatVerify, hardhatToolboxMochaEthersPlugin],
   solidity: {
-    profiles: {
-      default: {
+    compilers: [
+      {
+        version: '0.8.23',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 1000,
+          },
+        },
+      },
+      {
         version: '0.8.28',
         settings: {
           optimizer: {
@@ -18,7 +27,7 @@ const config: HardhatUserConfig = {
           },
         },
       },
-    },
+    ],
   },
   networks: {
     optimism: {

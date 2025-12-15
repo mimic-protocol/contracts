@@ -17,6 +17,9 @@ pragma solidity ^0.8.20;
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
 
+import { EIP7702StatelessDeleGator } from 'delegation-framework/EIP7702/EIP7702StatelessDeleGator.sol';
+import { IDelegationManager, ModeCode } from 'delegation-framework/interfaces/IDelegationManager.sol';
+
 import '../interfaces/ISafe.sol';
 import '../interfaces/ISmartAccount.sol';
 import '../interfaces/ISmartAccountsHandler.sol';
@@ -54,11 +57,12 @@ contract SmartAccountsHandler is ISmartAccountsHandler {
         // solhint-disable-next-line avoid-low-level-calls
         if (_isMimicSmartAccount(account)) return ISmartAccount(account).call(target, data, value);
         if (_isSafe(account)) return _callSafe(account, target, data, value);
+        if (_isEIP7702StatelessDeleGator(account)) return _callEIP7702StatelessDeleGator(account, target, data, value);
         revert SmartAccountsHandlerUnsupportedAccount(account);
     }
 
     /**
-     * @dev Performs a transfer from a safe
+     * @dev Performs a transfer from a Gnosis Safe
      */
     function _transferSafe(address account, address token, address to, uint256 amount) internal {
         Denominations.isNativeToken(token)
@@ -67,7 +71,7 @@ contract SmartAccountsHandler is ISmartAccountsHandler {
     }
 
     /**
-     * @dev Performs a call from a safe
+     * @dev Performs a call from a Gnosis Safe
      */
     function _callSafe(address account, address target, bytes memory data, uint256 value)
         internal
@@ -83,6 +87,29 @@ contract SmartAccountsHandler is ISmartAccountsHandler {
             data.length == 0
                 ? Address.verifyCallResult(success, result)
                 : Address.verifyCallResultFromTarget(target, success, result);
+    }
+
+    /**
+     * @dev Performs a call from a EIP7702StatelessDeleGator
+     */
+    function _callEIP7702StatelessDeleGator(address account, address target, bytes memory data, uint256 value)
+        internal
+        returns (bytes memory)
+    {
+        (bytes memory permissionContext, bytes memory callData) = abi.decode(data, (bytes, bytes));
+
+        bytes[] memory permissionContexts = new bytes[](1);
+        permissionContexts[0] = permissionContext;
+
+        ModeCode[] memory modes = new ModeCode[](1);
+        modes[0] = ModeCode.wrap(bytes32(0));
+
+        bytes[] memory executions = new bytes[](1);
+        executions[0] = abi.encodePacked(target, value, callData);
+
+        IDelegationManager delegationManager = EIP7702StatelessDeleGator(payable(account)).delegationManager();
+        delegationManager.redeemDelegations(permissionContexts, modes, executions);
+        return new bytes(0);
     }
 
     /**
@@ -103,6 +130,18 @@ contract SmartAccountsHandler is ISmartAccountsHandler {
      */
     function _isSafe(address account) internal view returns (bool) {
         try ISafe(account).getThreshold() returns (uint256) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * @dev Tells whether an account is an EIP7702StatelessDeleGator
+     * @param account Address of the account being queried
+     */
+    function _isEIP7702StatelessDeleGator(address account) internal view returns (bool) {
+        try EIP7702StatelessDeleGator(payable(account)).delegationManager() returns (IDelegationManager) {
             return true;
         } catch {
             return false;
