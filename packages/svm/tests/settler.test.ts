@@ -7,7 +7,7 @@ import { Ed25519Program, Keypair, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY, Transac
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import fs from 'fs'
-import { LiteSVM } from 'litesvm'
+import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
@@ -18,7 +18,6 @@ import * as SettlerIDL from '../target/idl/settler.json'
 import * as WhitelistIDL from '../target/idl/whitelist.json'
 import { Settler } from '../target/types/settler'
 import { makeTxSignAndSend, warpSeconds } from './utils'
-import { FailedTransactionMetadata } from 'litesvm'
 
 describe('Settler Program', () => {
   let client: LiteSVM
@@ -1607,7 +1606,6 @@ describe('Settler Program', () => {
         expect(res).to.be.instanceOf(FailedTransactionMetadata)
         expect(res.toString()).to.match(/InvalidFeeMint|Invalid fee mint/i)
       })
-
     })
 
     describe('add_instructions_to_proposal', () => {

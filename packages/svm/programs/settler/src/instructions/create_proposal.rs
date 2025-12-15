@@ -77,7 +77,11 @@ pub fn create_proposal(
         .zip(&intent.max_fees)
         .try_for_each(|(fee, max_fee)| {
             require_keys_eq!(fee.mint, max_fee.mint, SettlerError::InvalidFeeMint);
-            require_gte!(max_fee.amount, fee.amount, SettlerError::FeeAmountExceedsMaxFee);
+            require_gte!(
+                max_fee.amount,
+                fee.amount,
+                SettlerError::FeeAmountExceedsMaxFee
+            );
             Ok(())
         })?;
 
