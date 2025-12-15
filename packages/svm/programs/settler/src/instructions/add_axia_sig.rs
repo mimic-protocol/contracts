@@ -32,8 +32,7 @@ pub struct AddAxiaSig<'info> {
         bump = axia_registry.bump,
         seeds::program = crate::whitelist::ID,
         constraint =
-            axia_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::AxiaNotWhitelisted,
-        constraint = axia_registry.entity_type as u8 == EntityType::Axia as u8 @ SettlerError::AxiaNotWhitelisted,
+            axia_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::AxiaNotWhitelisted
     )]
     pub axia_registry: Box<Account<'info, EntityRegistry>>,
 

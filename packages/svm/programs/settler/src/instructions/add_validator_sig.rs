@@ -41,6 +41,7 @@ pub struct AddValidatorSig<'info> {
     /// This PDA must be uninitialized
     pub fulfilled_intent: SystemAccount<'info>,
 
+    /// CHECK: other checks in ix body
     #[account(
         constraint =
             validator_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::ValidatorNotWhitelisted
