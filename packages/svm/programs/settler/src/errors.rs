@@ -14,6 +14,9 @@ pub enum SettlerError {
     #[msg("Only a whitelisted validator can call this instruction")]
     OnlyValidator,
 
+    #[msg("No max fees provided")]
+    NoMaxFees,
+
     #[msg("Validator is not whitelisted")]
     ValidatorNotWhitelisted,
 

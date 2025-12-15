@@ -62,6 +62,7 @@ pub fn create_intent(
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp as u64;
     require!(deadline > now, SettlerError::DeadlineIsInThePast);
+    require!(max_fees.len() > 0, SettlerError::NoMaxFees);
 
     // TODO: check hash
 

@@ -194,7 +194,7 @@ describe('Settler Program', () => {
         expect(intent.isFinal).to.be.true
       })
 
-      it('should create an intent with empty max_fees', async () => {
+      it('cant create an intent with empty max_fees', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
         const user = Keypair.generate().publicKey
@@ -213,11 +213,9 @@ describe('Settler Program', () => {
         }
 
         const ix = await solverSdk.createIntentIx(intentHash, params, false)
-        await makeTxSignAndSend(solverProvider, ix)
+        const res = await makeTxSignAndSend(solverProvider, ix)
 
-        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        expect(intent.op).to.deep.include({ call: {} })
-        expect(intent.maxFees.length).to.be.eq(0)
+        expect(res.toString()).to.include('No max fees provided')
       })
 
       it('should create an intent with empty events', async () => {
@@ -234,7 +232,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '0a0b0c',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -259,7 +262,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -284,7 +292,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -309,7 +322,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -339,7 +357,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -363,7 +386,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -387,7 +415,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -422,7 +455,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -450,7 +488,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -764,12 +807,20 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
         const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
-        await makeTxSignAndSend(solverProvider, ix)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create intent: ${res.toString()}`)
+        }
         return intentHash
       }
 
@@ -893,12 +944,20 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
         const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
-        await makeTxSignAndSend(solverProvider, ix)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create intent: ${res.toString()}`)
+        }
 
         // Set validations to meet min_validations requirement
         const intentKey = sdk.getIntentKey(intentHash)
@@ -919,6 +978,7 @@ describe('Settler Program', () => {
 
       it('should create a proposal', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
@@ -936,8 +996,16 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
-        await makeTxSignAndSend(solverProvider, ix)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create proposal: ${res.toString()}`)
+        }
 
         const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
         expect(proposal.intent.toString()).to.be.eq(sdk.getIntentKey(intentHash).toString())
@@ -957,6 +1025,7 @@ describe('Settler Program', () => {
 
       it('should create a proposal with multiple instructions', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
@@ -985,8 +1054,16 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
-        await makeTxSignAndSend(solverProvider, ix)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create proposal: ${res.toString()}`)
+        }
 
         const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
         expect(proposal.instructions.length).to.be.eq(2)
@@ -1009,13 +1086,22 @@ describe('Settler Program', () => {
 
       it('should create a proposal with empty instructions', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
         const instructions: any[] = []
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
-        await makeTxSignAndSend(solverProvider, ix)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create proposal: ${res.toString()}`)
+        }
 
         const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
         expect(proposal.instructions.length).to.be.eq(0)
@@ -1023,6 +1109,7 @@ describe('Settler Program', () => {
 
       it('cant create proposal if not whitelisted solver', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
@@ -1034,7 +1121,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await maliciousSdk.createProposalIx(intentHash, instructions, [], deadline)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await maliciousSdk.createProposalIx(intentHash, instructions, fees, deadline)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
         expect(res.toString()).to.include(
           'AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized'
@@ -1043,6 +1135,7 @@ describe('Settler Program', () => {
 
       it('cant create proposal with deadline in the past', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now - 100
 
@@ -1054,7 +1147,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
         const res = await makeTxSignAndSend(solverProvider, ix)
 
         expect(res.toString()).to.include(`Deadline must be in the future`)
@@ -1062,6 +1160,7 @@ describe('Settler Program', () => {
 
       it('cant create proposal with deadline equal to now', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now
 
@@ -1073,7 +1172,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
         const res = await makeTxSignAndSend(solverProvider, ix)
 
         expect(res.toString()).to.include(`Deadline must be in the future`)
@@ -1093,7 +1197,12 @@ describe('Settler Program', () => {
           deadline: intentDeadline,
           minValidations: 1,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -1162,7 +1271,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 2,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -1198,6 +1312,7 @@ describe('Settler Program', () => {
 
       it('cant create proposal if intent is not final', async () => {
         const intentHash = await createValidatedIntent(false)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
@@ -1209,7 +1324,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
         const res = await makeTxSignAndSend(solverProvider, ix)
 
         expect(res.toString()).to.include(`Intent is not final`)
@@ -1229,6 +1349,7 @@ describe('Settler Program', () => {
           data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
         })
 
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const instructions = [
           {
             programId: Keypair.generate().publicKey,
@@ -1237,7 +1358,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
         const res = await makeTxSignAndSend(solverProvider, ix)
 
         expect(res.toString()).to.include(
@@ -1247,6 +1373,7 @@ describe('Settler Program', () => {
 
       it('cant create proposal with same intent_hash and solver twice', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
@@ -1258,11 +1385,16 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
         await makeTxSignAndSend(solverProvider, ix)
 
         client.expireBlockhash()
-        const ix2 = await solverSdk.createProposalIx(intentHash, instructions, [], deadline)
+        const ix2 = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
         const res = await makeTxSignAndSend(solverProvider, ix2)
 
         expect(res.toString()).to.include(`already in use`)
@@ -1501,12 +1633,20 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
         const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
-        await makeTxSignAndSend(solverProvider, ix)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create intent: ${res.toString()}`)
+        }
 
         // Set validations
         const intentKey = sdk.getIntentKey(intentHash)
@@ -1525,6 +1665,7 @@ describe('Settler Program', () => {
 
       const createTestProposal = async (isFinal = false): Promise<string> => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
@@ -1542,7 +1683,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline, isFinal)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, isFinal)
         await makeTxSignAndSend(solverProvider, ix)
         return intentHash
       }
@@ -1679,6 +1825,7 @@ describe('Settler Program', () => {
 
       it('cant add instructions if proposal deadline has passed', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 50
 
@@ -1690,7 +1837,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline, false)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
         await makeTxSignAndSend(solverProvider, ix)
 
         warpSeconds(provider, 51)
@@ -1711,6 +1863,7 @@ describe('Settler Program', () => {
 
       it('cant add instructions if proposal deadline equals now', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 100
 
@@ -1722,7 +1875,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline, false)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
         await makeTxSignAndSend(solverProvider, ix)
 
         warpSeconds(provider, 100)
@@ -1839,12 +1997,20 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
         const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
-        await makeTxSignAndSend(solverProvider, ix)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create intent: ${res.toString()}`)
+        }
 
         // Set validations
         const intentKey = sdk.getIntentKey(intentHash)
@@ -1863,6 +2029,7 @@ describe('Settler Program', () => {
 
       const createTestProposalWithDeadline = async (deadline: number): Promise<string> => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
 
         const instructions = [
           {
@@ -1878,7 +2045,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline, false)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
         await makeTxSignAndSend(solverProvider, ix)
         return intentHash
       }
@@ -2061,12 +2233,20 @@ describe('Settler Program', () => {
           deadline,
           minValidations,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
         const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
-        await makeTxSignAndSend(solverProvider, ix)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create intent: ${res.toString()}`)
+        }
 
         return intentHash
       }
@@ -2262,7 +2442,12 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
@@ -2474,12 +2659,20 @@ describe('Settler Program', () => {
           deadline,
           minValidations: 1,
           dataHex: '010203',
-          maxFees: [],
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: 1000,
+            },
+          ],
           eventsHex: [],
         }
 
         const ix = await solverSdk.createIntentIx(intentHash, params, isFinal)
-        await makeTxSignAndSend(solverProvider, ix)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create intent: ${res.toString()}`)
+        }
 
         // Set validations to meet min_validations requirement
         const intentKey = sdk.getIntentKey(intentHash)
@@ -2502,6 +2695,7 @@ describe('Settler Program', () => {
         deadline?: number
       ): Promise<{ intentHash: string; proposalKey: PublicKey }> => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const proposalDeadline = deadline || now + 1800
 
@@ -2519,8 +2713,16 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], proposalDeadline, true)
-        await makeTxSignAndSend(solverProvider, ix)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, proposalDeadline, true)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        if (res instanceof FailedTransactionMetadata) {
+          throw new Error(`Failed to create proposal: ${res.toString()}`)
+        }
 
         const proposalKey = sdk.getProposalKey(intentHash, solver.publicKey)
         return { intentHash, proposalKey }
@@ -2609,6 +2811,7 @@ describe('Settler Program', () => {
 
       it('cant add signature if proposal is not final', async () => {
         const intentHash = await createValidatedIntent(true)
+        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + 1800
 
@@ -2620,7 +2823,12 @@ describe('Settler Program', () => {
           },
         ]
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, [], deadline, false)
+        const fees = intent.maxFees.map((maxFee) => ({
+          mint: maxFee.mint,
+          amount: maxFee.amount.toNumber(),
+        }))
+
+        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
         await makeTxSignAndSend(solverProvider, ix)
 
         const proposalKey = sdk.getProposalKey(intentHash, solver.publicKey)
