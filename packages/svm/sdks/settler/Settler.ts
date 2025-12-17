@@ -175,57 +175,6 @@ export default class SettlerSDK {
     return ix
   }
 
-  async addValidatorSigIxs(
-    intent: web3.PublicKey,
-    intentHash: Buffer,
-    validator: web3.PublicKey,
-    signature: number[]
-  ): Promise<web3.TransactionInstruction[]> {
-    const ed25519Ix = web3.Ed25519Program.createInstructionWithPublicKey({
-      message: intentHash,
-      publicKey: validator.toBuffer(),
-      signature: Buffer.from(signature),
-    })
-
-    const ix = await this.program.methods
-      .addValidatorSig()
-      .accountsPartial({
-        solver: this.getSignerKey(),
-        solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
-        intent,
-        validatorRegistry: this.getEntityRegistryPubkey(EntityType.Validator, validator),
-        ixSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-      })
-      .instruction()
-
-    return [ed25519Ix, ix]
-  }
-
-  async addAxiaSigIxs(
-    proposal: web3.PublicKey,
-    axia: web3.PublicKey,
-    signature: number[]
-  ): Promise<web3.TransactionInstruction[]> {
-    const ed25519Ix = web3.Ed25519Program.createInstructionWithPublicKey({
-      message: proposal.toBuffer(),
-      publicKey: axia.toBuffer(),
-      signature: Buffer.from(signature),
-    })
-
-    const ix = await this.program.methods
-      .addAxiaSig()
-      .accountsPartial({
-        solver: this.getSignerKey(),
-        solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
-        proposal,
-        axiaRegistry: this.getEntityRegistryPubkey(EntityType.Axia, axia),
-        ixSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-      })
-      .instruction()
-
-    return [ed25519Ix, ix]
-  }
-
   getSettlerSettingsPubkey(): web3.PublicKey {
     return web3.PublicKey.findProgramAddressSync([Buffer.from('settler-settings')], this.program.programId)[0]
   }
