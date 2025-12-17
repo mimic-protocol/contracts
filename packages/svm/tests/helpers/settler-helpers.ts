@@ -1,11 +1,13 @@
+import { Program } from '@coral-xyz/anchor'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
 
 import SettlerSDK from '../../sdks/settler/Settler'
-import { CreateIntentParams, IntentEvent, OpType, TokenFee } from '../../sdks/settler/types'
+import { CreateIntentParams, IntentEvent, OpType, ProposalInstruction, TokenFee } from '../../sdks/settler/types'
 import WhitelistSDK, { EntityType, WhitelistStatus } from '../../sdks/whitelist/Whitelist'
+import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
 import {
   DEFAULT_DATA_HEX,
@@ -122,6 +124,58 @@ export async function createValidatedIntent(
   }
 
   return intentHash
+}
+
+/**
+ * Create a finalized proposal
+ */
+export async function createFinalizedProposal(
+  solverSdk: SettlerSDK,
+  solverProvider: LiteSVMProvider,
+  client: LiteSVM,
+  program: Program<Settler>,
+  options: {
+    intentHash?: string
+    deadline?: number
+    instructions?: ProposalInstruction[]
+    fees?: TokenFee[]
+  } = {}
+): Promise<{ intentHash: string; proposalKey: PublicKey }> {
+  const intentHash =
+    options.intentHash || (await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true }))
+  const intent = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+  const now = Number(client.getClock().unixTimestamp)
+  const proposalDeadline = options.deadline ?? now + 1800
+
+  const instructions = options.instructions || [
+    {
+      programId: Keypair.generate().publicKey,
+      accounts: [
+        {
+          pubkey: Keypair.generate().publicKey,
+          isSigner: false,
+          isWritable: true,
+        },
+      ],
+      data: 'deadbeef',
+    },
+  ]
+
+  const fees =
+    options.fees ||
+    (intent.maxFees.map((maxFee) => ({
+      mint: maxFee.mint,
+      amount: maxFee.amount.toNumber(),
+    })) as TokenFee[])
+
+  const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, proposalDeadline, true)
+  const res = await makeTxSignAndSend(solverProvider, ix)
+  if (res instanceof FailedTransactionMetadata) {
+    throw new Error(`Failed to create proposal: ${res.toString()}`)
+  }
+
+  const proposalKey = solverSdk.getProposalKey(intentHash, solverProvider.wallet.publicKey)
+  return { intentHash, proposalKey }
 }
 
 /**

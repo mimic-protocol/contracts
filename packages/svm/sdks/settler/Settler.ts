@@ -4,7 +4,15 @@ import * as SettlerIDL from '../../target/idl/settler.json'
 import * as WhitelistIDL from '../../target/idl/whitelist.json'
 import { Settler } from '../../target/types/settler'
 import { EntityType } from '../whitelist/Whitelist'
-import { CreateIntentParams, ExtendIntentParams, IntentEvent, OpType, TokenFee } from './types'
+import {
+  CreateIntentParams,
+  ExtendIntentParams,
+  IntentEvent,
+  OpType,
+  ProposalInstruction,
+  ProposalInstructionAccountMeta,
+  TokenFee,
+} from './types'
 
 type TokenFeeAnchor = {
   mint: web3.PublicKey
@@ -13,6 +21,12 @@ type TokenFeeAnchor = {
 
 type IntentEventAnchor = {
   topic: number[]
+  data: Buffer
+}
+
+type ProposalInstructionAnchor = {
+  programId: web3.PublicKey
+  accounts: ProposalInstructionAccountMeta[]
   data: Buffer
 }
 
@@ -97,6 +111,70 @@ export default class SettlerSDK {
     return ix
   }
 
+  async createProposalIx(
+    intentHashHex: string,
+    instructions: ProposalInstruction[],
+    fees: TokenFee[],
+    deadline: number,
+    isFinal = true
+  ): Promise<web3.TransactionInstruction> {
+    const parsedInstructions = this.parseProposalInstructions(instructions)
+    const parsedFees = this.parseTokenFees(fees)
+
+    const ix = await this.program.methods
+      .createProposal(parsedInstructions, parsedFees, new BN(deadline), isFinal)
+      .accountsPartial({
+        solver: this.getSignerKey(),
+        solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
+        intent: this.getIntentKey(intentHashHex),
+        fulfilledIntent: this.getFulfilledIntentKey(intentHashHex),
+      })
+      .instruction()
+
+    return ix
+  }
+
+  async addInstructionsToProposalIx(
+    intentHashHex: string,
+    moreInstructions: ProposalInstruction[],
+    finalize = true,
+    solverPubkey?: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const parsedInstructions = this.parseProposalInstructions(moreInstructions)
+    const solver = solverPubkey || this.getSignerKey()
+
+    const ix = await this.program.methods
+      .addInstructionsToProposal(parsedInstructions, finalize)
+      .accountsPartial({
+        proposalCreator: this.getSignerKey(),
+        proposal: this.getProposalKey(intentHashHex, solver),
+      })
+      .instruction()
+
+    return ix
+  }
+
+  async claimStaleProposalIx(
+    intentHashesHex: string[],
+    solverPubkey?: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const ix = await this.program.methods
+      .claimStaleProposal()
+      .accountsPartial({
+        proposalCreator: this.getSignerKey(),
+      })
+      .remainingAccounts(
+        intentHashesHex.map((intentHashHex) => ({
+          pubkey: this.getProposalKey(intentHashHex, solverPubkey),
+          isWritable: true,
+          isSigner: false,
+        }))
+      )
+      .instruction()
+
+    return ix
+  }
+
   getSettlerSettingsPubkey(): web3.PublicKey {
     return web3.PublicKey.findProgramAddressSync([Buffer.from('settler-settings')], this.program.programId)[0]
   }
@@ -114,6 +192,19 @@ export default class SettlerSDK {
 
     return web3.PublicKey.findProgramAddressSync(
       [Buffer.from('fulfilled-intent'), intentHash],
+      this.program.programId
+    )[0]
+  }
+
+  getProposalKey(intentHashHex: string, solverPubkey?: web3.PublicKey): web3.PublicKey {
+    const intentHash = Buffer.from(intentHashHex, 'hex')
+    if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
+
+    const intentKey = this.getIntentKey(intentHashHex)
+    const solver = solverPubkey || this.getSignerKey()
+
+    return web3.PublicKey.findProgramAddressSync(
+      [Buffer.from('proposal'), intentKey.toBuffer(), solver.toBuffer()],
       this.program.programId
     )[0]
   }
@@ -163,6 +254,13 @@ export default class SettlerSDK {
     return tokenFees.map((tokenFee) => ({
       ...tokenFee,
       amount: new BN(tokenFee.amount),
+    }))
+  }
+
+  private parseProposalInstructions(instructions: ProposalInstruction[]): ProposalInstructionAnchor[] {
+    return instructions.map((instruction) => ({
+      ...instruction,
+      data: typeof instruction.data === 'string' ? Buffer.from(instruction.data, 'hex') : instruction.data,
     }))
   }
 }
