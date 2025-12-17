@@ -2,12 +2,11 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Program, Wallet } from '@coral-xyz/anchor'
-import { signAsync } from '@noble/ed25519'
-import { Ed25519Program, Keypair, SYSVAR_INSTRUCTIONS_PUBKEY, TransactionInstruction } from '@solana/web3.js'
+import { Keypair } from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import fs from 'fs'
-import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
+import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
@@ -22,8 +21,6 @@ import {
   DEFAULT_DATA_HEX,
   DEFAULT_EVENT_DATA_HEX,
   DEFAULT_MAX_FEE,
-  DEFAULT_MAX_FEE_EXCEED,
-  DEFAULT_MAX_FEE_HALF,
   DEFAULT_MIN_VALIDATIONS,
   DEFAULT_TOPIC_HEX,
   DOUBLE_CLAIM_DELAY,
@@ -35,28 +32,15 @@ import {
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   MULTIPLE_MIN_VALIDATIONS,
-  PROPOSAL_DEADLINE_OFFSET,
   SHORT_DEADLINE,
   STALE_CLAIM_DELAY,
   STALE_CLAIM_DELAY_PLUS_ONE,
   TEST_DATA_HEX_1,
   TEST_DATA_HEX_2,
-  TEST_DATA_HEX_3,
-  VERY_SHORT_DEADLINE,
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
 } from './helpers/constants'
-import {
-  createAxiaSignature,
-  createFinalizedProposal,
-  createTestIntent,
-  createValidatedIntent,
-  createValidatorSignature,
-  createWhitelistedEntity,
-  expectTransactionError,
-  generateIntentHash,
-  generateNonce,
-} from './helpers/settler-helpers'
+import { createTestIntent, expectTransactionError, generateIntentHash, generateNonce } from './helpers/settler-helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler Program', () => {

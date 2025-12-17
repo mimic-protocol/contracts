@@ -1,14 +1,11 @@
-import { Program } from '@coral-xyz/anchor'
-import { signAsync } from '@noble/ed25519'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
 
 import SettlerSDK from '../../sdks/settler/Settler'
-import { CreateIntentParams, IntentEvent, OpType, ProposalInstruction, TokenFee } from '../../sdks/settler/types'
+import { CreateIntentParams, IntentEvent, OpType, TokenFee } from '../../sdks/settler/types'
 import WhitelistSDK, { EntityType, WhitelistStatus } from '../../sdks/whitelist/Whitelist'
-import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
 import {
   DEFAULT_DATA_HEX,
@@ -128,58 +125,6 @@ export async function createValidatedIntent(
 }
 
 /**
- * Create a finalized proposal
- */
-export async function createFinalizedProposal(
-  solverSdk: SettlerSDK,
-  solverProvider: LiteSVMProvider,
-  client: LiteSVM,
-  program: Program<Settler>,
-  options: {
-    intentHash?: string
-    deadline?: number
-    instructions?: ProposalInstruction[]
-    fees?: TokenFee[]
-  } = {}
-): Promise<{ intentHash: string; proposalKey: PublicKey }> {
-  const intentHash =
-    options.intentHash || (await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true }))
-  const intent = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
-  const now = Number(client.getClock().unixTimestamp)
-  const proposalDeadline = options.deadline ?? now + 1800
-
-  const instructions = options.instructions || [
-    {
-      programId: Keypair.generate().publicKey,
-      accounts: [
-        {
-          pubkey: Keypair.generate().publicKey,
-          isSigner: false,
-          isWritable: true,
-        },
-      ],
-      data: 'deadbeef',
-    },
-  ]
-
-  const fees =
-    options.fees ||
-    (intent.maxFees.map((maxFee) => ({
-      mint: maxFee.mint,
-      amount: maxFee.amount.toNumber(),
-    })) as TokenFee[])
-
-  const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, proposalDeadline, true)
-  const res = await makeTxSignAndSend(solverProvider, ix)
-  if (res instanceof FailedTransactionMetadata) {
-    throw new Error(`Failed to create proposal: ${res.toString()}`)
-  }
-
-  const proposalKey = solverSdk.getProposalKey(intentHash, solverProvider.wallet.publicKey)
-  return { intentHash, proposalKey }
-}
-
-/**
  * Create a whitelisted entity (validator, axia, or solver)
  */
 export async function createWhitelistedEntity(
@@ -196,22 +141,6 @@ export async function createWhitelistedEntity(
   )
   await makeTxSignAndSend(provider, whitelistIx)
   return entity
-}
-
-/**
- * Create an Ed25519 signature for a validator (signs intent hash)
- */
-export async function createValidatorSignature(intentHash: string, validator: Keypair): Promise<number[]> {
-  const signature = await signAsync(Buffer.from(intentHash, 'hex'), validator.secretKey.slice(0, 32))
-  return Array.from(new Uint8Array(signature))
-}
-
-/**
- * Create an Ed25519 signature for an axia (signs proposal key)
- */
-export async function createAxiaSignature(proposalKey: PublicKey, axia: Keypair): Promise<number[]> {
-  const signature = await signAsync(proposalKey.toBuffer(), axia.secretKey.slice(0, 32))
-  return Array.from(new Uint8Array(signature))
 }
 
 /**
