@@ -7,7 +7,6 @@ skip-lint = false
 
 [programs.localnet]
 settler = "HbNt35Ng8aM4NUy39evpCQqXEC4Nmaq16ewY8dyNF6NF"
-whitelist = "7PwVkjnnapxytWFW69WFDLhfVZZgKhBE9m3zwcDZmncr"
 
 [registry]
 url = "https://api.apr.dev"
@@ -17,4 +16,4 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json tests/*.ts"
+test = "yarn run ts-mocha -p ./tsconfig.json tests/**/*.ts"

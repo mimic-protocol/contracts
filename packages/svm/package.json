@@ -5,14 +5,13 @@
   "license": "GPL-3.0",
   "type": "module",
   "scripts": {
-    "build": "DEPLOYER_KEY=$(solana-keygen pubkey) anchor build",
-    "test": "anchor run test",
+    "build": "anchor build",
+    "test": "anchor test",
     "lint": "eslint . --ext .ts",
     "lint:fix": "yarn lint --fix"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
-    "@noble/ed25519": "^3.0.0",
     "@solana/spl-token": "^0.4.13",
     "anchor-litesvm": "=0.1.0",
     "litesvm": "=0.1.0"
@@ -23,12 +22,12 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.15.18",
     "chai": "^5.2.0",
-    "eslint": "^7.9.0",
-    "eslint-config-mimic": "^0.0.2",
     "mocha": "^11.2.2",
     "prettier": "^2.6.2",
     "ts-mocha": "^10.0.0",
-    "typescript": "~5.5.0"
+    "typescript": "~5.5.0",
+    "eslint": "^7.9.0",
+    "eslint-config-mimic": "^0.0.2"
   },
   "eslintConfig": {
     "extends": "eslint-config-mimic"
