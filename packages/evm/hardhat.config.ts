@@ -21,6 +21,12 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
+    ethereum: {
+      type: 'http',
+      chainId: 1,
+      url: process.env.ETHEREUM_RPC_URL || 'https://eth.llamarpc.com',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
     optimism: {
       type: 'http',
       chainId: 10,
