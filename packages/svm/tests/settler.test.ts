@@ -1787,7 +1787,7 @@ describe('Settler Program', () => {
           Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
         const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.proposalCreator)) || 0
 
-        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const ix = await solverSdk.claimStaleProposalsIx([intentHash])
         await makeTxSignAndSend(solverProvider, ix)
 
         const proposalBalanceAfter =
@@ -1828,7 +1828,7 @@ describe('Settler Program', () => {
         )
         const proposalCreatorBalanceBefore = Number(provider.client.getBalance(solver.publicKey)) || 0
 
-        const ix = await solverSdk.claimStaleProposalIx(intentHashes)
+        const ix = await solverSdk.claimStaleProposalsIx(intentHashes)
         await makeTxSignAndSend(solverProvider, ix)
 
         const proposalBalancesAfter = intentHashes.reduce(
@@ -1860,7 +1860,7 @@ describe('Settler Program', () => {
 
         warpSeconds(provider, WARP_TIME_SHORT)
 
-        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const ix = await solverSdk.claimStaleProposalsIx([intentHash])
         const res = await makeTxSignAndSend(solverProvider, ix)
 
         expectTransactionError(res, `Proposal not yet expired`)
@@ -1873,7 +1873,7 @@ describe('Settler Program', () => {
 
         warpSeconds(provider, MEDIUM_DEADLINE)
 
-        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const ix = await solverSdk.claimStaleProposalsIx([intentHash])
         const res = await makeTxSignAndSend(solverProvider, ix)
 
         expectTransactionError(res, `Proposal not yet expired`)
@@ -1886,7 +1886,7 @@ describe('Settler Program', () => {
 
         warpSeconds(provider, EXPIRATION_TEST_DELAY_PLUS_ONE)
 
-        const ix = await maliciousSdk.claimStaleProposalIx([intentHash], solver.publicKey)
+        const ix = await maliciousSdk.claimStaleProposalsIx([intentHash], solver.publicKey)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
@@ -1895,7 +1895,7 @@ describe('Settler Program', () => {
       it('cannot claim non-existent proposal', async () => {
         const intentHash = generateIntentHash()
 
-        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const ix = await solverSdk.claimStaleProposalsIx([intentHash])
         const res = await makeTxSignAndSend(solverProvider, ix)
 
         expectTransactionError(res, `AccountNotInitialized`)
@@ -1908,11 +1908,11 @@ describe('Settler Program', () => {
 
         warpSeconds(provider, DOUBLE_CLAIM_DELAY_PLUS_ONE)
 
-        const ix = await solverSdk.claimStaleProposalIx([intentHash])
+        const ix = await solverSdk.claimStaleProposalsIx([intentHash])
         await makeTxSignAndSend(solverProvider, ix)
 
         client.expireBlockhash()
-        const ix2 = await solverSdk.claimStaleProposalIx([intentHash])
+        const ix2 = await solverSdk.claimStaleProposalsIx([intentHash])
         const res = await makeTxSignAndSend(solverProvider, ix2)
 
         const errorMsg = res.toString()

@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use crate::{errors::SettlerError, state::Proposal};
 
 #[derive(Accounts)]
-pub struct ClaimStaleProposal<'info> {
+pub struct ClaimStaleProposals<'info> {
     #[account(mut)]
     pub proposal_creator: Signer<'info>,
     //
@@ -17,8 +17,8 @@ pub struct ClaimStaleProposal<'info> {
     // pub proposal_n: Box<Account<'info, Proposal>>,
 }
 
-pub fn claim_stale_proposal<'info>(
-    ctx: Context<'_, '_, 'info, 'info, ClaimStaleProposal<'info>>,
+pub fn claim_stale_proposals<'info>(
+    ctx: Context<'_, '_, 'info, 'info, ClaimStaleProposals<'info>>,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp as u64;
     let proposal_creator = ctx.accounts.proposal_creator.to_account_info();

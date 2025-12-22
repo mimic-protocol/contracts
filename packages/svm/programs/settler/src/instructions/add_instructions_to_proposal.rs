@@ -18,7 +18,12 @@ pub struct AddInstructionsToProposal<'info> {
         realloc::zero = true,
         has_one = proposal_creator @ SettlerError::IncorrectProposalCreator
     )]
-    // Any proposal
+
+    /// Any proposal
+    #[account(
+        constraint = proposal.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::ProposalIsExpired,
+        constraint = !proposal.is_final @ SettlerError::ProposalIsFinal
+    )]
     pub proposal: Box<Account<'info, Proposal>>,
 
     pub system_program: Program<'info, System>,
@@ -29,11 +34,7 @@ pub fn add_instructions_to_proposal(
     more_instructions: Vec<ProposalInstruction>,
     finalize: bool,
 ) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp as u64;
     let proposal = &mut ctx.accounts.proposal;
-
-    require!(proposal.deadline > now, SettlerError::ProposalIsExpired);
-    require!(!proposal.is_final, SettlerError::ProposalIsFinal);
 
     proposal.instructions.extend_from_slice(&more_instructions);
 

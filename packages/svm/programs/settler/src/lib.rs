@@ -40,10 +40,10 @@ pub mod settler {
         instructions::claim_stale_intent(ctx)
     }
 
-    pub fn claim_stale_proposal<'info>(
-        ctx: Context<'_, '_, 'info, 'info, ClaimStaleProposal<'info>>,
+    pub fn claim_stale_proposals<'info>(
+        ctx: Context<'_, '_, 'info, 'info, ClaimStaleProposals<'info>>,
     ) -> Result<()> {
-        instructions::claim_stale_proposal(ctx)
+        instructions::claim_stale_proposals(ctx)
     }
 
     pub fn create_intent(

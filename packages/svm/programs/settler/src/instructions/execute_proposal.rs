@@ -33,6 +33,7 @@ pub struct ExecuteProposal<'info> {
         has_one = intent @ SettlerError::IncorrectIntentForProposal,
         has_one = proposal_creator @ SettlerError::IncorrectProposalCreator,
         constraint = proposal.is_signed @ SettlerError::ProposalIsNotSigned,
+        constraint = proposal.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::ProposalIsExpired,
         close = proposal_creator
     )]
     pub proposal: Box<Account<'info, Proposal>>,
@@ -61,11 +62,7 @@ pub struct ExecuteProposal<'info> {
 }
 
 pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp as u64;
-    let proposal = &ctx.accounts.proposal;
     let intent = &ctx.accounts.intent;
-
-    require!(proposal.deadline > now, SettlerError::ProposalIsExpired);
 
     // TODO: Execute proposal
 

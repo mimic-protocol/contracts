@@ -37,7 +37,11 @@ pub struct AddAxiaSig<'info> {
     pub axia_registry: Box<Account<'info, EntityRegistry>>,
 
     /// CHECK: Any proposal
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = proposal.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::ProposalIsExpired,
+        constraint = proposal.is_final @ SettlerError::ProposalIsNotFinal,
+    )]
     pub proposal: Box<Account<'info, Proposal>>,
 
     /// CHECK: The address check is needed because otherwise
@@ -53,11 +57,6 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     if proposal.is_signed {
         return Ok(());
     }
-
-    let now = Clock::get()?.unix_timestamp as u64;
-
-    require!(proposal.deadline > now, SettlerError::ProposalIsExpired);
-    require!(proposal.is_final, SettlerError::ProposalIsNotFinal);
 
     // Get Ed25519 instruction
     let ed25519_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;

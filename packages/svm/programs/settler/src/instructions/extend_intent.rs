@@ -16,6 +16,7 @@ pub struct ExtendIntent<'info> {
         mut,
         has_one = intent_creator @ SettlerError::IncorrectIntentCreator,
         constraint = !intent.is_final @ SettlerError::IntentIsFinal,
+        constraint = intent.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::IntentIsExpired,
         realloc =
             Intent::extended_size(intent.to_account_info().data_len(), &more_data, &more_max_fees, &more_events)?,
         realloc::payer = intent_creator,

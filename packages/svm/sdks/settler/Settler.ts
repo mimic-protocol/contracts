@@ -154,12 +154,12 @@ export default class SettlerSDK {
     return ix
   }
 
-  async claimStaleProposalIx(
+  async claimStaleProposalsIx(
     intentHashesHex: string[],
     solverPubkey?: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const ix = await this.program.methods
-      .claimStaleProposal()
+      .claimStaleProposals()
       .accountsPartial({
         proposalCreator: this.getSignerKey(),
       })

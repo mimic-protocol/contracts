@@ -30,6 +30,7 @@ pub struct AddValidatorSig<'info> {
     // Any Intent
     #[account(
         mut,
+        constraint = intent.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::IntentIsExpired,
         constraint = intent.is_final @ SettlerError::IntentIsNotFinal
     )]
     pub intent: Box<Account<'info, Intent>>,
@@ -55,12 +56,6 @@ pub struct AddValidatorSig<'info> {
 }
 
 pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
-    // Verify Intent is not expired
-    let now = Clock::get()?.unix_timestamp as u64;
-    let intent = &mut ctx.accounts.intent;
-
-    require!(intent.deadline > now, SettlerError::IntentIsExpired);
-
     // Get Ed25519 instruction
     let ed25519_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;
     let ed25519_ix_args: Ed25519Args = get_args_from_ed25519_ix_data(&ed25519_ix.data)?;
@@ -69,6 +64,8 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     check_ed25519_ix(&ed25519_ix)?;
 
     // Verify correct message was signed
+    let intent = &mut ctx.accounts.intent;
+
     if ed25519_ix_args.msg != intent.intent_hash {
         return err!(SettlerError::SigVerificationFailed);
     }
