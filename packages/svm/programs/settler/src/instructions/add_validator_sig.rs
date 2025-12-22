@@ -56,6 +56,8 @@ pub struct AddValidatorSig<'info> {
 }
 
 pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
+    let intent = &mut ctx.accounts.intent;
+
     // Get Ed25519 instruction
     let ed25519_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;
     let ed25519_ix_args: Ed25519Args = get_args_from_ed25519_ix_data(&ed25519_ix.data)?;
@@ -64,11 +66,10 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     check_ed25519_ix(&ed25519_ix)?;
 
     // Verify correct message was signed
-    let intent = &mut ctx.accounts.intent;
-
-    if ed25519_ix_args.msg != intent.intent_hash {
-        return err!(SettlerError::SigVerificationFailed);
-    }
+    require!(
+        ed25519_ix_args.msg == intent.intent_hash,
+        SettlerError::SigVerificationFailed
+    );
 
     // Verify pubkey is a whitelisted Validator
     require_keys_eq!(

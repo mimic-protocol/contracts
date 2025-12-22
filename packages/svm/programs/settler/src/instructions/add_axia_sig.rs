@@ -66,14 +66,16 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     check_ed25519_ix(&ed25519_ix)?;
 
     // Verify correct message was signed
-    if ed25519_ix_args.msg != proposal.key().as_array() {
-        return err!(SettlerError::SigVerificationFailed);
-    }
+    require!(
+        ed25519_ix_args.msg == proposal.key().as_array(),
+        SettlerError::SigVerificationFailed
+    );
 
     // Verify pubkey is whitelisted Axia
-    if ed25519_ix_args.pubkey != &ctx.accounts.axia_registry.entity_pubkey.to_bytes() {
-        return err!(SettlerError::AxiaNotWhitelisted);
-    }
+    require!(
+        ed25519_ix_args.pubkey == &ctx.accounts.axia_registry.entity_pubkey.to_bytes(),
+        SettlerError::AxiaNotWhitelisted
+    );
 
     // Updates proposal as signed
     proposal.is_signed = true;
