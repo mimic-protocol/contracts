@@ -1,0 +1,6 @@
+[submodule "packages/evm/lib/delegation-framework"]
+	path = packages/evm/lib/delegation-framework
+	url = https://github.com/MetaMask/delegation-framework.git
+[submodule "packages/evm/lib/openzeppelin-contracts"]
+	path = packages/evm/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts.git

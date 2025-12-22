@@ -12,7 +12,8 @@
   },
   "workspaces": {
     "packages": [
-      "packages/**"
+      "packages/evm",
+      "packages/svm"
     ]
   }
 }

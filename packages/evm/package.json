@@ -13,9 +13,6 @@
     "lint:typescript": "eslint . --ext .ts",
     "test": "hardhat test"
   },
-  "dependencies": {
-    "@openzeppelin/contracts": "5.3.0"
-  },
   "devDependencies": {
     "@mimicprotocol/sdk": "0.0.1-rc.20",
     "@nomicfoundation/hardhat-ethers": "^4.0.0-next.23",
@@ -43,7 +40,8 @@
   },
   "eslintIgnore": [
     "types",
-    "artifacts"
+    "artifacts",
+    "lib"
   ],
   "eslintConfig": {
     "extends": "eslint-config-mimic"

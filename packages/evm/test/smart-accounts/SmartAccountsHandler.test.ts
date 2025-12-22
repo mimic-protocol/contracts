@@ -6,12 +6,14 @@ import { network } from 'hardhat'
 
 import {
   CallMock,
+  EIP7702StatelessDeleGatorMock,
   SafeMock,
   SmartAccount7702,
   SmartAccountContract,
   SmartAccountsHandler,
   TokenMock,
 } from '../../types/ethers-contracts/index.js'
+import { signDelegation } from '../helpers/delegations.js'
 
 const { ethers } = await network.connect()
 
@@ -21,6 +23,7 @@ describe('SmartAccountsHandler', () => {
   let handler: SmartAccountsHandler,
     smartAccountContract: SmartAccountContract,
     smartAccount7702: SmartAccount7702,
+    smartAccountDelegator: EIP7702StatelessDeleGatorMock,
     safe: SafeMock
   let owner: HardhatEthersSigner, user: HardhatEthersSigner
 
@@ -33,6 +36,7 @@ describe('SmartAccountsHandler', () => {
     handler = await ethers.deployContract('SmartAccountsHandler')
     smartAccount7702 = await ethers.deployContract('SmartAccount7702', [handler])
     smartAccountContract = await ethers.deployContract('SmartAccountContract', [handler, owner])
+    smartAccountDelegator = await ethers.deployContract('EIP7702StatelessDeleGatorMock', [owner])
     safe = await ethers.deployContract('SafeMock')
   })
 
@@ -378,6 +382,82 @@ describe('SmartAccountsHandler', () => {
               callMock,
               'CallError'
             )
+          })
+        })
+      })
+
+      context('when the account is a 7702 Stateless Delegator', () => {
+        let authorization: Authorization
+
+        beforeEach('sign authorization', async () => {
+          authorization = await user.authorize({ address: smartAccountDelegator })
+        })
+
+        context('when the inner call succeeds', () => {
+          let callData: string
+
+          beforeEach('encode call data', async () => {
+            callData = callMock.interface.encodeFunctionData('call')
+          })
+
+          const itExecutesTheCallWithValue = (value: bigint) => {
+            it('executes a call', async () => {
+              const delegationManager = await smartAccountDelegator.delegationManager()
+              const permissionContext = await signDelegation(user, handler.target, delegationManager)
+              const data = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], [permissionContext, callData])
+
+              const tx = await handler.call(smartAccountDelegator, callMock, data, value, {
+                authorizationList: [authorization],
+              })
+
+              const receipt = await tx.wait()
+
+              const events = await callMock.queryFilter(
+                callMock.filters.CallReceived(),
+                receipt!.blockNumber,
+                receipt!.blockNumber
+              )
+
+              expect(events).to.have.lengthOf(1)
+              expect(events[0].args.sender).to.equal(user)
+              expect(events[0].args.value).to.equal(value)
+            })
+          }
+
+          context('when sending no value', () => {
+            const value = 0n
+
+            itExecutesTheCallWithValue(value)
+          })
+
+          context('when sending value', () => {
+            const value = 1n
+
+            beforeEach('fund smart account', async () => {
+              await owner.sendTransaction({ to: safe, value, data: '0x' })
+            })
+
+            itExecutesTheCallWithValue(value)
+          })
+        })
+
+        context('when the inner call fails', () => {
+          let callData: string
+
+          beforeEach('encode call data', () => {
+            callData = callMock.interface.encodeFunctionData('callError')
+          })
+
+          it('bubbles the error', async () => {
+            const delegationManager = await smartAccountDelegator.delegationManager()
+            const permissionContext = await signDelegation(user, handler.target, delegationManager)
+            const data = ethers.AbiCoder.defaultAbiCoder().encode(['bytes', 'bytes'], [permissionContext, callData])
+
+            const promise = handler.call(smartAccountDelegator, callMock, data, 0, {
+              authorizationList: [authorization],
+            })
+
+            await expect(promise).to.be.revertedWithCustomError(callMock, 'CallError')
           })
         })
       })
