@@ -16,6 +16,10 @@ use crate::{instructions::*, state::*, types::*};
 pub mod settler {
     use super::*;
 
+    pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
+        instructions::add_axia_sig(ctx)
+    }
+
     pub fn add_instructions_to_proposal(
         ctx: Context<AddInstructionsToProposal>,
         more_instructions: Vec<ProposalInstruction>,
@@ -24,14 +28,22 @@ pub mod settler {
         instructions::add_instructions_to_proposal(ctx, more_instructions, finalize)
     }
 
+    pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
+        instructions::add_validator_sig(ctx)
+    }
+
+    pub fn change_whitelist_program(ctx: Context<ChangeWhitelistProgram>) -> Result<()> {
+        instructions::change_whitelist_program(ctx)
+    }
+
     pub fn claim_stale_intent(ctx: Context<ClaimStaleIntent>) -> Result<()> {
         instructions::claim_stale_intent(ctx)
     }
 
-    pub fn claim_stale_proposal<'info>(
-        ctx: Context<'_, '_, 'info, 'info, ClaimStaleProposal<'info>>,
+    pub fn claim_stale_proposals<'info>(
+        ctx: Context<'_, '_, 'info, 'info, ClaimStaleProposals<'info>>,
     ) -> Result<()> {
-        instructions::claim_stale_proposal(ctx)
+        instructions::claim_stale_proposals(ctx)
     }
 
     pub fn create_intent(
