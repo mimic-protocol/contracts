@@ -1,35 +1,27 @@
-import { BN, IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
+import { IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
 
-import * as WhitelistIDL from '../../target/idl/whitelist.json'
-import { Whitelist } from '../../target/types/whitelist'
+import * as ControllerIDL from '../../target/idl/controller.json'
+import { Controller } from '../../target/types/controller'
 
-export enum EntityType {
-  // eslint-disable-next-line no-unused-vars
-  Validator = 1,
-  // eslint-disable-next-line no-unused-vars
-  Axia = 2,
-  // eslint-disable-next-line no-unused-vars
-  Solver = 3,
-}
+export const EntityType = {
+  Validator: 1,
+  Axia: 2,
+  Solver: 3,
+} as const
 
-export enum WhitelistStatus {
-  // eslint-disable-next-line no-unused-vars
-  Whitelisted = 1,
-  // eslint-disable-next-line no-unused-vars
-  Blacklisted = 2,
-}
+export type EntityType = (typeof EntityType)[keyof typeof EntityType]
 
-export default class WhitelistSDK {
-  protected program: Program<Whitelist>
+export default class ControllerSDK {
+  protected program: Program<Controller>
 
   constructor(provider: Provider) {
-    this.program = new Program(WhitelistIDL, provider)
+    this.program = new Program(ControllerIDL, provider)
   }
 
-  async initializeIx(admin: web3.PublicKey, proposedAdminCooldown: number): Promise<web3.TransactionInstruction> {
+  async initializeIx(admin: web3.PublicKey): Promise<web3.TransactionInstruction> {
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .initialize(admin, new BN(proposedAdminCooldown))
+      .initialize(admin)
       .accountsPartial({
         deployer: this.getSignerKey(),
         globalSettings,
@@ -38,10 +30,10 @@ export default class WhitelistSDK {
     return ix
   }
 
-  async proposeAdminIx(proposedAdmin: web3.PublicKey): Promise<web3.TransactionInstruction> {
+  async setAdmin(newAdmin: web3.PublicKey): Promise<web3.TransactionInstruction> {
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .proposeAdmin(proposedAdmin)
+      .setAdmin(newAdmin)
       .accountsPartial({
         admin: this.getSignerKey(),
         globalSettings,
@@ -50,19 +42,14 @@ export default class WhitelistSDK {
     return ix
   }
 
-  async setEntityWhitelistStatusIx(
+  async createEntityRegistryIx(
     entityType: EntityType,
-    entityPubkey: web3.PublicKey,
-    status: WhitelistStatus
+    entityPubkey: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .setEntityWhitelistStatus(
-        this.entityTypeToAnchorEnum(entityType),
-        entityPubkey,
-        this.whitelistStatusToAnchorEnum(status)
-      )
+      .createEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
@@ -72,12 +59,17 @@ export default class WhitelistSDK {
     return ix
   }
 
-  async setProposedAdminIx(): Promise<web3.TransactionInstruction> {
+  async closeEntityRegistryIx(
+    entityType: EntityType,
+    entityPubkey: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .setProposedAdmin()
+      .closeEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
       .accountsPartial({
-        proposedAdmin: this.getSignerKey(),
+        admin: this.getSignerKey(),
+        entityRegistry,
         globalSettings,
       })
       .instruction()
@@ -100,18 +92,11 @@ export default class WhitelistSDK {
     )[0]
   }
 
-  entityTypeToAnchorEnum(entityType: EntityType): IdlTypes<Whitelist>['entityType'] {
+  entityTypeToAnchorEnum(entityType: EntityType): IdlTypes<Controller>['entityType'] {
     if (entityType === EntityType.Validator) return { validator: {} }
     if (entityType === EntityType.Axia) return { axia: {} }
     if (entityType === EntityType.Solver) return { solver: {} }
 
     throw new Error(`Unsupported entity type ${entityType}`)
-  }
-
-  whitelistStatusToAnchorEnum(status: WhitelistStatus): IdlTypes<Whitelist>['whitelistStatus'] {
-    if (status === WhitelistStatus.Whitelisted) return { whitelisted: {} }
-    if (status === WhitelistStatus.Blacklisted) return { blacklisted: {} }
-
-    throw new Error(`Unsupported whitelist status ${status}`)
   }
 }

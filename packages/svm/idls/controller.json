@@ -1,7 +1,7 @@
 {
   "address": "7PwVkjnnapxytWFW69WFDLhfVZZgKhBE9m3zwcDZmncr",
   "metadata": {
-    "name": "whitelist",
+    "name": "controller",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Created with Anchor"
@@ -127,7 +127,7 @@
       ]
     },
     {
-      "name": "set_entity_whitelist_status",
+      "name": "set_entity_allowlist_status",
       "discriminator": [
         100,
         20,
@@ -200,7 +200,7 @@
           "name": "status",
           "type": {
             "defined": {
-              "name": "WhitelistStatus"
+              "name": "AllowlistStatus"
             }
           }
         }
@@ -286,7 +286,7 @@
   ],
   "events": [
     {
-      "name": "SetEntityWhitelistStatusEvent",
+      "name": "SetEntityAllowlistStatusEvent",
       "discriminator": [
         137,
         194,
@@ -376,7 +376,7 @@
             "name": "status",
             "type": {
               "defined": {
-                "name": "WhitelistStatus"
+                "name": "AllowlistStatus"
               }
             }
           },
@@ -446,7 +446,7 @@
       }
     },
     {
-      "name": "SetEntityWhitelistStatusEvent",
+      "name": "SetEntityAllowlistStatusEvent",
       "type": {
         "kind": "struct",
         "fields": [
@@ -466,7 +466,7 @@
             "name": "status",
             "type": {
               "defined": {
-                "name": "WhitelistStatus"
+                "name": "AllowlistStatus"
               }
             }
           },
@@ -498,7 +498,7 @@
       }
     },
     {
-      "name": "WhitelistStatus",
+      "name": "AllowlistStatus",
       "repr": {
         "kind": "rust"
       },
@@ -506,7 +506,7 @@
         "kind": "enum",
         "variants": [
           {
-            "name": "Whitelisted"
+            "name": "Allowlisted"
           },
           {
             "name": "Blacklisted"
