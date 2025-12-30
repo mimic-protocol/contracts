@@ -7,7 +7,4 @@ pub enum ControllerError {
 
     #[msg("Only admin can call this instruction")]
     OnlyAdmin,
-
-    #[msg("Math error")]
-    MathError,
 }

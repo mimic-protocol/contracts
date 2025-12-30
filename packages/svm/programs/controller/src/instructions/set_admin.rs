@@ -21,5 +21,16 @@ pub fn set_admin(ctx: Context<SetAdmin>, new_admin: Pubkey) -> Result<()> {
 
     global_settings.admin = new_admin;
 
+    emit!(SetAdminEvent {
+        new_admin,
+        timestamp: Clock::get()?.unix_timestamp as u64,
+    });
+
     Ok(())
+}
+
+#[event]
+pub struct SetAdminEvent {
+    pub new_admin: Pubkey,
+    pub timestamp: u64,
 }

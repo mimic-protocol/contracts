@@ -13,7 +13,7 @@ pub struct CreateEntityRegistry<'info> {
     pub admin: Signer<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         seeds = [b"entity-registry".as_ref(), &[entity_type as u8], entity_pubkey.as_ref()],
         bump,
         payer = admin,
