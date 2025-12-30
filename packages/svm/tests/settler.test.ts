@@ -10,11 +10,11 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
+import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import SettlerSDK from '../sdks/settler/Settler'
 import { OpType } from '../sdks/settler/types'
-import WhitelistSDK, { EntityType, WhitelistStatus } from '../sdks/whitelist/Whitelist'
+import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
-import * as WhitelistIDL from '../target/idl/whitelist.json'
 import { Settler } from '../target/types/settler'
 import {
   ACCOUNT_CLOSE_FEE,
@@ -60,7 +60,7 @@ describe('Settler Program', () => {
   let maliciousSdk: SettlerSDK
   let solverSdk: SettlerSDK
 
-  let whitelistSdk: WhitelistSDK
+  let controllerSdk: ControllerSDK
 
   before(async () => {
     admin = Keypair.fromSecretKey(
@@ -85,13 +85,10 @@ describe('Settler Program', () => {
     provider.client.airdrop(malicious.publicKey, BigInt(100_000_000_000))
     provider.client.airdrop(solver.publicKey, BigInt(100_000_000_000))
 
-    // Initialize Whitelist and whitelist Solver
-    whitelistSdk = new WhitelistSDK(provider)
-    await makeTxSignAndSend(provider, await whitelistSdk.initializeIx(admin.publicKey, 1))
-    await makeTxSignAndSend(
-      provider,
-      await whitelistSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver.publicKey, WhitelistStatus.Whitelisted)
-    )
+    // Initialize Controller and add Solver to allowlist
+    controllerSdk = new ControllerSDK(provider)
+    await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
+    await makeTxSignAndSend(provider, await controllerSdk.createEntityRegistryIx(EntityType.Solver, solver.publicKey))
   })
 
   beforeEach(() => {
@@ -112,7 +109,7 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(provider, ix)
 
         const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
-        expect(settings.whitelistProgram.toString()).to.be.eq(WhitelistIDL.address)
+        expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
         expect(settings.isPaused).to.be.false
       })
 
@@ -252,7 +249,7 @@ describe('Settler Program', () => {
         expect(intent.isFinal).to.be.false
       })
 
-      it('cannot create intent if not whitelisted solver', async () => {
+      it('cannot create intent if not allowlisted solver', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
         const user = Keypair.generate().publicKey

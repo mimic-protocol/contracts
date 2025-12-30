@@ -1,9 +1,9 @@
 import { BN, IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
 
+import * as ControllerIDL from '../../target/idl/controller.json'
 import * as SettlerIDL from '../../target/idl/settler.json'
-import * as WhitelistIDL from '../../target/idl/whitelist.json'
 import { Settler } from '../../target/types/settler'
-import { EntityType } from '../whitelist/Whitelist'
+import { EntityType } from '../controller/Controller'
 import { CreateIntentParams, ExtendIntentParams, IntentEvent, OpType, TokenFee } from './types'
 
 type TokenFeeAnchor = {
@@ -121,7 +121,7 @@ export default class SettlerSDK {
   getEntityRegistryPubkey(entityType: EntityType, entityPubkey: web3.PublicKey): web3.PublicKey {
     return web3.PublicKey.findProgramAddressSync(
       [Buffer.from('entity-registry'), Buffer.from([entityType]), entityPubkey.toBuffer()],
-      new web3.PublicKey(WhitelistIDL.address)
+      new web3.PublicKey(ControllerIDL.address)
     )[0]
   }
 

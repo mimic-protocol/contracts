@@ -5,20 +5,20 @@ pub enum SettlerError {
     #[msg("Only Deployer can call this instruction")]
     OnlyDeployer,
 
-    #[msg("Only a whitelisted solver can call this instruction")]
+    #[msg("Only an allowlisted solver can call this instruction")]
     OnlySolver,
 
-    #[msg("Provided Axia address is not whitelisted")]
-    AxiaNotWhitelisted,
+    #[msg("Provided Axia address is not allowlisted")]
+    AxiaNotAllowlisted,
 
-    #[msg("Only a whitelisted validator can call this instruction")]
+    #[msg("Only a allowlisted validator can call this instruction")]
     OnlyValidator,
 
     #[msg("No max fees provided")]
     NoMaxFees,
 
-    #[msg("Validator is not whitelisted")]
-    ValidatorNotWhitelisted,
+    #[msg("Validator is not allowlisted")]
+    ValidatorNotAllowlisted,
 
     #[msg("Signer must be intent creator")]
     IncorrectIntentCreator,
