@@ -7,6 +7,7 @@ import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm
 import ControllerSDK, { EntityType } from '../../sdks/controller/Controller'
 import SettlerSDK from '../../sdks/settler/Settler'
 import { CreateIntentParams, IntentEvent, OpType, ProposalInstruction, TokenFee } from '../../sdks/settler/types'
+import * as SettlerIDL from '../../target/idl/settler.json'
 import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
 import {
@@ -90,7 +91,49 @@ export async function createTestIntent(
 }
 
 /**
- * Create a validated intent (with validations set to meet min_validations requirement)
+ * Add mock validators to an intent account
+ */
+export async function addValidatorsToIntent(
+  intentHash: string,
+  solverSdk: SettlerSDK,
+  solverProvider: LiteSVMProvider,
+  client: LiteSVM,
+  numValidators: number,
+  program?: Program<Settler>
+): Promise<void> {
+  const intentKey = solverSdk.getIntentKey(intentHash)
+  const programInstance = program || new Program<Settler>(SettlerIDL, solverProvider)
+
+  // Fetch and deserialize the intent account
+  const intent = await programInstance.account.intent.fetch(intentKey)
+
+  // Generate validators
+  const validators: PublicKey[] = []
+  for (let i = 0; i < numValidators; i++) {
+    validators.push(Keypair.generate().publicKey)
+  }
+
+  // Modify the intent to add validators
+  const modifiedIntent = {
+    ...intent,
+    validators,
+  }
+
+  // Serialize the modified intent back to account data
+  const serializedData = await programInstance.coder.accounts.encode('intent', modifiedIntent)
+
+  // Update the account data
+  const intentAccount = client.getAccount(intentKey)
+  if (intentAccount) {
+    client.setAccount(intentKey, {
+      ...intentAccount,
+      data: serializedData,
+    })
+  }
+}
+
+/**
+ * Create a validated intent (with validators added to meet min_validations requirement)
  */
 export async function createValidatedIntent(
   solverSdk: SettlerSDK,
@@ -101,6 +144,7 @@ export async function createValidatedIntent(
     minValidations?: number
     isFinal?: boolean
     deadline?: number
+    program?: Program<Settler>
   } = {}
 ): Promise<string> {
   const intentHash = await createTestIntent(solverSdk, solverProvider, {
@@ -108,20 +152,9 @@ export async function createValidatedIntent(
     isFinal: options.isFinal ?? true,
   })
 
-  // Set validations to meet min_validations requirement
-  const intentKey = solverSdk.getIntentKey(intentHash)
-  const intentAccount = client.getAccount(intentKey)
-  if (intentAccount) {
-    const intentData = Buffer.from(intentAccount.data)
-    // validations is at offset: 8 (disc) + 1 (op) + 32 (user) + 32 (intent_creator) + 32 (intent_hash) + 32 (nonce) + 8 (deadline) + 2 (min_validations) = 147
-    // validations is u16, so 2 bytes
-    const minValidations = options.minValidations ?? DEFAULT_MIN_VALIDATIONS
-    intentData.writeUInt16LE(minValidations, 147)
-    client.setAccount(intentKey, {
-      ...intentAccount,
-      data: intentData,
-    })
-  }
+  // Add validators to meet min_validations requirement
+  const minValidations = options.minValidations ?? DEFAULT_MIN_VALIDATIONS
+  await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, minValidations, options.program)
 
   return intentHash
 }
@@ -179,7 +212,7 @@ export async function createFinalizedProposal(
 }
 
 /**
-  * Creates an allowlisted entity (validator, axia, or solver)
+ * Creates an allowlisted entity (validator, axia, or solver)
  */
 export async function createAllowlistedEntity(
   controllerSdk: ControllerSDK,

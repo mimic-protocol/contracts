@@ -4,9 +4,9 @@ use crate::{
     errors::SettlerError,
     state::{Intent, Proposal, ProposalInstruction},
     types::TokenFee,
-    whitelist::{
+    controller::{
         accounts::EntityRegistry,
-        types::{EntityType, WhitelistStatus},
+        types::EntityType,
     },
 };
 
@@ -19,9 +19,7 @@ pub struct CreateProposal<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::whitelist::ID,
-        constraint =
-            solver_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::OnlySolver
+        seeds::program = crate::controller::ID,
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
@@ -29,7 +27,7 @@ pub struct CreateProposal<'info> {
     pub intent: Box<Account<'info, Intent>>,
 
     #[account(
-        seeds = [b"fulfilled-intent", intent.intent_hash.as_ref()],
+        seeds = [b"fulfilled-intent", intent.hash.as_ref()],
         bump
     )]
     /// This PDA must be uninitialized
@@ -64,7 +62,7 @@ pub fn create_proposal(
         SettlerError::ProposalDeadlineExceedsIntentDeadline
     );
     require!(
-        intent.validations >= intent.min_validations,
+        intent.validators.len() >= intent.min_validations as usize,
         SettlerError::InsufficientIntentValidations
     );
     require!(intent.is_final, SettlerError::IntentIsNotFinal);

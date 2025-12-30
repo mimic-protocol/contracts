@@ -45,6 +45,7 @@ import {
   WARP_TIME_SHORT,
 } from './helpers/constants'
 import {
+  addValidatorsToIntent,
   createTestIntent,
   createValidatedIntent,
   expectTransactionError,
@@ -120,7 +121,6 @@ describe('Settler Program', () => {
 
         const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
-        expect(settings.isPaused).to.be.false
       })
 
       it('cannot call initialize again', async () => {
@@ -1021,17 +1021,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         warpSeconds(provider, 101)
 
@@ -1095,17 +1086,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations to 1 (less than min_validations of 2)
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators to 1 (less than min_validations of 2)
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [
@@ -1259,17 +1241,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, true)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [
@@ -1323,17 +1296,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, true)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [
@@ -1386,17 +1350,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, true)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [

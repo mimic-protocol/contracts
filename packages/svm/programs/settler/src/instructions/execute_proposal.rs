@@ -4,9 +4,9 @@ use crate::{
     errors::SettlerError,
     state::{FulfilledIntent, Intent, Proposal},
     types::IntentEvent,
-    whitelist::{
+    controller::{
         accounts::EntityRegistry,
-        types::{EntityType, WhitelistStatus},
+        types::EntityType,
     },
 };
 
@@ -18,9 +18,7 @@ pub struct ExecuteProposal<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::whitelist::ID,
-        constraint =
-            solver_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::OnlySolver
+        seeds::program = crate::controller::ID,
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
@@ -43,14 +41,14 @@ pub struct ExecuteProposal<'info> {
 
     #[account(
         mut,
-        has_one = intent_creator @ SettlerError::IncorrectIntentCreator,
+        constraint = intent.creator == intent_creator.key() @ SettlerError::IncorrectIntentCreator,
         close = intent_creator
     )]
     pub intent: Box<Account<'info, Intent>>,
 
     #[account(
         init,
-        seeds = [b"fulfilled-intent", intent.intent_hash.as_ref()],
+        seeds = [b"fulfilled-intent", intent.hash.as_ref()],
         bump,
         space = 8 + FulfilledIntent::INIT_SPACE,
         payer = solver
