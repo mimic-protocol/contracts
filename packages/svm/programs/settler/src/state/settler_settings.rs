@@ -4,6 +4,5 @@ use anchor_lang::prelude::*;
 #[derive(InitSpace)]
 pub struct SettlerSettings {
     pub controller_program: Pubkey,
-    pub is_paused: bool,
     pub bump: u8,
 }
