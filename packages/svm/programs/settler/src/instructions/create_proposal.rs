@@ -83,7 +83,7 @@ pub fn create_proposal(
     let proposal = &mut ctx.accounts.proposal;
 
     proposal.intent = intent.key();
-    proposal.proposal_creator = ctx.accounts.solver.key();
+    proposal.creator = ctx.accounts.solver.key();
     proposal.deadline = deadline;
     proposal.is_final = is_final;
     proposal.is_signed = false;

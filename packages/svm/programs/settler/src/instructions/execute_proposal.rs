@@ -26,7 +26,7 @@ pub struct ExecuteProposal<'info> {
     #[account(
         mut,
         has_one = intent @ SettlerError::IncorrectIntentForProposal,
-        has_one = proposal_creator @ SettlerError::IncorrectProposalCreator,
+        constraint = proposal.creator == proposal_creator.key() @ SettlerError::IncorrectProposalCreator,
         constraint = proposal.is_signed @ SettlerError::ProposalIsNotSigned,
         close = proposal_creator
     )]

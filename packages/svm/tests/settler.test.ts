@@ -823,7 +823,7 @@ describe('Settler Program', () => {
 
         const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
         expect(proposal.intent.toString()).to.be.eq(sdk.getIntentKey(intentHash).toString())
-        expect(proposal.proposalCreator.toString()).to.be.eq(solver.publicKey.toString())
+        expect(proposal.creator.toString()).to.be.eq(solver.publicKey.toString())
         expect(proposal.deadline.toNumber()).to.be.eq(deadline)
         expect(proposal.isFinal).to.be.true
         expect(proposal.instructions.length).to.be.eq(1)
@@ -1500,7 +1500,7 @@ describe('Settler Program', () => {
       it('cannot add instructions if not proposal creator', async () => {
         const intentHash = await createTestProposal(false)
         const proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash)))
-          .proposalCreator
+          .creator
 
         const moreInstructions = [
           {
@@ -1730,14 +1730,14 @@ describe('Settler Program', () => {
 
         const proposalBalanceBefore =
           Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
-        const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.proposalCreator)) || 0
+        const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.creator)) || 0
 
         const ix = await solverSdk.claimStaleProposalIx([intentHash])
         await makeTxSignAndSend(solverProvider, ix)
 
         const proposalBalanceAfter =
           Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
-        const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.proposalCreator)) || 0
+        const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.creator)) || 0
 
         try {
           await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))

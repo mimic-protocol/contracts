@@ -8,7 +8,7 @@ use crate::{
 #[account]
 pub struct Proposal {
     pub intent: Pubkey,
-    pub proposal_creator: Pubkey,
+    pub creator: Pubkey,
     pub deadline: u64,
     pub is_final: bool,
     pub is_signed: bool,
@@ -21,7 +21,7 @@ impl Proposal {
     /// Doesn't take into account size of variable fields
     pub const BASE_LEN: usize =
         32 + // intent
-        32 + // proposal_creator
+        32 + // creator
         8 + // deadline
         1 + // is_final
         1 + // is_signed

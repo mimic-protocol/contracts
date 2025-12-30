@@ -9,14 +9,14 @@ use crate::{
 #[instruction(more_instructions: Vec<ProposalInstruction>)]
 pub struct AddInstructionsToProposal<'info> {
     #[account(mut)]
-    pub proposal_creator: Signer<'info>,
+    pub creator: Signer<'info>,
 
     #[account(
         mut,
         realloc = Proposal::extended_size(proposal.to_account_info().data_len(), &more_instructions)?,
-        realloc::payer = proposal_creator,
+        realloc::payer = creator,
         realloc::zero = true,
-        has_one = proposal_creator @ SettlerError::IncorrectProposalCreator
+        has_one = creator @ SettlerError::IncorrectProposalCreator
     )]
     // Any proposal
     pub proposal: Box<Account<'info, Proposal>>,

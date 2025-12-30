@@ -28,7 +28,7 @@ pub fn claim_stale_proposal<'info>(
             Box::new(Account::<Proposal>::try_from(account_info)?);
 
         require_keys_eq!(
-            proposal.proposal_creator,
+            proposal.creator,
             proposal_creator.key(),
             SettlerError::IncorrectProposalCreator
         );
