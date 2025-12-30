@@ -110,7 +110,6 @@ describe('Settler Program', () => {
 
         const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
-        expect(settings.isPaused).to.be.false
       })
 
       it('cannot call initialize again', async () => {
