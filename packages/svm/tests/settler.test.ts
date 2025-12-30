@@ -1499,8 +1499,7 @@ describe('Settler Program', () => {
 
       it('cannot add instructions if not proposal creator', async () => {
         const intentHash = await createTestProposal(false)
-        const proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash)))
-          .creator
+        const proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
 
         const moreInstructions = [
           {
