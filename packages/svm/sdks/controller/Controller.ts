@@ -12,13 +12,6 @@ export enum EntityType {
   Solver = 3,
 }
 
-export enum AllowlistStatus {
-  // eslint-disable-next-line no-unused-vars
-  Allowed = 1,
-  // eslint-disable-next-line no-unused-vars
-  Disallowed = 2,
-}
-
 export default class ControllerSDK {
   protected program: Program<Controller>
 
@@ -50,18 +43,36 @@ export default class ControllerSDK {
     return ix
   }
 
-  async setEntityAllowlistStatusIx(
+  async createEntityRegistryIx(
     entityType: EntityType,
-    entityPubkey: web3.PublicKey,
-    status: AllowlistStatus
+    entityPubkey: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .setEntityAllowlistStatus(
+      .createEntityRegistry(
         this.entityTypeToAnchorEnum(entityType),
-        entityPubkey,
-        this.allowlistStatusToAnchorEnum(status)
+        entityPubkey
+      )
+      .accountsPartial({
+        admin: this.getSignerKey(),
+        entityRegistry,
+        globalSettings,
+      })
+      .instruction()
+    return ix
+  }
+
+  async closeEntityRegistryIx(
+    entityType: EntityType,
+    entityPubkey: web3.PublicKey
+  ): Promise<web3.TransactionInstruction> {
+    const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
+    const globalSettings = this.getGlobalSettingsPubkey()
+    const ix = await this.program.methods
+      .closeEntityRegistry(
+        this.entityTypeToAnchorEnum(entityType),
+        entityPubkey
       )
       .accountsPartial({
         admin: this.getSignerKey(),
@@ -94,12 +105,5 @@ export default class ControllerSDK {
     if (entityType === EntityType.Solver) return { solver: {} }
 
     throw new Error(`Unsupported entity type ${entityType}`)
-  }
-
-  allowlistStatusToAnchorEnum(status: AllowlistStatus): IdlTypes<Controller>['allowlistStatus'] {
-    if (status === AllowlistStatus.Allowed) return { allowed: {} }
-    if (status === AllowlistStatus.Disallowed) return { disallowed: {} }
-
-    throw new Error(`Unsupported allowlist status ${status}`)
   }
 }

@@ -9,7 +9,7 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import ControllerSDK, { AllowlistStatus, EntityType } from '../sdks/controller/Controller'
+import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import * as ControllerIDL from '../target/idl/controller.json'
 import { Controller } from '../target/types/controller'
 import { expectTransactionError } from './helpers/settler-helpers'
@@ -120,7 +120,7 @@ describe('Controller Program', () => {
       })
     })
 
-    describe('set_entity_allowlist_status', () => {
+    describe('EntityRegistry management', () => {
       let validator: web3.PublicKey
       let axia: web3.PublicKey
       let solver: web3.PublicKey
@@ -137,19 +137,15 @@ describe('Controller Program', () => {
         solver2 = web3.Keypair.generate().publicKey
       })
 
-      it('cannot set status if not admin', async () => {
-        const ix = await maliciousSdk.setEntityAllowlistStatusIx(
-          EntityType.Validator,
-          validator,
-          AllowlistStatus.Allowed
-        )
+      it('cannot create registry if not admin', async () => {
+        const ix = await maliciousSdk.createEntityRegistryIx(EntityType.Validator, validator)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only admin can call this instruction')
       })
 
-      it('should set allowlist status successfully (validator)', async () => {
-        const ix = await adminSdk.setEntityAllowlistStatusIx(EntityType.Validator, validator, AllowlistStatus.Allowed)
+      it('should create entity registry successfully (validator)', async () => {
+        const ix = await adminSdk.createEntityRegistryIx(EntityType.Validator, validator)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -158,11 +154,10 @@ describe('Controller Program', () => {
 
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should set allowlist status successfully (axia)', async () => {
-        const ix = await adminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia, AllowlistStatus.Allowed)
+      it('should create entity registry successfully (axia)', async () => {
+        const ix = await adminSdk.createEntityRegistryIx(EntityType.Axia, axia)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -171,11 +166,10 @@ describe('Controller Program', () => {
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should set allowlist status successfully (solver)', async () => {
-        const ix = await adminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver, AllowlistStatus.Allowed)
+      it('should create entity registry successfully (solver)', async () => {
+        const ix = await adminSdk.createEntityRegistryIx(EntityType.Solver, solver)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -184,7 +178,6 @@ describe('Controller Program', () => {
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
       it('should change admin for next tests', async () => {
@@ -195,12 +188,50 @@ describe('Controller Program', () => {
         expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
-      it('should update status correctly (allowlist to blacklist transition) (validator)', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(
-          EntityType.Validator,
-          validator,
-          AllowlistStatus.Disallowed
-        )
+      it('should close entity registry (validator)', async () => {
+        const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Validator, validator)
+        await makeTxSignAndSend(otherAdminProvider, ix)
+
+        try {
+          await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
+          )
+          expect.fail('Entity registry should not exist after closing')
+        } catch (error: any) {
+          expect(error.message).to.include('Account does not exist')
+        }
+      })
+
+      it('should close entity registry (axia)', async () => {
+        const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Axia, axia)
+        await makeTxSignAndSend(otherAdminProvider, ix)
+
+        try {
+          await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+          )
+          expect.fail('Entity registry should not exist after closing')
+        } catch (error: any) {
+          expect(error.message).to.include('Account does not exist')
+        }
+      })
+
+      it('should close entity registry (solver)', async () => {
+        const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Solver, solver)
+        await makeTxSignAndSend(otherAdminProvider, ix)
+
+        try {
+          await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
+          )
+          expect.fail('Entity registry should not exist after closing')
+        } catch (error: any) {
+          expect(error.message).to.include('Account does not exist')
+        }
+      })
+
+      it('should create entity registry after closing (validator)', async () => {
+        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Validator, validator)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -209,11 +240,10 @@ describe('Controller Program', () => {
 
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-        expect(entityRegistry.status).to.deep.include({ disallowed: {} })
       })
 
-      it('should update status correctly (allowlist to blacklist transition) (axia)', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia, AllowlistStatus.Disallowed)
+      it('should create entity registry after closing (axia)', async () => {
+        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Axia, axia)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -222,11 +252,10 @@ describe('Controller Program', () => {
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-        expect(entityRegistry.status).to.deep.include({ disallowed: {} })
       })
 
-      it('should update status correctly (allowlist to blacklist transition) (solver)', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver, AllowlistStatus.Disallowed)
+      it('should create entity registry after closing (solver)', async () => {
+        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Solver, solver)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -235,58 +264,10 @@ describe('Controller Program', () => {
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-        expect(entityRegistry.status).to.deep.include({ disallowed: {} })
       })
 
-      it('should update status correctly (blacklist to allowlist transition) (validator)', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(
-          EntityType.Validator,
-          validator,
-          AllowlistStatus.Allowed
-        )
-        await makeTxSignAndSend(otherAdminProvider, ix)
-
-        const entityRegistry = await program.account.entityRegistry.fetch(
-          otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
-        )
-
-        expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
-      })
-
-      it('should update status correctly (blacklist to allowlist transition) (axia)', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia, AllowlistStatus.Allowed)
-        await makeTxSignAndSend(otherAdminProvider, ix)
-
-        const entityRegistry = await program.account.entityRegistry.fetch(
-          otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
-        )
-
-        expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
-      })
-
-      it('should update status correctly (blacklist to allowlist transition) (solver)', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver, AllowlistStatus.Allowed)
-        await makeTxSignAndSend(otherAdminProvider, ix)
-
-        const entityRegistry = await program.account.entityRegistry.fetch(
-          otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
-        )
-
-        expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
-      })
-
-      it('should allowlist another validator', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(
-          EntityType.Validator,
-          validator2,
-          AllowlistStatus.Allowed
-        )
+      it('should create another validator registry', async () => {
+        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Validator, validator2)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -294,11 +275,10 @@ describe('Controller Program', () => {
         )
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should allowlist another axia', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia2, AllowlistStatus.Allowed)
+      it('should create another axia registry', async () => {
+        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Axia, axia2)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -306,11 +286,10 @@ describe('Controller Program', () => {
         )
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should allowlist another solver', async () => {
-        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver2, AllowlistStatus.Allowed)
+      it('should create another solver registry', async () => {
+        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Solver, solver2)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -318,11 +297,10 @@ describe('Controller Program', () => {
         )
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
-        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
       it('should create separate accounts for same pubkey with different entity types', async () => {
-        const ix1 = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Validator, axia, AllowlistStatus.Allowed)
+        const ix1 = await otherAdminSdk.createEntityRegistryIx(EntityType.Validator, axia)
         await makeTxSignAndSend(otherAdminProvider, ix1)
 
         const validatorRegistry = await program.account.entityRegistry.fetch(
@@ -333,9 +311,7 @@ describe('Controller Program', () => {
         )
 
         expect(validatorRegistry.entityType).to.deep.include({ validator: {} })
-        expect(validatorRegistry.status).to.deep.include({ allowed: {} })
         expect(axiaRegistry.entityType).to.deep.include({ axia: {} })
-        expect(axiaRegistry.status).to.deep.include({ allowed: {} })
 
         const validatorPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
         const axiaPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)

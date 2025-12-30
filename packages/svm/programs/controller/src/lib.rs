@@ -22,12 +22,19 @@ pub mod controller {
         instructions::set_admin(ctx, new_admin)
     }
 
-    pub fn set_entity_allowlist_status(
-        ctx: Context<SetEntityAllowlistStatus>,
+    pub fn create_entity_registry(
+        ctx: Context<CreateEntityRegistry>,
         entity_type: EntityType,
         entity_pubkey: Pubkey,
-        status: AllowlistStatus,
     ) -> Result<()> {
-        instructions::set_entity_allowlist_status(ctx, entity_type, entity_pubkey, status)
+        instructions::create_entity_registry(ctx, entity_type, entity_pubkey)
+    }
+
+    pub fn close_entity_registry(
+        ctx: Context<CloseEntityRegistry>,
+        entity_type: EntityType,
+        entity_pubkey: Pubkey,
+    ) -> Result<()> {
+        instructions::close_entity_registry(ctx, entity_type, entity_pubkey)
     }
 }
