@@ -6,7 +6,6 @@ pub mod create_proposal;
 pub mod execute_proposal;
 pub mod extend_intent;
 pub mod initialize;
-pub mod set_paused_state;
 
 pub use add_instructions_to_proposal::*;
 pub use claim_stale_intent::*;
@@ -16,4 +15,3 @@ pub use create_proposal::*;
 pub use execute_proposal::*;
 pub use extend_intent::*;
 pub use initialize::*;
-pub use set_paused_state::*;

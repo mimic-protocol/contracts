@@ -4,9 +4,9 @@ import { LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
 
+import ControllerSDK, { EntityType } from '../../sdks/controller/Controller'
 import SettlerSDK from '../../sdks/settler/Settler'
 import { CreateIntentParams, IntentEvent, OpType, ProposalInstruction, TokenFee } from '../../sdks/settler/types'
-import WhitelistSDK, { EntityType, WhitelistStatus } from '../../sdks/whitelist/Whitelist'
 import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
 import {
@@ -179,21 +179,17 @@ export async function createFinalizedProposal(
 }
 
 /**
- * Create a whitelisted entity (validator, axia, or solver)
+  * Creates an allowlisted entity (validator, axia, or solver)
  */
-export async function createWhitelistedEntity(
-  whitelistSdk: WhitelistSDK,
+export async function createAllowlistedEntity(
+  controllerSdk: ControllerSDK,
   provider: LiteSVMProvider,
   entityType: EntityType,
   entityKeypair?: Keypair
 ): Promise<Keypair> {
   const entity = entityKeypair || Keypair.generate()
-  const whitelistIx = await whitelistSdk.setEntityWhitelistStatusIx(
-    entityType,
-    entity.publicKey,
-    WhitelistStatus.Whitelisted
-  )
-  await makeTxSignAndSend(provider, whitelistIx)
+  const allowlistIx = await controllerSdk.createEntityRegistryIx(entityType, entity.publicKey)
+  await makeTxSignAndSend(provider, allowlistIx)
   return entity
 }
 
