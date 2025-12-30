@@ -1,13 +1,10 @@
 use anchor_lang::prelude::*;
 
 use crate::{
+    controller::{accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Intent,
     types::{IntentEvent, OpType, TokenFee},
-    whitelist::{
-        accounts::EntityRegistry,
-        types::{EntityType, WhitelistStatus},
-    },
 };
 
 #[derive(Accounts)]
@@ -20,9 +17,7 @@ pub struct CreateIntent<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::whitelist::ID,
-        constraint =
-            solver_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::OnlySolver
+        seeds::program = crate::controller::ID
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
@@ -70,14 +65,13 @@ pub fn create_intent(
 
     intent.op = op;
     intent.user = user;
-    intent.intent_creator = ctx.accounts.solver.key();
-    intent.intent_hash = intent_hash;
+    intent.creator = ctx.accounts.solver.key();
+    intent.hash = intent_hash;
     intent.nonce = nonce;
     intent.deadline = deadline;
     intent.min_validations = min_validations;
-    intent.validations = 0;
     intent.is_final = is_final;
-    intent.intent_data = data;
+    intent.data = data;
     intent.max_fees = max_fees;
     intent.events = events;
     intent.validators = vec![];

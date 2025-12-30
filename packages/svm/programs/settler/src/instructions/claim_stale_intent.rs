@@ -5,12 +5,12 @@ use crate::{errors::SettlerError, state::Intent};
 #[derive(Accounts)]
 pub struct ClaimStaleIntent<'info> {
     #[account(mut)]
-    pub intent_creator: Signer<'info>,
+    pub creator: Signer<'info>,
 
     #[account(
         mut,
-        close = intent_creator,
-        has_one = intent_creator @ SettlerError::IncorrectIntentCreator,
+        close = creator,
+        has_one = creator @ SettlerError::IncorrectIntentCreator,
         constraint = intent.deadline < Clock::get()?.unix_timestamp as u64 @ SettlerError::IntentNotYetExpired
     )]
     pub intent: Box<Account<'info, Intent>>,

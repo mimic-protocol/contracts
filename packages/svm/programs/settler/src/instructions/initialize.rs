@@ -29,8 +29,7 @@ pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
 
     let settler_settings = &mut ctx.accounts.settler_settings;
 
-    settler_settings.whitelist_program = crate::whitelist::ID;
-    settler_settings.is_paused = false;
+    settler_settings.controller_program = crate::controller::ID;
     settler_settings.bump = ctx.bumps.settler_settings;
 
     Ok(())

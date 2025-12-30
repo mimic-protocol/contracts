@@ -11,11 +11,11 @@ import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
+import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import SettlerSDK from '../sdks/settler/Settler'
 import { OpType } from '../sdks/settler/types'
-import WhitelistSDK, { EntityType, WhitelistStatus } from '../sdks/whitelist/Whitelist'
+import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
-import * as WhitelistIDL from '../target/idl/whitelist.json'
 import { Settler } from '../target/types/settler'
 import {
   ACCOUNT_CLOSE_FEE,
@@ -49,10 +49,10 @@ import {
 import {
   createAxiaSignature,
   createFinalizedProposal,
+  addValidatorsToIntent,
   createTestIntent,
   createValidatedIntent,
   createValidatorSignature,
-  createWhitelistedEntity,
   expectTransactionError,
   generateIntentHash,
   generateNonce,
@@ -76,7 +76,7 @@ describe('Settler Program', () => {
   let maliciousSdk: SettlerSDK
   let solverSdk: SettlerSDK
 
-  let whitelistSdk: WhitelistSDK
+  let controllerSdk: ControllerSDK
 
   before(async () => {
     admin = Keypair.fromSecretKey(
@@ -101,13 +101,10 @@ describe('Settler Program', () => {
     provider.client.airdrop(malicious.publicKey, BigInt(100_000_000_000))
     provider.client.airdrop(solver.publicKey, BigInt(100_000_000_000))
 
-    // Initialize Whitelist and whitelist Solver
-    whitelistSdk = new WhitelistSDK(provider)
-    await makeTxSignAndSend(provider, await whitelistSdk.initializeIx(admin.publicKey, 1))
-    await makeTxSignAndSend(
-      provider,
-      await whitelistSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver.publicKey, WhitelistStatus.Whitelisted)
-    )
+    // Initialize Controller and add Solver to allowlist
+    controllerSdk = new ControllerSDK(provider)
+    await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
+    await makeTxSignAndSend(provider, await controllerSdk.createEntityRegistryIx(EntityType.Solver, solver.publicKey))
   })
 
   beforeEach(() => {
@@ -128,8 +125,7 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(provider, ix)
 
         const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
-        expect(settings.whitelistProgram.toString()).to.be.eq(WhitelistIDL.address)
-        expect(settings.isPaused).to.be.false
+        expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
       })
 
       it('cannot call initialize again', async () => {
@@ -175,13 +171,12 @@ describe('Settler Program', () => {
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         expect(intent.op).to.deep.include({ transfer: {} })
         expect(intent.user.toString()).to.be.eq(user.toString())
-        expect(intent.intentCreator.toString()).to.be.eq(solver.publicKey.toString())
+        expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
         expect(Buffer.from(intent.nonce).toString('hex')).to.be.eq(nonce)
         expect(intent.deadline.toNumber()).to.be.eq(deadline)
         expect(intent.minValidations).to.be.eq(DEFAULT_MIN_VALIDATIONS)
-        expect(intent.validations).to.be.eq(0)
         expect(intent.isFinal).to.be.false
-        expect(Buffer.from(intent.intentData).toString('hex')).to.be.eq(DEFAULT_DATA_HEX)
+        expect(Buffer.from(intent.data).toString('hex')).to.be.eq(DEFAULT_DATA_HEX)
         expect(intent.maxFees.length).to.be.eq(1)
         expect(intent.maxFees[0].mint.toString()).to.be.eq(params.maxFees[0].mint.toString())
         expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
@@ -208,7 +203,7 @@ describe('Settler Program', () => {
 
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         expect(intent.op).to.deep.include({ swap: {} })
-        expect(Buffer.from(intent.intentData).toString('hex')).to.be.eq(EMPTY_DATA_HEX)
+        expect(Buffer.from(intent.data).toString('hex')).to.be.eq(EMPTY_DATA_HEX)
         expect(intent.isFinal).to.be.true
       })
 
@@ -268,7 +263,7 @@ describe('Settler Program', () => {
         expect(intent.isFinal).to.be.false
       })
 
-      it('cannot create intent if not whitelisted solver', async () => {
+      it('cannot create intent if not allowlisted solver', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
         const user = Keypair.generate().publicKey
@@ -471,7 +466,7 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ix)
 
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        expect(Buffer.from(intent.intentData).toString('hex')).to.be.eq('010203070809')
+        expect(Buffer.from(intent.data).toString('hex')).to.be.eq('010203070809')
         expect(intent.isFinal).to.be.false
       })
 
@@ -548,7 +543,7 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ix)
 
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        expect(Buffer.from(intent.intentData).toString('hex')).to.be.eq('0102030d0e0f')
+        expect(Buffer.from(intent.data).toString('hex')).to.be.eq('0102030d0e0f')
         expect(intent.maxFees.length).to.be.eq(2)
         expect(intent.maxFees[1].amount.toNumber()).to.be.eq(3000)
         expect(intent.events.length).to.be.eq(2)
@@ -592,11 +587,11 @@ describe('Settler Program', () => {
 
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const intentAcc = client.getAccount(intentKey)
-        expect(intent.intentData.length).to.be.eq(3 + 5000) // Keep literal for specific test case
+        expect(intent.data.length).to.be.eq(3 + 5000) // Keep literal for specific test case
         expect(intent.maxFees.length).to.be.eq(58)
         expect(intent.events.length).to.be.eq(51)
         expect(intent.isFinal).to.be.false
-        expect(intentAcc?.data.length).to.be.eq(19361)
+        expect(intentAcc?.data.length).to.be.eq(19359)
       })
 
       it('should finalize an intent', async () => {
@@ -622,7 +617,7 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ix)
 
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        expect(Buffer.from(intent.intentData).toString('hex')).to.be.eq('010203191a1b')
+        expect(Buffer.from(intent.data).toString('hex')).to.be.eq('010203191a1b')
         expect(intent.isFinal).to.be.true
       })
 
@@ -642,7 +637,7 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ix2)
 
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        expect(Buffer.from(intent.intentData).toString('hex')).to.be.eq('0102031c1d1e1f2021')
+        expect(Buffer.from(intent.data).toString('hex')).to.be.eq('0102031c1d1e1f2021')
         expect(intent.isFinal).to.be.false
       })
 
@@ -713,13 +708,13 @@ describe('Settler Program', () => {
         warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
 
         const intentBalanceBefore = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-        const intentCreatorBalanceBefore = Number(provider.client.getBalance(intentBefore.intentCreator)) || 0
+        const intentCreatorBalanceBefore = Number(provider.client.getBalance(intentBefore.creator)) || 0
 
         const ix = await solverSdk.claimStaleIntentIx(intentHash)
         await makeTxSignAndSend(solverProvider, ix)
 
         const intentBalanceAfter = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-        const intentCreatorBalanceAfter = Number(provider.client.getBalance(intentBefore.intentCreator)) || 0
+        const intentCreatorBalanceAfter = Number(provider.client.getBalance(intentBefore.creator)) || 0
 
         try {
           await program.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -833,7 +828,7 @@ describe('Settler Program', () => {
 
         const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
         expect(proposal.intent.toString()).to.be.eq(sdk.getIntentKey(intentHash).toString())
-        expect(proposal.proposalCreator.toString()).to.be.eq(solver.publicKey.toString())
+        expect(proposal.creator.toString()).to.be.eq(solver.publicKey.toString())
         expect(proposal.deadline.toNumber()).to.be.eq(deadline)
         expect(proposal.isFinal).to.be.true
         expect(proposal.instructions.length).to.be.eq(1)
@@ -1031,17 +1026,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         warpSeconds(provider, 101)
 
@@ -1105,17 +1091,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations to 1 (less than min_validations of 2)
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators to 1 (less than min_validations of 2)
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [
@@ -1269,17 +1246,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, true)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [
@@ -1333,17 +1301,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, true)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [
@@ -1396,17 +1355,8 @@ describe('Settler Program', () => {
         const ix = await solverSdk.createIntentIx(intentHash, params, true)
         await makeTxSignAndSend(solverProvider, ix)
 
-        // Set validations
-        const intentKey = sdk.getIntentKey(intentHash)
-        const intentAccount = client.getAccount(intentKey)
-        if (intentAccount) {
-          const intentData = Buffer.from(intentAccount.data)
-          intentData.writeUInt16LE(1, 147)
-          client.setAccount(intentKey, {
-            ...intentAccount,
-            data: intentData,
-          })
-        }
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
         const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
         const instructions = [
@@ -1554,8 +1504,7 @@ describe('Settler Program', () => {
 
       it('cannot add instructions if not proposal creator', async () => {
         const intentHash = await createTestProposal(false)
-        const proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash)))
-          .proposalCreator
+        const proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
 
         const moreInstructions = [
           {
@@ -1785,14 +1734,14 @@ describe('Settler Program', () => {
 
         const proposalBalanceBefore =
           Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
-        const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.proposalCreator)) || 0
+        const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.creator)) || 0
 
         const ix = await solverSdk.claimStaleProposalsIx([intentHash])
         await makeTxSignAndSend(solverProvider, ix)
 
         const proposalBalanceAfter =
           Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
-        const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.proposalCreator)) || 0
+        const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.creator)) || 0
 
         try {
           await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
@@ -1925,10 +1874,9 @@ describe('Settler Program', () => {
 
       before(async () => {
         whitelistedValidator = Keypair.generate()
-        const whitelistValidatorIx = await whitelistSdk.setEntityWhitelistStatusIx(
+        const whitelistValidatorIx = await controllerSdk.createEntityRegistryIx(
           EntityType.Validator,
           whitelistedValidator.publicKey,
-          WhitelistStatus.Whitelisted
         )
         await makeTxSignAndSend(provider, whitelistValidatorIx)
       })
@@ -1943,7 +1891,6 @@ describe('Settler Program', () => {
         const signature = await createValidatorSignature(intentHash, whitelistedValidator)
 
         const intentBefore = await program.account.intent.fetch(intentKey)
-        expect(intentBefore.validations).to.be.eq(0)
         expect(intentBefore.validators.length).to.be.eq(0)
 
         const ixs = await solverSdk.addValidatorSigIxs(
@@ -1955,7 +1902,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs)
 
         const intentAfter = await program.account.intent.fetch(intentKey)
-        expect(intentAfter.validations).to.be.eq(1)
         expect(intentAfter.validators.length).to.be.eq(1)
         expect(intentAfter.validators[0].toString()).to.be.eq(whitelistedValidator.publicKey.toString())
       })
@@ -1967,9 +1913,9 @@ describe('Settler Program', () => {
         })
         const intentKey = sdk.getIntentKey(intentHash)
 
-        const validator1 = await createWhitelistedEntity(whitelistSdk, provider, EntityType.Validator)
-        const validator2 = await createWhitelistedEntity(whitelistSdk, provider, EntityType.Validator)
-        const validator3 = await createWhitelistedEntity(whitelistSdk, provider, EntityType.Validator)
+        const validator1 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator2 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator3 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
 
         const signature1 = await createValidatorSignature(intentHash, validator1)
         const ixs1 = await solverSdk.addValidatorSigIxs(
@@ -1981,7 +1927,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs1)
 
         const intentAfter1 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter1.validations).to.be.eq(1)
         expect(intentAfter1.validators.length).to.be.eq(1)
 
         const signature2 = await createValidatorSignature(intentHash, validator2)
@@ -1994,7 +1939,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs2)
 
         const intentAfter2 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter2.validations).to.be.eq(2)
         expect(intentAfter2.validators.length).to.be.eq(2)
 
         const signature3 = await createValidatorSignature(intentHash, validator3)
@@ -2007,7 +1951,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs3)
 
         const intentAfter3 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter3.validations).to.be.eq(3)
         expect(intentAfter3.validators.length).to.be.eq(3)
         expect(intentAfter3.validators.map((v) => v.toString())).to.include(validator1.publicKey.toString())
         expect(intentAfter3.validators.map((v) => v.toString())).to.include(validator2.publicKey.toString())
@@ -2029,7 +1972,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs1)
 
         const intentAfter1 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter1.validations).to.be.eq(1)
         expect(intentAfter1.validators.length).to.be.eq(1)
 
         client.expireBlockhash()
@@ -2042,7 +1984,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs2)
 
         const intentAfter2 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter2.validations).to.be.eq(1)
         expect(intentAfter2.validators.length).to.be.eq(1)
       })
 
@@ -2053,8 +1994,8 @@ describe('Settler Program', () => {
         })
         const intentKey = sdk.getIntentKey(intentHash)
 
-        const validator1 = await createWhitelistedEntity(whitelistSdk, provider, EntityType.Validator)
-        const validator2 = await createWhitelistedEntity(whitelistSdk, provider, EntityType.Validator)
+        const validator1 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator2 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
 
         const signature1 = await createValidatorSignature(intentHash, validator1)
         const ixs1 = await solverSdk.addValidatorSigIxs(
@@ -2066,7 +2007,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs1)
 
         const intentAfter1 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter1.validations).to.be.eq(1)
         expect(intentAfter1.validators.length).to.be.eq(1)
         expect(intentAfter1.minValidations).to.be.eq(1)
 
@@ -2081,7 +2021,6 @@ describe('Settler Program', () => {
         await makeTxSignAndSend(solverProvider, ...ixs2)
 
         const intentAfter2 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter2.validations).to.be.eq(1)
         expect(intentAfter2.validators.length).to.be.eq(1)
         expect(intentAfter2.validators[0].toString()).to.be.eq(validator1.publicKey.toString())
       })
@@ -2331,10 +2270,9 @@ describe('Settler Program', () => {
 
       before(async () => {
         whitelistedAxia = Keypair.generate()
-        const whitelistAxiaIx = await whitelistSdk.setEntityWhitelistStatusIx(
+        const whitelistAxiaIx = await controllerSdk.createEntityRegistryIx(
           EntityType.Axia,
           whitelistedAxia.publicKey,
-          WhitelistStatus.Whitelisted
         )
         await makeTxSignAndSend(provider, whitelistAxiaIx)
       })
@@ -2552,7 +2490,7 @@ describe('Settler Program', () => {
       it('cannot add signature with signature from different axia', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
 
-        const axia2 = await createWhitelistedEntity(whitelistSdk, provider, EntityType.Axia)
+        const axia2 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Axia)
         const signature = await createAxiaSignature(proposalKey, axia2)
 
         // Try to use axia2's signature but claim it's from whitelistedAxia
@@ -2567,7 +2505,7 @@ describe('Settler Program', () => {
       it('cannot add signature with signature from validator instead of axia', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
 
-        const validator = await createWhitelistedEntity(whitelistSdk, provider, EntityType.Validator)
+        const validator = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
         const signature = await createAxiaSignature(proposalKey, validator)
 
         const ixs = await solverSdk.addAxiaSigIxs(proposalKey, validator.publicKey, signature)

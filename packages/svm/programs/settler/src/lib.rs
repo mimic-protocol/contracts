@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 declare_id!("HbNt35Ng8aM4NUy39evpCQqXEC4Nmaq16ewY8dyNF6NF");
-declare_program!(whitelist);
+declare_program!(controller);
 
 pub mod constants;
 pub mod errors;
@@ -100,9 +100,5 @@ pub mod settler {
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         instructions::initialize(ctx)
-    }
-
-    pub fn set_paused_state(ctx: Context<SetPausedState>, is_paused: bool) -> Result<()> {
-        instructions::set_paused_state(ctx, is_paused)
     }
 }

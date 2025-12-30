@@ -9,15 +9,14 @@ use crate::{
 pub struct Intent {
     pub op: OpType,
     pub user: Pubkey,
-    pub intent_creator: Pubkey,
-    pub intent_hash: [u8; 32],
+    pub creator: Pubkey,
+    pub hash: [u8; 32],
     pub nonce: [u8; 32],
     pub deadline: u64,
     pub min_validations: u16,
-    pub validations: u16,
     pub is_final: bool,
     pub validators: Vec<Pubkey>, // TODO: how to store more efficiently?
-    pub intent_data: Vec<u8>,
+    pub data: Vec<u8>,
     pub max_fees: Vec<TokenFee>,
     pub events: Vec<IntentEvent>,
     pub bump: u8,
@@ -28,12 +27,11 @@ impl Intent {
     pub const BASE_LEN: usize =
         1 + // op
         32 + // user
-        32 + // intent_creator
-        32 + // intent_hash
+        32 + // creator
+        32 + // hash
         32 + // nonce
         8 + // deadline
         2 + // min_validations
-        2 + // validations
         1 + // is_final
         1 // bump
     ;
