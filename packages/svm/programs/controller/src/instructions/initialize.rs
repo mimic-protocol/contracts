@@ -1,11 +1,7 @@
 use anchor_lang::prelude::*;
 use std::str::FromStr;
 
-use crate::{
-    constants::DEPLOYER_KEY,
-    errors::WhitelistError,
-    state::GlobalSettings,
-};
+use crate::{constants::DEPLOYER_KEY, errors::ControllerError, state::GlobalSettings};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -24,14 +20,11 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn initialize(
-    ctx: Context<Initialize>,
-    admin: Pubkey,
-) -> Result<()> {
+pub fn initialize(ctx: Context<Initialize>, admin: Pubkey) -> Result<()> {
     require_keys_eq!(
         ctx.accounts.deployer.key(),
         Pubkey::from_str(DEPLOYER_KEY).unwrap(),
-        WhitelistError::OnlyDeployer,
+        ControllerError::OnlyDeployer,
     );
 
     let global_settings = &mut ctx.accounts.global_settings;

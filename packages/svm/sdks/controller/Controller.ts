@@ -1,7 +1,7 @@
 import { IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
 
-import * as WhitelistIDL from '../../target/idl/whitelist.json'
-import { Whitelist } from '../../target/types/whitelist'
+import * as ControllerIDL from '../../target/idl/controller.json'
+import { Controller } from '../../target/types/controller'
 
 export enum EntityType {
   // eslint-disable-next-line no-unused-vars
@@ -12,18 +12,18 @@ export enum EntityType {
   Solver = 3,
 }
 
-export enum WhitelistStatus {
+export enum AllowlistStatus {
   // eslint-disable-next-line no-unused-vars
-  Whitelisted = 1,
+  Allowed = 1,
   // eslint-disable-next-line no-unused-vars
-  Blacklisted = 2,
+  Disallowed = 2,
 }
 
-export default class WhitelistSDK {
-  protected program: Program<Whitelist>
+export default class ControllerSDK {
+  protected program: Program<Controller>
 
   constructor(provider: Provider) {
-    this.program = new Program(WhitelistIDL, provider)
+    this.program = new Program(ControllerIDL, provider)
   }
 
   async initializeIx(admin: web3.PublicKey): Promise<web3.TransactionInstruction> {
@@ -50,18 +50,18 @@ export default class WhitelistSDK {
     return ix
   }
 
-  async setEntityWhitelistStatusIx(
+  async setEntityAllowlistStatusIx(
     entityType: EntityType,
     entityPubkey: web3.PublicKey,
-    status: WhitelistStatus
+    status: AllowlistStatus
   ): Promise<web3.TransactionInstruction> {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .setEntityWhitelistStatus(
+      .setEntityAllowlistStatus(
         this.entityTypeToAnchorEnum(entityType),
         entityPubkey,
-        this.whitelistStatusToAnchorEnum(status)
+        this.allowlistStatusToAnchorEnum(status)
       )
       .accountsPartial({
         admin: this.getSignerKey(),
@@ -88,7 +88,7 @@ export default class WhitelistSDK {
     )[0]
   }
 
-  entityTypeToAnchorEnum(entityType: EntityType): IdlTypes<Whitelist>['entityType'] {
+  entityTypeToAnchorEnum(entityType: EntityType): IdlTypes<Controller>['entityType'] {
     if (entityType === EntityType.Validator) return { validator: {} }
     if (entityType === EntityType.Axia) return { axia: {} }
     if (entityType === EntityType.Solver) return { solver: {} }
@@ -96,10 +96,10 @@ export default class WhitelistSDK {
     throw new Error(`Unsupported entity type ${entityType}`)
   }
 
-  whitelistStatusToAnchorEnum(status: WhitelistStatus): IdlTypes<Whitelist>['whitelistStatus'] {
-    if (status === WhitelistStatus.Whitelisted) return { whitelisted: {} }
-    if (status === WhitelistStatus.Blacklisted) return { blacklisted: {} }
+  allowlistStatusToAnchorEnum(status: AllowlistStatus): IdlTypes<Controller>['allowlistStatus'] {
+    if (status === AllowlistStatus.Allowed) return { allowed: {} }
+    if (status === AllowlistStatus.Disallowed) return { disallowed: {} }
 
-    throw new Error(`Unsupported whitelist status ${status}`)
+    throw new Error(`Unsupported allowlist status ${status}`)
   }
 }

@@ -1,12 +1,12 @@
 use anchor_lang::prelude::*;
 
-use crate::types::{EntityType, WhitelistStatus};
+use crate::types::{AllowlistStatus, EntityType};
 
 #[account]
 #[derive(InitSpace)]
 pub struct EntityRegistry {
     pub entity_type: EntityType,
     pub entity_pubkey: Pubkey,
-    pub status: WhitelistStatus,
+    pub status: AllowlistStatus,
     pub bump: u8,
 }

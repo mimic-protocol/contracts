@@ -2,11 +2,11 @@ use anchor_lang::prelude::*;
 
 #[repr(u8)]
 #[derive(Copy, Clone, AnchorSerialize, AnchorDeserialize)]
-pub enum WhitelistStatus {
-    Whitelisted = 1,
-    Blacklisted = 2,
+pub enum AllowlistStatus {
+    Allowed = 1,
+    Disallowed = 2,
 }
 
-impl anchor_lang::Space for WhitelistStatus {
+impl anchor_lang::Space for AllowlistStatus {
     const INIT_SPACE: usize = 1;
 }

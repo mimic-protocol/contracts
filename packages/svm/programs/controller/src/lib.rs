@@ -11,29 +11,23 @@ pub mod types;
 use crate::{instructions::*, types::*};
 
 #[program]
-pub mod whitelist {
+pub mod controller {
     use super::*;
 
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        admin: Pubkey,
-    ) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>, admin: Pubkey) -> Result<()> {
         instructions::initialize(ctx, admin)
     }
 
-    pub fn set_admin(
-        ctx: Context<SetAdmin>,
-        new_admin: Pubkey,
-    ) -> Result<()> {
+    pub fn set_admin(ctx: Context<SetAdmin>, new_admin: Pubkey) -> Result<()> {
         instructions::set_admin(ctx, new_admin)
     }
 
-    pub fn set_entity_whitelist_status(
-        ctx: Context<SetEntityWhitelistStatus>,
+    pub fn set_entity_allowlist_status(
+        ctx: Context<SetEntityAllowlistStatus>,
         entity_type: EntityType,
         entity_pubkey: Pubkey,
-        status: WhitelistStatus,
+        status: AllowlistStatus,
     ) -> Result<()> {
-        instructions::set_entity_whitelist_status(ctx, entity_type, entity_pubkey, status)
+        instructions::set_entity_allowlist_status(ctx, entity_type, entity_pubkey, status)
     }
 }

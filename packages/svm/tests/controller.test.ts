@@ -9,13 +9,13 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import WhitelistSDK, { EntityType, WhitelistStatus } from '../sdks/whitelist/Whitelist'
-import * as WhitelistIDL from '../target/idl/whitelist.json'
-import { Whitelist } from '../target/types/whitelist'
+import ControllerSDK, { AllowlistStatus, EntityType } from '../sdks/controller/Controller'
+import * as ControllerIDL from '../target/idl/controller.json'
+import { Controller } from '../target/types/controller'
 import { expectTransactionError } from './helpers/settler-helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
-describe('Whitelist Program', () => {
+describe('Controller Program', () => {
   let client: LiteSVM
 
   let deployer: web3.Keypair
@@ -28,12 +28,12 @@ describe('Whitelist Program', () => {
   let otherAdminProvider: LiteSVMProvider
   let maliciousProvider: LiteSVMProvider
 
-  let program: Program<Whitelist>
+  let program: Program<Controller>
 
-  let deployerSdk: WhitelistSDK
-  let adminSdk: WhitelistSDK
-  let otherAdminSdk: WhitelistSDK
-  let maliciousSdk: WhitelistSDK
+  let deployerSdk: ControllerSDK
+  let adminSdk: ControllerSDK
+  let otherAdminSdk: ControllerSDK
+  let maliciousSdk: ControllerSDK
 
   before(async () => {
     deployer = web3.Keypair.fromSecretKey(
@@ -50,12 +50,12 @@ describe('Whitelist Program', () => {
     otherAdminProvider = new LiteSVMProvider(client, new Wallet(otherAdmin))
     maliciousProvider = new LiteSVMProvider(client, new Wallet(malicious))
 
-    program = new Program<Whitelist>(WhitelistIDL as any, deployerProvider)
+    program = new Program<Controller>(ControllerIDL as any, deployerProvider)
 
-    deployerSdk = new WhitelistSDK(deployerProvider)
-    adminSdk = new WhitelistSDK(adminProvider)
-    otherAdminSdk = new WhitelistSDK(otherAdminProvider)
-    maliciousSdk = new WhitelistSDK(maliciousProvider)
+    deployerSdk = new ControllerSDK(deployerProvider)
+    adminSdk = new ControllerSDK(adminProvider)
+    otherAdminSdk = new ControllerSDK(otherAdminProvider)
+    maliciousSdk = new ControllerSDK(maliciousProvider)
 
     deployerProvider.client.airdrop(deployer.publicKey, BigInt(100_000_000_000))
     deployerProvider.client.airdrop(admin.publicKey, BigInt(100_000_000_000))
@@ -70,7 +70,7 @@ describe('Whitelist Program', () => {
     client.expireBlockhash()
   })
 
-  describe('Whitelist', () => {
+  describe('Controller', () => {
     describe('initialize', () => {
       it('cannot initialize if not deployer', async () => {
         const newAdmin = web3.Keypair.generate().publicKey
@@ -120,7 +120,7 @@ describe('Whitelist Program', () => {
       })
     })
 
-    describe('set_entity_whitelist_status', () => {
+    describe('set_entity_allowlist_status', () => {
       let validator: web3.PublicKey
       let axia: web3.PublicKey
       let solver: web3.PublicKey
@@ -138,60 +138,53 @@ describe('Whitelist Program', () => {
       })
 
       it('cannot set status if not admin', async () => {
-        const ix = await maliciousSdk.setEntityWhitelistStatusIx(
+        const ix = await maliciousSdk.setEntityAllowlistStatusIx(
           EntityType.Validator,
           validator,
-          WhitelistStatus.Whitelisted
+          AllowlistStatus.Allowed
         )
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only admin can call this instruction')
       })
 
-      it('should set whitelist status successfully (validator)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
-          EntityType.Validator,
-          validator,
-          WhitelistStatus.Whitelisted
-        )
+      it('should set allowlist status successfully (validator)', async () => {
+        const ix = await adminSdk.setEntityAllowlistStatusIx(EntityType.Validator, validator, AllowlistStatus.Allowed)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           adminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should set whitelist status successfully (axia)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Whitelisted)
+      it('should set allowlist status successfully (axia)', async () => {
+        const ix = await adminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia, AllowlistStatus.Allowed)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should set whitelist status successfully (solver)', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver, WhitelistStatus.Whitelisted)
+      it('should set allowlist status successfully (solver)', async () => {
+        const ix = await adminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver, AllowlistStatus.Allowed)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           adminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
       it('should change admin for next tests', async () => {
@@ -202,111 +195,97 @@ describe('Whitelist Program', () => {
         expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
-      it('should update status correctly (whitelist to blacklist transition) (validator)', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
+      it('should update status correctly (allowlist to blacklist transition) (validator)', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(
           EntityType.Validator,
           validator,
-          WhitelistStatus.Blacklisted
+          AllowlistStatus.Disallowed
         )
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-        expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
+        expect(entityRegistry.status).to.deep.include({ disallowed: {} })
       })
 
-      it('should update status correctly (whitelist to blacklist transition) (axia)', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Blacklisted)
+      it('should update status correctly (allowlist to blacklist transition) (axia)', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia, AllowlistStatus.Disallowed)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-        expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
+        expect(entityRegistry.status).to.deep.include({ disallowed: {} })
       })
 
-      it('should update status correctly (whitelist to blacklist transition) (solver)', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
-          EntityType.Solver,
-          solver,
-          WhitelistStatus.Blacklisted
-        )
+      it('should update status correctly (allowlist to blacklist transition) (solver)', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver, AllowlistStatus.Disallowed)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-        expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
+        expect(entityRegistry.status).to.deep.include({ disallowed: {} })
       })
 
-      it('should update status correctly (blacklist to whitelist transition) (validator)', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
+      it('should update status correctly (blacklist to allowlist transition) (validator)', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(
           EntityType.Validator,
           validator,
-          WhitelistStatus.Whitelisted
+          AllowlistStatus.Allowed
         )
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should update status correctly (blacklist to whitelist transition) (axia)', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Whitelisted)
+      it('should update status correctly (blacklist to allowlist transition) (axia)', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia, AllowlistStatus.Allowed)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should update status correctly (blacklist to whitelist transition) (solver)', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
-          EntityType.Solver,
-          solver,
-          WhitelistStatus.Whitelisted
-        )
+      it('should update status correctly (blacklist to allowlist transition) (solver)', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver, AllowlistStatus.Allowed)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
           otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
         )
-        const now = Number(client.getClock().unixTimestamp)
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should whitelist another validator', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
+      it('should allowlist another validator', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(
           EntityType.Validator,
           validator2,
-          WhitelistStatus.Whitelisted
+          AllowlistStatus.Allowed
         )
         await makeTxSignAndSend(otherAdminProvider, ix)
 
@@ -315,11 +294,11 @@ describe('Whitelist Program', () => {
         )
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should whitelist another axia', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia2, WhitelistStatus.Whitelisted)
+      it('should allowlist another axia', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Axia, axia2, AllowlistStatus.Allowed)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -327,11 +306,11 @@ describe('Whitelist Program', () => {
         )
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
-      it('should whitelist another solver', async () => {
-        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver2, WhitelistStatus.Whitelisted)
+      it('should allowlist another solver', async () => {
+        const ix = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Solver, solver2, AllowlistStatus.Allowed)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -339,11 +318,11 @@ describe('Whitelist Program', () => {
         )
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
-        expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(entityRegistry.status).to.deep.include({ allowed: {} })
       })
 
       it('should create separate accounts for same pubkey with different entity types', async () => {
-        const ix1 = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Validator, axia, WhitelistStatus.Whitelisted)
+        const ix1 = await otherAdminSdk.setEntityAllowlistStatusIx(EntityType.Validator, axia, AllowlistStatus.Allowed)
         await makeTxSignAndSend(otherAdminProvider, ix1)
 
         const validatorRegistry = await program.account.entityRegistry.fetch(
@@ -354,9 +333,9 @@ describe('Whitelist Program', () => {
         )
 
         expect(validatorRegistry.entityType).to.deep.include({ validator: {} })
-        expect(validatorRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(validatorRegistry.status).to.deep.include({ allowed: {} })
         expect(axiaRegistry.entityType).to.deep.include({ axia: {} })
-        expect(axiaRegistry.status).to.deep.include({ whitelisted: {} })
+        expect(axiaRegistry.status).to.deep.include({ allowed: {} })
 
         const validatorPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
         const axiaPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)

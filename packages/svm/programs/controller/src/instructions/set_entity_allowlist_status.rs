@@ -1,14 +1,14 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    errors::WhitelistError,
+    errors::ControllerError,
     state::{EntityRegistry, GlobalSettings},
-    types::{EntityType, WhitelistStatus},
+    types::{AllowlistStatus, EntityType},
 };
 
 #[derive(Accounts)]
 #[instruction(entity_type: EntityType, entity_pubkey: Pubkey)]
-pub struct SetEntityWhitelistStatus<'info> {
+pub struct SetEntityAllowlistStatus<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
@@ -24,18 +24,18 @@ pub struct SetEntityWhitelistStatus<'info> {
     #[account(
         seeds = [b"global-settings"],
         bump = global_settings.bump,
-        has_one = admin @ WhitelistError::OnlyAdmin
+        has_one = admin @ ControllerError::OnlyAdmin
     )]
     pub global_settings: Box<Account<'info, GlobalSettings>>,
 
     pub system_program: Program<'info, System>,
 }
 
-pub fn set_entity_whitelist_status(
-    ctx: Context<SetEntityWhitelistStatus>,
+pub fn set_entity_allowlist_status(
+    ctx: Context<SetEntityAllowlistStatus>,
     entity_type: EntityType,
     entity_pubkey: Pubkey,
-    status: WhitelistStatus,
+    status: AllowlistStatus,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp as u64;
     let entity_registry = &mut ctx.accounts.entity_registry;
@@ -47,7 +47,7 @@ pub fn set_entity_whitelist_status(
     }
     entity_registry.status = status;
 
-    emit!(SetEntityWhitelistStatusEvent {
+    emit!(SetEntityAllowlistStatusEvent {
         entity_type,
         entity_pubkey,
         status,
@@ -58,9 +58,9 @@ pub fn set_entity_whitelist_status(
 }
 
 #[event]
-pub struct SetEntityWhitelistStatusEvent {
+pub struct SetEntityAllowlistStatusEvent {
     pub entity_type: EntityType,
     pub entity_pubkey: Pubkey,
-    pub status: WhitelistStatus,
+    pub status: AllowlistStatus,
     pub timestamp: u64,
 }

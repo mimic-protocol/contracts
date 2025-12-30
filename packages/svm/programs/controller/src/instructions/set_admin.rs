@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{errors::WhitelistError, state::GlobalSettings};
+use crate::{errors::ControllerError, state::GlobalSettings};
 
 #[derive(Accounts)]
 pub struct SetAdmin<'info> {
@@ -11,7 +11,7 @@ pub struct SetAdmin<'info> {
         mut,
         seeds = [b"global-settings"],
         bump = global_settings.bump,
-        has_one = admin @ WhitelistError::OnlyAdmin
+        has_one = admin @ ControllerError::OnlyAdmin
     )]
     pub global_settings: Box<Account<'info, GlobalSettings>>,
 }
