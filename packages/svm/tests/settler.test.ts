@@ -47,9 +47,10 @@ import {
   WARP_TIME_SHORT,
 } from './helpers/constants'
 import {
+  addValidatorsToIntent,
+  createAllowlistedEntity,
   createAxiaSignature,
   createFinalizedProposal,
-  addValidatorsToIntent,
   createTestIntent,
   createValidatedIntent,
   createValidatorSignature,
@@ -1876,7 +1877,7 @@ describe('Settler Program', () => {
         whitelistedValidator = Keypair.generate()
         const whitelistValidatorIx = await controllerSdk.createEntityRegistryIx(
           EntityType.Validator,
-          whitelistedValidator.publicKey,
+          whitelistedValidator.publicKey
         )
         await makeTxSignAndSend(provider, whitelistValidatorIx)
       })
@@ -1913,9 +1914,9 @@ describe('Settler Program', () => {
         })
         const intentKey = sdk.getIntentKey(intentHash)
 
-        const validator1 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
-        const validator2 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
-        const validator3 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator1 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator2 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator3 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
 
         const signature1 = await createValidatorSignature(intentHash, validator1)
         const ixs1 = await solverSdk.addValidatorSigIxs(
@@ -1994,8 +1995,8 @@ describe('Settler Program', () => {
         })
         const intentKey = sdk.getIntentKey(intentHash)
 
-        const validator1 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
-        const validator2 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator1 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator2 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
 
         const signature1 = await createValidatorSignature(intentHash, validator1)
         const ixs1 = await solverSdk.addValidatorSigIxs(
@@ -2270,10 +2271,7 @@ describe('Settler Program', () => {
 
       before(async () => {
         whitelistedAxia = Keypair.generate()
-        const whitelistAxiaIx = await controllerSdk.createEntityRegistryIx(
-          EntityType.Axia,
-          whitelistedAxia.publicKey,
-        )
+        const whitelistAxiaIx = await controllerSdk.createEntityRegistryIx(EntityType.Axia, whitelistedAxia.publicKey)
         await makeTxSignAndSend(provider, whitelistAxiaIx)
       })
 
@@ -2490,7 +2488,7 @@ describe('Settler Program', () => {
       it('cannot add signature with signature from different axia', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
 
-        const axia2 = await createWhitelistedEntity(controllerSdk, provider, EntityType.Axia)
+        const axia2 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Axia)
         const signature = await createAxiaSignature(proposalKey, axia2)
 
         // Try to use axia2's signature but claim it's from whitelistedAxia
@@ -2505,7 +2503,7 @@ describe('Settler Program', () => {
       it('cannot add signature with signature from validator instead of axia', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
 
-        const validator = await createWhitelistedEntity(controllerSdk, provider, EntityType.Validator)
+        const validator = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
         const signature = await createAxiaSignature(proposalKey, validator)
 
         const ixs = await solverSdk.addAxiaSigIxs(proposalKey, validator.publicKey, signature)

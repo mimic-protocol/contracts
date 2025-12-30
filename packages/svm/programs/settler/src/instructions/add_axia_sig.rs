@@ -4,13 +4,10 @@ use anchor_lang::{
 };
 
 use crate::{
+    controller::{accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Proposal,
     utils::{check_ed25519_ix, get_args_from_ed25519_ix_data, Ed25519Args},
-    whitelist::{
-        accounts::EntityRegistry,
-        types::{EntityType, WhitelistStatus},
-    },
 };
 
 #[derive(Accounts)]
@@ -21,18 +18,14 @@ pub struct AddAxiaSig<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::whitelist::ID,
-        constraint =
-            solver_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::OnlySolver
+        seeds::program = crate::controller::ID,
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
     #[account(
         seeds = [b"entity-registry", &[EntityType::Axia as u8 + 1], axia_registry.entity_pubkey.as_ref()],
         bump = axia_registry.bump,
-        seeds::program = crate::whitelist::ID,
-        constraint =
-            axia_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::AxiaNotWhitelisted
+        seeds::program = crate::controller::ID,
     )]
     pub axia_registry: Box<Account<'info, EntityRegistry>>,
 
@@ -74,7 +67,7 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     // Verify pubkey is whitelisted Axia
     require!(
         ed25519_ix_args.pubkey == &ctx.accounts.axia_registry.entity_pubkey.to_bytes(),
-        SettlerError::AxiaNotWhitelisted
+        SettlerError::AxiaNotAllowlisted
     );
 
     // Updates proposal as signed

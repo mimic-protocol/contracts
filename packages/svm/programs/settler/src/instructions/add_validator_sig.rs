@@ -4,13 +4,10 @@ use anchor_lang::{
 };
 
 use crate::{
+    controller::{accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Intent,
     utils::{check_ed25519_ix, get_args_from_ed25519_ix_data, Ed25519Args},
-    whitelist::{
-        accounts::EntityRegistry,
-        types::{EntityType, WhitelistStatus},
-    },
 };
 
 #[derive(Accounts)]
@@ -21,9 +18,7 @@ pub struct AddValidatorSig<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::whitelist::ID,
-        constraint =
-            solver_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::OnlySolver
+        seeds::program = crate::controller::ID,
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
@@ -36,17 +31,13 @@ pub struct AddValidatorSig<'info> {
     pub intent: Box<Account<'info, Intent>>,
 
     #[account(
-        seeds = [b"fulfilled-intent", intent.intent_hash.as_ref()],
+        seeds = [b"fulfilled-intent", intent.hash.as_ref()],
         bump
     )]
     /// This PDA must be uninitialized
     pub fulfilled_intent: SystemAccount<'info>,
 
     /// CHECK: other checks in ix body
-    #[account(
-        constraint =
-            validator_registry.status as u8 == WhitelistStatus::Whitelisted as u8 @ SettlerError::ValidatorNotWhitelisted
-    )]
     pub validator_registry: Box<Account<'info, EntityRegistry>>,
 
     /// CHECK: The address check is needed because otherwise
@@ -67,7 +58,7 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
 
     // Verify correct message was signed
     require!(
-        ed25519_ix_args.msg == intent.intent_hash,
+        ed25519_ix_args.msg == intent.hash,
         SettlerError::SigVerificationFailed
     );
 
@@ -81,10 +72,10 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
                 ed25519_ix_args.pubkey,
                 &[ctx.accounts.validator_registry.bump]
             ],
-            &crate::whitelist::ID,
+            &crate::controller::ID,
         )
-        .map_err(|_| SettlerError::ValidatorNotWhitelisted)?,
-        SettlerError::ValidatorNotWhitelisted,
+        .map_err(|_| SettlerError::ValidatorNotAllowlisted)?,
+        SettlerError::ValidatorNotAllowlisted,
     );
 
     // Updates intent PDA if signature not present and min_validations not met
@@ -98,11 +89,6 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     if intent.validators.contains(&ed25519_pubkey) {
         return Ok(());
     }
-
-    intent.validations = intent
-        .validations
-        .checked_add(1)
-        .ok_or(SettlerError::MathError)?;
 
     intent.validators.push(ed25519_pubkey);
 
