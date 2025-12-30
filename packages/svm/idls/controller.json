@@ -269,6 +269,19 @@
   ],
   "accounts": [
     {
+      "name": "ControllerSettings",
+      "discriminator": [
+        15,
+        70,
+        199,
+        238,
+        59,
+        33,
+        179,
+        47
+      ]
+    },
+    {
       "name": "EntityRegistry",
       "discriminator": [
         206,
@@ -279,19 +292,6 @@
         162,
         158,
         163
-      ]
-    },
-    {
-      "name": "GlobalSettings",
-      "discriminator": [
-        109,
-        67,
-        50,
-        55,
-        2,
-        20,
-        148,
-        62
       ]
     }
   ],
@@ -361,6 +361,22 @@
       }
     },
     {
+      "name": "ControllerSettings",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "EntityRegistry",
       "type": {
         "kind": "struct",
@@ -400,22 +416,6 @@
           },
           {
             "name": "Solver"
-          }
-        ]
-      }
-    },
-    {
-      "name": "GlobalSettings",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
           }
         ]
       }

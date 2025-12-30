@@ -65,14 +65,13 @@ pub fn create_intent(
 
     intent.op = op;
     intent.user = user;
-    intent.intent_creator = ctx.accounts.solver.key();
-    intent.intent_hash = intent_hash;
+    intent.creator = ctx.accounts.solver.key();
+    intent.hash = intent_hash;
     intent.nonce = nonce;
     intent.deadline = deadline;
     intent.min_validations = min_validations;
-    intent.validations = 0;
     intent.is_final = is_final;
-    intent.intent_data = data;
+    intent.data = data;
     intent.max_fees = max_fees;
     intent.events = events;
     intent.validators = vec![];

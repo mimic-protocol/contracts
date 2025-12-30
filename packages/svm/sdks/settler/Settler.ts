@@ -77,7 +77,7 @@ export default class SettlerSDK {
     const ix = await this.program.methods
       .extendIntent(moreData, moreMaxFeesBn, moreEvents, finalize)
       .accountsPartial({
-        intentCreator: this.getSignerKey(),
+        creator: this.getSignerKey(),
         intent: this.getIntentKey(intentHashHex),
       })
       .instruction()
@@ -89,7 +89,7 @@ export default class SettlerSDK {
     const ix = await this.program.methods
       .claimStaleIntent()
       .accountsPartial({
-        intentCreator: this.getSignerKey(),
+        creator: this.getSignerKey(),
         intent: this.getIntentKey(intentHashHex),
       })
       .instruction()

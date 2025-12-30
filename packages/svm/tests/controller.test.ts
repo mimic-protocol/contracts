@@ -85,7 +85,7 @@ describe('Controller Program', () => {
         const ix = await deployerSdk.initializeIx(admin.publicKey)
         await makeTxSignAndSend(deployerProvider, ix)
 
-        const settings = await program.account.globalSettings.fetch(deployerSdk.getGlobalSettingsPubkey())
+        const settings = await program.account.controllerSettings.fetch(deployerSdk.getControllerSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(admin.publicKey.toString())
       })
 
@@ -111,7 +111,7 @@ describe('Controller Program', () => {
         const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
 
-        const settings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
+        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
 
         // Reset admin to original for subsequent tests
@@ -184,7 +184,7 @@ describe('Controller Program', () => {
         const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
 
-        const settings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
+        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 

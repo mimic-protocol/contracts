@@ -10,14 +10,13 @@ export type IntentEvent = {
   dataHex: string
 }
 
-export enum OpType {
-  // eslint-disable-next-line no-unused-vars
-  Transfer = 1,
-  // eslint-disable-next-line no-unused-vars
-  Swap = 2,
-  // eslint-disable-next-line no-unused-vars
-  Call = 3,
-}
+export const OpType = {
+  Transfer: 0,
+  Swap: 1,
+  Call: 2,
+} as const
+
+export type OpType = (typeof OpType)[keyof typeof OpType]
 
 export type CreateIntentParams = {
   op: OpType

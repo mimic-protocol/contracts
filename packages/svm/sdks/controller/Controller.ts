@@ -19,24 +19,24 @@ export default class ControllerSDK {
   }
 
   async initializeIx(admin: web3.PublicKey): Promise<web3.TransactionInstruction> {
-    const globalSettings = this.getGlobalSettingsPubkey()
+    const controllerSettings = this.getControllerSettingsPubkey()
     const ix = await this.program.methods
       .initialize(admin)
       .accountsPartial({
         deployer: this.getSignerKey(),
-        globalSettings,
+        controllerSettings,
       })
       .instruction()
     return ix
   }
 
   async setAdmin(newAdmin: web3.PublicKey): Promise<web3.TransactionInstruction> {
-    const globalSettings = this.getGlobalSettingsPubkey()
+    const controllerSettings = this.getControllerSettingsPubkey()
     const ix = await this.program.methods
       .setAdmin(newAdmin)
       .accountsPartial({
         admin: this.getSignerKey(),
-        globalSettings,
+        controllerSettings,
       })
       .instruction()
     return ix
@@ -47,13 +47,13 @@ export default class ControllerSDK {
     entityPubkey: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
-    const globalSettings = this.getGlobalSettingsPubkey()
+    const controllerSettings = this.getControllerSettingsPubkey()
     const ix = await this.program.methods
       .createEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
-        globalSettings,
+        controllerSettings,
       })
       .instruction()
     return ix
@@ -64,13 +64,13 @@ export default class ControllerSDK {
     entityPubkey: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
-    const globalSettings = this.getGlobalSettingsPubkey()
+    const controllerSettings = this.getControllerSettingsPubkey()
     const ix = await this.program.methods
       .closeEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
-        globalSettings,
+        controllerSettings,
       })
       .instruction()
     return ix
@@ -81,8 +81,8 @@ export default class ControllerSDK {
     return this.program.provider.wallet?.publicKey
   }
 
-  getGlobalSettingsPubkey(): web3.PublicKey {
-    return web3.PublicKey.findProgramAddressSync([Buffer.from('global-settings')], this.program.programId)[0]
+  getControllerSettingsPubkey(): web3.PublicKey {
+    return web3.PublicKey.findProgramAddressSync([Buffer.from('controller-settings')], this.program.programId)[0]
   }
 
   getEntityRegistryPubkey(entityType: EntityType, entityPubkey: web3.PublicKey): web3.PublicKey {
