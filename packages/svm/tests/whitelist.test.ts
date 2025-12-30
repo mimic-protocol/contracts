@@ -164,8 +164,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(admin.publicKey.toString())
       })
 
       it('should set whitelist status successfully (axia)', async () => {
@@ -180,8 +178,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(admin.publicKey.toString())
       })
 
       it('should set whitelist status successfully (solver)', async () => {
@@ -196,8 +192,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(admin.publicKey.toString())
       })
 
       it('should change admin for next tests', async () => {
@@ -224,8 +218,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
         expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (whitelist to blacklist transition) (axia)', async () => {
@@ -240,8 +232,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
         expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (whitelist to blacklist transition) (solver)', async () => {
@@ -260,8 +250,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
         expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (blacklist to whitelist transition) (validator)', async () => {
@@ -280,8 +268,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (blacklist to whitelist transition) (axia)', async () => {
@@ -296,8 +282,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (blacklist to whitelist transition) (solver)', async () => {
@@ -316,8 +300,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should whitelist another validator', async () => {
@@ -334,8 +316,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.greaterThan(0)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should whitelist another axia', async () => {
@@ -348,8 +328,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.greaterThan(0)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should whitelist another solver', async () => {
@@ -362,8 +340,6 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
-        expect(entityRegistry.lastUpdate.toNumber()).to.be.greaterThan(0)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should create separate accounts for same pubkey with different entity types', async () => {

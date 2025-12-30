@@ -40,21 +40,18 @@ pub fn set_entity_whitelist_status(
     let now = Clock::get()?.unix_timestamp as u64;
     let entity_registry = &mut ctx.accounts.entity_registry;
 
-    if entity_registry.last_update == 0 {
+    if entity_registry.bump == 0 {
         entity_registry.entity_type = entity_type;
         entity_registry.entity_pubkey = entity_pubkey;
         entity_registry.bump = ctx.bumps.entity_registry;
     }
     entity_registry.status = status;
-    entity_registry.last_update = now;
-    entity_registry.updated_by = ctx.accounts.admin.key();
 
     emit!(SetEntityWhitelistStatusEvent {
         entity_type,
         entity_pubkey,
         status,
         timestamp: now,
-        updated_by: entity_registry.updated_by,
     });
 
     Ok(())
@@ -66,5 +63,4 @@ pub struct SetEntityWhitelistStatusEvent {
     pub entity_pubkey: Pubkey,
     pub status: WhitelistStatus,
     pub timestamp: u64,
-    pub updated_by: Pubkey,
 }
