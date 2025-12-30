@@ -1,13 +1,10 @@
 use anchor_lang::prelude::*;
 
 use crate::{
+    controller::{accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::{Intent, Proposal, ProposalInstruction},
     types::TokenFee,
-    controller::{
-        accounts::EntityRegistry,
-        types::EntityType,
-    },
 };
 
 #[derive(Accounts)]
