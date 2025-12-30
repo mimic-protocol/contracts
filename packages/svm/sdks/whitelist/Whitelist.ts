@@ -1,4 +1,4 @@
-import { BN, IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
+import { IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
 
 import * as WhitelistIDL from '../../target/idl/whitelist.json'
 import { Whitelist } from '../../target/types/whitelist'
@@ -26,10 +26,10 @@ export default class WhitelistSDK {
     this.program = new Program(WhitelistIDL, provider)
   }
 
-  async initializeIx(admin: web3.PublicKey, proposedAdminCooldown: number): Promise<web3.TransactionInstruction> {
+  async initializeIx(admin: web3.PublicKey): Promise<web3.TransactionInstruction> {
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .initialize(admin, new BN(proposedAdminCooldown))
+      .initialize(admin)
       .accountsPartial({
         deployer: this.getSignerKey(),
         globalSettings,
@@ -38,10 +38,10 @@ export default class WhitelistSDK {
     return ix
   }
 
-  async proposeAdminIx(proposedAdmin: web3.PublicKey): Promise<web3.TransactionInstruction> {
+  async setAdmin(newAdmin: web3.PublicKey): Promise<web3.TransactionInstruction> {
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .proposeAdmin(proposedAdmin)
+      .setAdmin(newAdmin)
       .accountsPartial({
         admin: this.getSignerKey(),
         globalSettings,
@@ -66,18 +66,6 @@ export default class WhitelistSDK {
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
-        globalSettings,
-      })
-      .instruction()
-    return ix
-  }
-
-  async setProposedAdminIx(): Promise<web3.TransactionInstruction> {
-    const globalSettings = this.getGlobalSettingsPubkey()
-    const ix = await this.program.methods
-      .setProposedAdmin()
-      .accountsPartial({
-        proposedAdmin: this.getSignerKey(),
         globalSettings,
       })
       .instruction()

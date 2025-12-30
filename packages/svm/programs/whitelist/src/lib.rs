@@ -17,13 +17,15 @@ pub mod whitelist {
     pub fn initialize(
         ctx: Context<Initialize>,
         admin: Pubkey,
-        proposed_admin_cooldown: u64,
     ) -> Result<()> {
-        instructions::initialize(ctx, admin, proposed_admin_cooldown)
+        instructions::initialize(ctx, admin)
     }
 
-    pub fn propose_admin(ctx: Context<ProposeAdmin>, proposed_admin: Pubkey) -> Result<()> {
-        instructions::propose_admin(ctx, proposed_admin)
+    pub fn set_admin(
+        ctx: Context<SetAdmin>,
+        new_admin: Pubkey,
+    ) -> Result<()> {
+        instructions::set_admin(ctx, new_admin)
     }
 
     pub fn set_entity_whitelist_status(
@@ -33,9 +35,5 @@ pub mod whitelist {
         status: WhitelistStatus,
     ) -> Result<()> {
         instructions::set_entity_whitelist_status(ctx, entity_type, entity_pubkey, status)
-    }
-
-    pub fn set_proposed_admin(ctx: Context<SetProposedAdmin>) -> Result<()> {
-        instructions::set_proposed_admin(ctx)
     }
 }

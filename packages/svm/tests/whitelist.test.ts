@@ -12,7 +12,6 @@ import path from 'path'
 import WhitelistSDK, { EntityType, WhitelistStatus } from '../sdks/whitelist/Whitelist'
 import * as WhitelistIDL from '../target/idl/whitelist.json'
 import { Whitelist } from '../target/types/whitelist'
-import { COOLDOWN_PERIOD, COOLDOWN_PERIOD_PLUS_ONE, MAX_COOLDOWN_PLUS_ONE, MIN_COOLDOWN } from './helpers/constants'
 import { expectTransactionError } from './helpers/settler-helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
@@ -21,19 +20,19 @@ describe('Whitelist Program', () => {
 
   let deployer: web3.Keypair
   let admin: web3.Keypair
-  let proposedAdmin: web3.Keypair
+  let otherAdmin: web3.Keypair
   let malicious: web3.Keypair
 
   let deployerProvider: LiteSVMProvider
   let adminProvider: LiteSVMProvider
-  let proposedAdminProvider: LiteSVMProvider
+  let otherAdminProvider: LiteSVMProvider
   let maliciousProvider: LiteSVMProvider
 
   let program: Program<Whitelist>
 
   let deployerSdk: WhitelistSDK
   let adminSdk: WhitelistSDK
-  let proposedAdminSdk: WhitelistSDK
+  let otherAdminSdk: WhitelistSDK
   let maliciousSdk: WhitelistSDK
 
   before(async () => {
@@ -41,27 +40,30 @@ describe('Whitelist Program', () => {
       Uint8Array.from(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.config', 'solana', 'id.json'), 'utf8')))
     )
     admin = web3.Keypair.generate()
-    proposedAdmin = web3.Keypair.generate()
+    otherAdmin = web3.Keypair.generate()
     malicious = web3.Keypair.generate()
 
     client = fromWorkspace(path.join(__dirname, '../')).withBuiltins()
 
     deployerProvider = new LiteSVMProvider(client, new Wallet(deployer))
     adminProvider = new LiteSVMProvider(client, new Wallet(admin))
-    proposedAdminProvider = new LiteSVMProvider(client, new Wallet(proposedAdmin))
+    otherAdminProvider = new LiteSVMProvider(client, new Wallet(otherAdmin))
     maliciousProvider = new LiteSVMProvider(client, new Wallet(malicious))
 
     program = new Program<Whitelist>(WhitelistIDL as any, deployerProvider)
 
     deployerSdk = new WhitelistSDK(deployerProvider)
     adminSdk = new WhitelistSDK(adminProvider)
-    proposedAdminSdk = new WhitelistSDK(proposedAdminProvider)
+    otherAdminSdk = new WhitelistSDK(otherAdminProvider)
     maliciousSdk = new WhitelistSDK(maliciousProvider)
 
     deployerProvider.client.airdrop(deployer.publicKey, BigInt(100_000_000_000))
     deployerProvider.client.airdrop(admin.publicKey, BigInt(100_000_000_000))
-    deployerProvider.client.airdrop(proposedAdmin.publicKey, BigInt(100_000_000_000))
+    deployerProvider.client.airdrop(otherAdmin.publicKey, BigInt(100_000_000_000))
     deployerProvider.client.airdrop(malicious.publicKey, BigInt(100_000_000_000))
+
+    // Warp so that we're not at t=0
+    warpSeconds(deployerProvider, 100)
   })
 
   beforeEach(() => {
@@ -72,163 +74,49 @@ describe('Whitelist Program', () => {
     describe('initialize', () => {
       it('cannot initialize if not deployer', async () => {
         const newAdmin = web3.Keypair.generate().publicKey
-        const proposedAdminCooldown = COOLDOWN_PERIOD
 
-        const ix = await maliciousSdk.initializeIx(newAdmin, proposedAdminCooldown)
+        const ix = await maliciousSdk.initializeIx(newAdmin)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only deployer can call this instruction')
       })
 
-      it('cannot initialize with cooldown = 0', async () => {
-        const proposedAdminCooldown = MIN_COOLDOWN
-
-        const ix = await deployerSdk.initializeIx(admin.publicKey, proposedAdminCooldown)
-        const res = await makeTxSignAndSend(deployerProvider, ix)
-
-        expectTransactionError(res, "Cooldown can't be zero")
-      })
-
-      it('cannot initialize with cooldown > MAX_COOLDOWN', async () => {
-        const proposedAdminCooldown = MAX_COOLDOWN_PLUS_ONE
-
-        const ix = await deployerSdk.initializeIx(admin.publicKey, proposedAdminCooldown)
-        const res = await makeTxSignAndSend(deployerProvider, ix)
-
-        expectTransactionError(res, 'Cooldown too large')
-      })
-
       it('should initialize', async () => {
-        const proposedAdminCooldown = COOLDOWN_PERIOD
-
-        const ix = await deployerSdk.initializeIx(admin.publicKey, proposedAdminCooldown)
+        const ix = await deployerSdk.initializeIx(admin.publicKey)
         await makeTxSignAndSend(deployerProvider, ix)
 
         const settings = await program.account.globalSettings.fetch(deployerSdk.getGlobalSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(admin.publicKey.toString())
-        expect(settings.proposedAdmin).to.be.null
-        expect(settings.proposedAdminCooldown.toNumber()).to.be.eq(COOLDOWN_PERIOD)
-        expect(settings.proposedAdminNextChangeTimestamp.toString()).to.be.eq('18446744073709551615') // u64::MAX
       })
 
       it('cannot call initialize again', async () => {
-        const proposedAdminCooldown = COOLDOWN_PERIOD
-
-        const ix = await deployerSdk.initializeIx(admin.publicKey, proposedAdminCooldown)
+        const ix = await deployerSdk.initializeIx(admin.publicKey)
         const res = await makeTxSignAndSend(deployerProvider, ix)
 
         expectTransactionError(res, 'already in use')
       })
     })
 
-    describe('propose_admin and set_proposed_admin', () => {
-      it('cannot propose admin if not admin', async () => {
-        const ix = await maliciousSdk.proposeAdminIx(proposedAdmin.publicKey)
+    describe('set_admin', () => {
+      it('cannot set admin if not admin', async () => {
+        const newAdmin = web3.Keypair.generate().publicKey
+
+        const ix = await maliciousSdk.setAdmin(newAdmin)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only admin can call this instruction')
       })
 
-      it('cannot set proposed admin if no next admin was proposed yet', async () => {
-        const ix = await adminSdk.setProposedAdminIx()
-        const res = await makeTxSignAndSend(adminProvider, ix)
-
-        expectTransactionError(res, 'Only proposed admin can call this instruction')
-      })
-
-      it('should propose admin successfully', async () => {
-        const ix = await adminSdk.proposeAdminIx(proposedAdmin.publicKey)
+      it('can set admin', async () => {
+        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
 
-        const updatedSettings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
-        expect(updatedSettings.proposedAdmin?.toString()).to.be.eq(proposedAdmin.publicKey.toString())
-        expect(updatedSettings.proposedAdminNextChangeTimestamp.toNumber()).to.be.greaterThan(0)
-      })
-
-      it('cannot propose admin if one is already proposed', async () => {
-        const proposedAdmin2 = web3.Keypair.generate().publicKey
-
-        const ix = await adminSdk.proposeAdminIx(proposedAdmin2)
-        const res = await makeTxSignAndSend(adminProvider, ix)
-
-        expectTransactionError(res, 'Proposed admin is already set')
-      })
-
-      it('cannot set proposed admin if not proposed admin', async () => {
-        const ix = await maliciousSdk.setProposedAdminIx()
-        const res = await makeTxSignAndSend(maliciousProvider, ix)
-
-        expectTransactionError(res, 'Only proposed admin can call this instruction')
-      })
-
-      it('cannot set proposed admin if cooldown hasnt passed', async () => {
-        const ix = await proposedAdminSdk.setProposedAdminIx()
-        const res = await makeTxSignAndSend(proposedAdminProvider, ix)
-
-        expectTransactionError(
-          res,
-          "Can't set proposed admin - either no next admin is proposed or cooldown period is not over yet"
-        )
-      })
-
-      it('should set proposed admin successfully after cooldown', async () => {
-        warpSeconds(deployerProvider, COOLDOWN_PERIOD_PLUS_ONE)
-
-        const ix = await proposedAdminSdk.setProposedAdminIx()
-        await makeTxSignAndSend(proposedAdminProvider, ix)
-
-        const updatedSettings = await program.account.globalSettings.fetch(deployerSdk.getGlobalSettingsPubkey())
-        expect(updatedSettings.admin.toString()).to.be.eq(proposedAdmin.publicKey.toString())
-        expect(updatedSettings.proposedAdmin).to.be.null
-        expect(updatedSettings.proposedAdminNextChangeTimestamp.toString()).to.be.eq('18446744073709551615') // u64::MAX
-      })
-
-      it('should reset admin to original one for next tests', async () => {
-        const ix = await proposedAdminSdk.proposeAdminIx(admin.publicKey)
-        await makeTxSignAndSend(proposedAdminProvider, ix)
-
-        warpSeconds(deployerProvider, COOLDOWN_PERIOD_PLUS_ONE)
-
-        const ix2 = await adminSdk.setProposedAdminIx()
-        await makeTxSignAndSend(adminProvider, ix2)
-
-        const updatedSettings = await program.account.globalSettings.fetch(deployerSdk.getGlobalSettingsPubkey())
-        expect(updatedSettings.admin.toString()).to.be.eq(admin.publicKey.toString())
-        expect(updatedSettings.proposedAdmin).to.be.null
-        expect(updatedSettings.proposedAdminNextChangeTimestamp.toString()).to.be.eq('18446744073709551615') // u64::MAX
-      })
-
-      it('should propose same admin as current admin', async () => {
         const settings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
-        const currentAdmin = settings.admin
+        expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
 
-        const ix = await adminSdk.proposeAdminIx(currentAdmin)
-        await makeTxSignAndSend(adminProvider, ix)
-
-        const updatedSettings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
-        expect(updatedSettings.proposedAdmin?.toString()).to.be.eq(currentAdmin.toString())
-
-        warpSeconds(deployerProvider, COOLDOWN_PERIOD_PLUS_ONE)
-
-        await makeTxSignAndSend(adminProvider, await adminSdk.setProposedAdminIx())
-        const updatedSettings2 = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
-        expect(updatedSettings2.admin.toString()).to.be.eq(admin.publicKey.toString())
-        expect(updatedSettings2.proposedAdmin).to.be.null
-      })
-
-      it('should calculate proposed_admin_next_change_timestamp correctly', async () => {
-        const settingsBefore = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
-        const cooldown = settingsBefore.proposedAdminCooldown.toNumber()
-
-        const clockBefore = deployerProvider.client.getClock()
-        const nowBefore = Number(clockBefore.unixTimestamp)
-
-        const ix = await adminSdk.proposeAdminIx(proposedAdmin.publicKey)
-        await makeTxSignAndSend(adminProvider, ix)
-
-        const settingsAfter = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
-        const expectedTimestamp = nowBefore + cooldown
-        expect(settingsAfter.proposedAdminNextChangeTimestamp.toNumber()).to.be.eq(expectedTimestamp)
+        // Reset admin to original for subsequent tests
+        const resetIx = await otherAdminSdk.setAdmin(admin.publicKey)
+        await makeTxSignAndSend(otherAdminProvider, resetIx)
       })
     })
 
@@ -312,32 +200,24 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.updatedBy.toString()).to.be.eq(admin.publicKey.toString())
       })
 
-      it('should warp some seconds and change admin for next tests', async () => {
-        const diff = COOLDOWN_PERIOD_PLUS_ONE
-
-        const then = Number(client.getClock().unixTimestamp)
-        const ix = await adminSdk.proposeAdminIx(proposedAdmin.publicKey)
+      it('should change admin for next tests', async () => {
+        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
 
-        warpSeconds(deployerProvider, diff)
-
-        const now = Number(client.getClock().unixTimestamp)
-        expect(now - then).to.be.eq(diff)
-
-        const ix2 = await proposedAdminSdk.setProposedAdminIx()
-        await makeTxSignAndSend(proposedAdminProvider, ix2)
+        const settings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
+        expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (whitelist to blacklist transition) (validator)', async () => {
-        const ix = await proposedAdminSdk.setEntityWhitelistStatusIx(
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
           EntityType.Validator,
           validator,
           WhitelistStatus.Blacklisted
         )
-        await makeTxSignAndSend(proposedAdminProvider, ix)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          proposedAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
         )
         const now = Number(client.getClock().unixTimestamp)
 
@@ -345,15 +225,15 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
         expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(proposedAdmin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (whitelist to blacklist transition) (axia)', async () => {
-        const ix = await proposedAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Blacklisted)
-        await makeTxSignAndSend(proposedAdminProvider, ix)
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Blacklisted)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          proposedAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
         )
         const now = Number(client.getClock().unixTimestamp)
 
@@ -361,19 +241,19 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
         expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(proposedAdmin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (whitelist to blacklist transition) (solver)', async () => {
-        const ix = await proposedAdminSdk.setEntityWhitelistStatusIx(
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
           EntityType.Solver,
           solver,
           WhitelistStatus.Blacklisted
         )
-        await makeTxSignAndSend(proposedAdminProvider, ix)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          proposedAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
         )
         const now = Number(client.getClock().unixTimestamp)
 
@@ -381,19 +261,19 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
         expect(entityRegistry.status).to.deep.include({ blacklisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(proposedAdmin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (blacklist to whitelist transition) (validator)', async () => {
-        const ix = await proposedAdminSdk.setEntityWhitelistStatusIx(
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
           EntityType.Validator,
           validator,
           WhitelistStatus.Whitelisted
         )
-        await makeTxSignAndSend(proposedAdminProvider, ix)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          proposedAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
         )
         const now = Number(client.getClock().unixTimestamp)
 
@@ -401,15 +281,15 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(proposedAdmin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (blacklist to whitelist transition) (axia)', async () => {
-        const ix = await proposedAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Whitelisted)
-        await makeTxSignAndSend(proposedAdminProvider, ix)
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia, WhitelistStatus.Whitelisted)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          proposedAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
         )
         const now = Number(client.getClock().unixTimestamp)
 
@@ -417,19 +297,19 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(proposedAdmin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should update status correctly (blacklist to whitelist transition) (solver)', async () => {
-        const ix = await proposedAdminSdk.setEntityWhitelistStatusIx(
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
           EntityType.Solver,
           solver,
           WhitelistStatus.Whitelisted
         )
-        await makeTxSignAndSend(proposedAdminProvider, ix)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          proposedAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
         )
         const now = Number(client.getClock().unixTimestamp)
 
@@ -437,79 +317,64 @@ describe('Whitelist Program', () => {
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.eq(now)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(proposedAdmin.publicKey.toString())
-      })
-
-      it('should reset admin to original one for next tests', async () => {
-        const ix = await proposedAdminSdk.proposeAdminIx(admin.publicKey)
-        await makeTxSignAndSend(proposedAdminProvider, ix)
-
-        warpSeconds(deployerProvider, COOLDOWN_PERIOD_PLUS_ONE)
-
-        const ix2 = await adminSdk.setProposedAdminIx()
-        await makeTxSignAndSend(adminProvider, ix2)
-
-        const updatedSettings = await program.account.globalSettings.fetch(deployerSdk.getGlobalSettingsPubkey())
-        expect(updatedSettings.admin.toString()).to.be.eq(admin.publicKey.toString())
-        expect(updatedSettings.proposedAdmin).to.be.null
-        expect(updatedSettings.proposedAdminNextChangeTimestamp.toString()).to.be.eq('18446744073709551615') // u64::MAX
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should whitelist another validator', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(
           EntityType.Validator,
           validator2,
           WhitelistStatus.Whitelisted
         )
-        await makeTxSignAndSend(adminProvider, ix)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          adminSdk.getEntityRegistryPubkey(EntityType.Validator, validator2)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator2)
         )
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.greaterThan(0)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(admin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should whitelist another axia', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia2, WhitelistStatus.Whitelisted)
-        await makeTxSignAndSend(adminProvider, ix)
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Axia, axia2, WhitelistStatus.Whitelisted)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia2)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia2)
         )
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.greaterThan(0)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(admin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should whitelist another solver', async () => {
-        const ix = await adminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver2, WhitelistStatus.Whitelisted)
-        await makeTxSignAndSend(adminProvider, ix)
+        const ix = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Solver, solver2, WhitelistStatus.Whitelisted)
+        await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
-          adminSdk.getEntityRegistryPubkey(EntityType.Solver, solver2)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver2)
         )
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
         expect(entityRegistry.status).to.deep.include({ whitelisted: {} })
         expect(entityRegistry.lastUpdate.toNumber()).to.be.greaterThan(0)
-        expect(entityRegistry.updatedBy.toString()).to.be.eq(admin.publicKey.toString())
+        expect(entityRegistry.updatedBy.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       it('should create separate accounts for same pubkey with different entity types', async () => {
-        const ix1 = await adminSdk.setEntityWhitelistStatusIx(EntityType.Validator, axia, WhitelistStatus.Whitelisted)
-        await makeTxSignAndSend(adminProvider, ix1)
+        const ix1 = await otherAdminSdk.setEntityWhitelistStatusIx(EntityType.Validator, axia, WhitelistStatus.Whitelisted)
+        await makeTxSignAndSend(otherAdminProvider, ix1)
 
         const validatorRegistry = await program.account.entityRegistry.fetch(
-          adminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
         )
         const axiaRegistry = await program.account.entityRegistry.fetch(
-          adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+          otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
         )
 
         expect(validatorRegistry.entityType).to.deep.include({ validator: {} })
@@ -517,8 +382,8 @@ describe('Whitelist Program', () => {
         expect(axiaRegistry.entityType).to.deep.include({ axia: {} })
         expect(axiaRegistry.status).to.deep.include({ whitelisted: {} })
 
-        const validatorPda = adminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
-        const axiaPda = adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+        const validatorPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
+        const axiaPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
         expect(validatorPda.toString()).to.not.eq(axiaPda.toString())
       })
     })

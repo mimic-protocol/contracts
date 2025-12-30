@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use std::str::FromStr;
 
 use crate::{
-    constants::{DEPLOYER_KEY, MAX_COOLDOWN},
+    constants::DEPLOYER_KEY,
     errors::WhitelistError,
     state::GlobalSettings,
 };
@@ -27,7 +27,6 @@ pub struct Initialize<'info> {
 pub fn initialize(
     ctx: Context<Initialize>,
     admin: Pubkey,
-    proposed_admin_cooldown: u64,
 ) -> Result<()> {
     require_keys_eq!(
         ctx.accounts.deployer.key(),
@@ -35,22 +34,9 @@ pub fn initialize(
         WhitelistError::OnlyDeployer,
     );
 
-    require!(
-        proposed_admin_cooldown > 0,
-        WhitelistError::CooldownCantBeZero,
-    );
-
-    require!(
-        proposed_admin_cooldown <= MAX_COOLDOWN,
-        WhitelistError::CooldownTooLarge,
-    );
-
     let global_settings = &mut ctx.accounts.global_settings;
 
     global_settings.admin = admin;
-    global_settings.proposed_admin = None;
-    global_settings.proposed_admin_cooldown = proposed_admin_cooldown;
-    global_settings.proposed_admin_next_change_timestamp = u64::MAX;
     global_settings.bump = ctx.bumps.global_settings;
 
     Ok(())
