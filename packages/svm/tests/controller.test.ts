@@ -207,9 +207,7 @@ describe('Controller Program', () => {
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         try {
-          await program.account.entityRegistry.fetch(
-            otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
-          )
+          await program.account.entityRegistry.fetch(otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia))
           expect.fail('Entity registry should not exist after closing')
         } catch (error: any) {
           expect(error.message).to.include('Account does not exist')
@@ -221,9 +219,7 @@ describe('Controller Program', () => {
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         try {
-          await program.account.entityRegistry.fetch(
-            otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
-          )
+          await program.account.entityRegistry.fetch(otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver))
           expect.fail('Entity registry should not exist after closing')
         } catch (error: any) {
           expect(error.message).to.include('Account does not exist')

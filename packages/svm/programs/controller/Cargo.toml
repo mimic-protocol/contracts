@@ -1,7 +1,7 @@
 [package]
 name = "controller"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "Manages allowlist for Mimic Protocol entities"
 edition = "2021"
 
 [lib]

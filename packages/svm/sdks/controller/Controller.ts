@@ -3,14 +3,13 @@ import { IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
 import * as ControllerIDL from '../../target/idl/controller.json'
 import { Controller } from '../../target/types/controller'
 
-export enum EntityType {
-  // eslint-disable-next-line no-unused-vars
-  Validator = 1,
-  // eslint-disable-next-line no-unused-vars
-  Axia = 2,
-  // eslint-disable-next-line no-unused-vars
-  Solver = 3,
-}
+export const EntityType = {
+  Validator: 1,
+  Axia: 2,
+  Solver: 3,
+} as const
+
+export type EntityType = (typeof EntityType)[keyof typeof EntityType]
 
 export default class ControllerSDK {
   protected program: Program<Controller>
@@ -50,10 +49,7 @@ export default class ControllerSDK {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .createEntityRegistry(
-        this.entityTypeToAnchorEnum(entityType),
-        entityPubkey
-      )
+      .createEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
@@ -70,10 +66,7 @@ export default class ControllerSDK {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .closeEntityRegistry(
-        this.entityTypeToAnchorEnum(entityType),
-        entityPubkey
-      )
+      .closeEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
