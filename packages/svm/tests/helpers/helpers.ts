@@ -1,10 +1,10 @@
 import { web3 } from '@coral-xyz/anchor'
+import { randomHex } from '@mimicprotocol/sdk'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
-import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
+import { FailedTransactionMetadata, TransactionMetadata } from 'litesvm'
 
-import ControllerSDK, { EntityType } from '../../sdks/controller/Controller'
 import SettlerSDK from '../../sdks/settler/Settler'
 import { CreateIntentParams, IntentEvent, OpType, TokenFee } from '../../sdks/settler/types'
 import { makeTxSignAndSend } from '../utils'
@@ -19,18 +19,20 @@ import {
   NONCE_LENGTH,
 } from './constants'
 
+export const LAMPORTS_PER_SOL = 1_000_000_000
+
 /**
  * Generate a random 32-byte hex string for intent hash
  */
 export function generateIntentHash(): string {
-  return Buffer.from(Array.from({ length: INTENT_HASH_LENGTH }, () => Math.floor(Math.random() * 256))).toString('hex')
+  return randomHex(INTENT_HASH_LENGTH).slice(2)
 }
 
 /**
  * Generate a random 32-byte hex string for nonce
  */
 export function generateNonce(): string {
-  return Buffer.from(Array.from({ length: NONCE_LENGTH }, () => Math.floor(Math.random() * 256))).toString('hex')
+  return randomHex(NONCE_LENGTH).slice(2)
 }
 
 /**
@@ -87,60 +89,6 @@ export async function createTestIntent(
   }
   return intentHash
 }
-
-/**
- * Create a validated intent (with validations set to meet min_validations requirement)
- */
-export async function createValidatedIntent(
-  solverSdk: SettlerSDK,
-  solverProvider: LiteSVMProvider,
-  client: LiteSVM,
-  options: {
-    intentHash?: string
-    minValidations?: number
-    isFinal?: boolean
-    deadline?: number
-  } = {}
-): Promise<string> {
-  const intentHash = await createTestIntent(solverSdk, solverProvider, {
-    ...options,
-    isFinal: options.isFinal ?? true,
-  })
-
-  // Set validations to meet min_validations requirement
-  const intentKey = solverSdk.getIntentKey(intentHash)
-  const intentAccount = client.getAccount(intentKey)
-  if (intentAccount) {
-    const intentData = Buffer.from(intentAccount.data)
-    // validations is at offset: 8 (disc) + 1 (op) + 32 (user) + 32 (intent_creator) + 32 (intent_hash) + 32 (nonce) + 8 (deadline) + 2 (min_validations) = 147
-    // validations is u16, so 2 bytes
-    const minValidations = options.minValidations ?? DEFAULT_MIN_VALIDATIONS
-    intentData.writeUInt16LE(minValidations, 147)
-    client.setAccount(intentKey, {
-      ...intentAccount,
-      data: intentData,
-    })
-  }
-
-  return intentHash
-}
-
-/**
- * Creates an allowlisted entity (validator, axia, or solver)
- */
-export async function createAllowlistedEntity(
-  controllerSdk: ControllerSDK,
-  provider: LiteSVMProvider,
-  entityType: EntityType,
-  entityKeypair?: Keypair
-): Promise<Keypair> {
-  const entity = entityKeypair || Keypair.generate()
-  const allowlistIx = await controllerSdk.createEntityRegistryIx(entityType, entity.publicKey)
-  await makeTxSignAndSend(provider, allowlistIx)
-  return entity
-}
-
-export const LAMPORTS_PER_SOL = 1_000_000_000
 
 /**
  * Helper to expect transaction errors consistently
