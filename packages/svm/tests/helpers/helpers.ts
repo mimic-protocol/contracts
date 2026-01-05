@@ -1,6 +1,6 @@
+import { web3 } from '@coral-xyz/anchor'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
-import { web3 } from '@coral-xyz/anchor'
 import { expect } from 'chai'
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
 

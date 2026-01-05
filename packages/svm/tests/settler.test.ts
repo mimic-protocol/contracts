@@ -40,7 +40,7 @@ import {
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
 } from './helpers/constants'
-import { createTestIntent, expectTransactionError, generateIntentHash, generateNonce } from './helpers/settler-helpers'
+import { createTestIntent, expectTransactionError, generateIntentHash, generateNonce } from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler Program', () => {
@@ -88,7 +88,7 @@ describe('Settler Program', () => {
     // Initialize Controller and add Solver to allowlist
     controllerSdk = new ControllerSDK(provider)
     await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
-    await makeTxSignAndSend(provider, await controllerSdk.createEntityRegistryIx(EntityType.Solver, solver.publicKey))
+    await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
 
   beforeEach(() => {
