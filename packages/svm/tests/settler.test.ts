@@ -51,7 +51,7 @@ import {
   expectTransactionError,
   generateIntentHash,
   generateNonce,
-} from './helpers/settler-helpers'
+} from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler Program', () => {
@@ -99,7 +99,7 @@ describe('Settler Program', () => {
     // Initialize Controller and add Solver to allowlist
     controllerSdk = new ControllerSDK(provider)
     await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
-    await makeTxSignAndSend(provider, await controllerSdk.createEntityRegistryIx(EntityType.Solver, solver.publicKey))
+    await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
 
   beforeEach(() => {
