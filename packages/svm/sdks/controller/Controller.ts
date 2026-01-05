@@ -42,14 +42,11 @@ export default class ControllerSDK {
     return ix
   }
 
-  async createEntityRegistryIx(
-    entityType: EntityType,
-    entityPubkey: web3.PublicKey
-  ): Promise<web3.TransactionInstruction> {
+  async setAllowedEntityIx(entityType: EntityType, entityPubkey: web3.PublicKey): Promise<web3.TransactionInstruction> {
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
     const globalSettings = this.getGlobalSettingsPubkey()
     const ix = await this.program.methods
-      .createEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
+      .setAllowedEntity(this.entityTypeToAnchorEnum(entityType), entityPubkey)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,

@@ -12,7 +12,7 @@ import path from 'path'
 import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import * as ControllerIDL from '../target/idl/controller.json'
 import { Controller } from '../target/types/controller'
-import { expectTransactionError } from './helpers/settler-helpers'
+import { expectTransactionError, randomKeypair, randomPubkey, toLamports } from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Controller Program', () => {
@@ -39,9 +39,9 @@ describe('Controller Program', () => {
     deployer = web3.Keypair.fromSecretKey(
       Uint8Array.from(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.config', 'solana', 'id.json'), 'utf8')))
     )
-    admin = web3.Keypair.generate()
-    otherAdmin = web3.Keypair.generate()
-    malicious = web3.Keypair.generate()
+    admin = randomKeypair()
+    otherAdmin = randomKeypair()
+    malicious = randomKeypair()
 
     client = fromWorkspace(path.join(__dirname, '../')).withBuiltins()
 
@@ -57,10 +57,10 @@ describe('Controller Program', () => {
     otherAdminSdk = new ControllerSDK(otherAdminProvider)
     maliciousSdk = new ControllerSDK(maliciousProvider)
 
-    deployerProvider.client.airdrop(deployer.publicKey, BigInt(100_000_000_000))
-    deployerProvider.client.airdrop(admin.publicKey, BigInt(100_000_000_000))
-    deployerProvider.client.airdrop(otherAdmin.publicKey, BigInt(100_000_000_000))
-    deployerProvider.client.airdrop(malicious.publicKey, BigInt(100_000_000_000))
+    deployerProvider.client.airdrop(deployer.publicKey, toLamports(100))
+    deployerProvider.client.airdrop(admin.publicKey, toLamports(100))
+    deployerProvider.client.airdrop(otherAdmin.publicKey, toLamports(100))
+    deployerProvider.client.airdrop(malicious.publicKey, toLamports(100))
 
     // Warp so that we're not at t=0
     warpSeconds(deployerProvider, 100)
@@ -73,7 +73,7 @@ describe('Controller Program', () => {
   describe('Controller', () => {
     describe('initialize', () => {
       it('cannot initialize if not deployer', async () => {
-        const newAdmin = web3.Keypair.generate().publicKey
+        const newAdmin = randomPubkey()
 
         const ix = await maliciousSdk.initializeIx(newAdmin)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
@@ -97,9 +97,9 @@ describe('Controller Program', () => {
       })
     })
 
-    describe('set_admin', () => {
+    describe('set admin', () => {
       it('cannot set admin if not admin', async () => {
-        const newAdmin = web3.Keypair.generate().publicKey
+        const newAdmin = randomPubkey()
 
         const ix = await maliciousSdk.setAdmin(newAdmin)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
@@ -113,7 +113,9 @@ describe('Controller Program', () => {
 
         const settings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
+      })
 
+      after('reset admin to original for subsequent tests', async () => {
         // Reset admin to original for subsequent tests
         const resetIx = await otherAdminSdk.setAdmin(admin.publicKey)
         await makeTxSignAndSend(otherAdminProvider, resetIx)
@@ -129,23 +131,23 @@ describe('Controller Program', () => {
       let solver2: web3.PublicKey
 
       before(() => {
-        validator = web3.Keypair.generate().publicKey
-        axia = web3.Keypair.generate().publicKey
-        solver = web3.Keypair.generate().publicKey
-        validator2 = web3.Keypair.generate().publicKey
-        axia2 = web3.Keypair.generate().publicKey
-        solver2 = web3.Keypair.generate().publicKey
+        validator = randomPubkey()
+        axia = randomPubkey()
+        solver = randomPubkey()
+        validator2 = randomPubkey()
+        axia2 = randomPubkey()
+        solver2 = randomPubkey()
       })
 
       it('cannot create registry if not admin', async () => {
-        const ix = await maliciousSdk.createEntityRegistryIx(EntityType.Validator, validator)
+        const ix = await maliciousSdk.setAllowedEntityIx(EntityType.Validator, validator)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only admin can call this instruction')
       })
 
       it('should create entity registry successfully (validator)', async () => {
-        const ix = await adminSdk.createEntityRegistryIx(EntityType.Validator, validator)
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Validator, validator)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -157,7 +159,7 @@ describe('Controller Program', () => {
       })
 
       it('should create entity registry successfully (axia)', async () => {
-        const ix = await adminSdk.createEntityRegistryIx(EntityType.Axia, axia)
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Axia, axia)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -169,7 +171,7 @@ describe('Controller Program', () => {
       })
 
       it('should create entity registry successfully (solver)', async () => {
-        const ix = await adminSdk.createEntityRegistryIx(EntityType.Solver, solver)
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Solver, solver)
         await makeTxSignAndSend(adminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -227,7 +229,7 @@ describe('Controller Program', () => {
       })
 
       it('should create entity registry after closing (validator)', async () => {
-        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Validator, validator)
+        const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, validator)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -239,7 +241,7 @@ describe('Controller Program', () => {
       })
 
       it('should create entity registry after closing (axia)', async () => {
-        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Axia, axia)
+        const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Axia, axia)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -251,7 +253,7 @@ describe('Controller Program', () => {
       })
 
       it('should create entity registry after closing (solver)', async () => {
-        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Solver, solver)
+        const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Solver, solver)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -263,7 +265,7 @@ describe('Controller Program', () => {
       })
 
       it('should create another validator registry', async () => {
-        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Validator, validator2)
+        const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, validator2)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -274,7 +276,7 @@ describe('Controller Program', () => {
       })
 
       it('should create another axia registry', async () => {
-        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Axia, axia2)
+        const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Axia, axia2)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -285,7 +287,7 @@ describe('Controller Program', () => {
       })
 
       it('should create another solver registry', async () => {
-        const ix = await otherAdminSdk.createEntityRegistryIx(EntityType.Solver, solver2)
+        const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Solver, solver2)
         await makeTxSignAndSend(otherAdminProvider, ix)
 
         const entityRegistry = await program.account.entityRegistry.fetch(
@@ -296,7 +298,7 @@ describe('Controller Program', () => {
       })
 
       it('should create separate accounts for same pubkey with different entity types', async () => {
-        const ix1 = await otherAdminSdk.createEntityRegistryIx(EntityType.Validator, axia)
+        const ix1 = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, axia)
         await makeTxSignAndSend(otherAdminProvider, ix1)
 
         const validatorRegistry = await program.account.entityRegistry.fetch(
