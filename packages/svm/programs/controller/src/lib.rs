@@ -22,12 +22,12 @@ pub mod controller {
         instructions::set_admin(ctx, new_admin)
     }
 
-    pub fn create_entity_registry(
-        ctx: Context<CreateEntityRegistry>,
+    pub fn set_allowed_entity(
+        ctx: Context<SetAllowedEntity>,
         entity_type: EntityType,
         entity_pubkey: Pubkey,
     ) -> Result<()> {
-        instructions::create_entity_registry(ctx, entity_type, entity_pubkey)
+        instructions::set_allowed_entity(ctx, entity_type, entity_pubkey)
     }
 
     pub fn close_entity_registry(

@@ -1,5 +1,6 @@
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
+import { web3 } from '@coral-xyz/anchor'
 import { expect } from 'chai'
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
 
@@ -139,6 +140,8 @@ export async function createAllowlistedEntity(
   return entity
 }
 
+export const LAMPORTS_PER_SOL = 1_000_000_000
+
 /**
  * Helper to expect transaction errors consistently
  */
@@ -153,4 +156,16 @@ export function expectTransactionError(
   } else {
     expect(res.toString()).to.include(expectedMessage)
   }
+}
+
+export function toLamports(sol: number): bigint {
+  return BigInt(sol * LAMPORTS_PER_SOL)
+}
+
+export function randomKeypair(): web3.Keypair {
+  return web3.Keypair.generate()
+}
+
+export function randomPubkey(): web3.PublicKey {
+  return randomKeypair().publicKey
 }

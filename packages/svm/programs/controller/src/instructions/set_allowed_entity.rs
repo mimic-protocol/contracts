@@ -8,7 +8,7 @@ use crate::{
 
 #[derive(Accounts)]
 #[instruction(entity_type: EntityType, entity_pubkey: Pubkey)]
-pub struct CreateEntityRegistry<'info> {
+pub struct SetAllowedEntity<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
@@ -31,8 +31,8 @@ pub struct CreateEntityRegistry<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn create_entity_registry(
-    ctx: Context<CreateEntityRegistry>,
+pub fn set_allowed_entity(
+    ctx: Context<SetAllowedEntity>,
     entity_type: EntityType,
     entity_pubkey: Pubkey,
 ) -> Result<()> {
