@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use std::str::FromStr;
 
-use crate::{constants::DEPLOYER_KEY, errors::SettlerError, state::SettlerSettings};
+use crate::{constants::DEPLOYER_KEY, controller, errors::SettlerError, state::SettlerSettings};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -29,7 +29,7 @@ pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
 
     let settler_settings = &mut ctx.accounts.settler_settings;
 
-    settler_settings.controller_program = crate::controller::ID;
+    settler_settings.controller_program = controller::ID;
     settler_settings.bump = ctx.bumps.settler_settings;
 
     Ok(())

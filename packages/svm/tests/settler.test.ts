@@ -57,7 +57,7 @@ import {
   expectTransactionError,
   generateIntentHash,
   generateNonce,
-} from './helpers/settler-helpers'
+} from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler Program', () => {
@@ -105,7 +105,7 @@ describe('Settler Program', () => {
     // Initialize Controller and add Solver to allowlist
     controllerSdk = new ControllerSDK(provider)
     await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
-    await makeTxSignAndSend(provider, await controllerSdk.createEntityRegistryIx(EntityType.Solver, solver.publicKey))
+    await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
 
   beforeEach(() => {
@@ -1875,7 +1875,7 @@ describe('Settler Program', () => {
 
       before(async () => {
         whitelistedValidator = Keypair.generate()
-        const whitelistValidatorIx = await controllerSdk.createEntityRegistryIx(
+        const whitelistValidatorIx = await controllerSdk.setAllowedEntityIx(
           EntityType.Validator,
           whitelistedValidator.publicKey
         )
@@ -2271,7 +2271,7 @@ describe('Settler Program', () => {
 
       before(async () => {
         whitelistedAxia = Keypair.generate()
-        const whitelistAxiaIx = await controllerSdk.createEntityRegistryIx(EntityType.Axia, whitelistedAxia.publicKey)
+        const whitelistAxiaIx = await controllerSdk.setAllowedEntityIx(EntityType.Axia, whitelistedAxia.publicKey)
         await makeTxSignAndSend(provider, whitelistAxiaIx)
       })
 

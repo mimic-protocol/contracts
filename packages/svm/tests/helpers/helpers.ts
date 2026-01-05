@@ -1,4 +1,5 @@
-import { Program } from '@coral-xyz/anchor'
+import { Program, web3 } from '@coral-xyz/anchor'
+import { randomHex } from '@mimicprotocol/sdk'
 import { signAsync } from '@noble/ed25519'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
@@ -22,18 +23,20 @@ import {
   NONCE_LENGTH,
 } from './constants'
 
+export const LAMPORTS_PER_SOL = 1_000_000_000
+
 /**
  * Generate a random 32-byte hex string for intent hash
  */
 export function generateIntentHash(): string {
-  return Buffer.from(Array.from({ length: INTENT_HASH_LENGTH }, () => Math.floor(Math.random() * 256))).toString('hex')
+  return randomHex(INTENT_HASH_LENGTH).slice(2)
 }
 
 /**
  * Generate a random 32-byte hex string for nonce
  */
 export function generateNonce(): string {
-  return Buffer.from(Array.from({ length: NONCE_LENGTH }, () => Math.floor(Math.random() * 256))).toString('hex')
+  return randomHex(NONCE_LENGTH).slice(2)
 }
 
 /**
@@ -222,7 +225,7 @@ export async function createAllowlistedEntity(
   entityKeypair?: Keypair
 ): Promise<Keypair> {
   const entity = entityKeypair || Keypair.generate()
-  const allowlistIx = await controllerSdk.createEntityRegistryIx(entityType, entity.publicKey)
+  const allowlistIx = await controllerSdk.setAllowedEntityIx(entityType, entity.publicKey)
   await makeTxSignAndSend(provider, allowlistIx)
   return entity
 }
@@ -257,4 +260,16 @@ export function expectTransactionError(
   } else {
     expect(res.toString()).to.include(expectedMessage)
   }
+}
+
+export function toLamports(sol: number): bigint {
+  return BigInt(sol * LAMPORTS_PER_SOL)
+}
+
+export function randomKeypair(): web3.Keypair {
+  return web3.Keypair.generate()
+}
+
+export function randomPubkey(): web3.PublicKey {
+  return randomKeypair().publicKey
 }

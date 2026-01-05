@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    controller::{accounts::EntityRegistry, types::EntityType},
+    controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Intent,
     types::{IntentEvent, OpType, TokenFee},
@@ -17,7 +17,7 @@ pub struct CreateIntent<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::controller::ID
+        seeds::program = controller::ID
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
