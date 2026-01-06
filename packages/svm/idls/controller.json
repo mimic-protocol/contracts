@@ -4,139 +4,20 @@
     "name": "controller",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "Created with Anchor"
+    "description": "Manages allowlist for Mimic Protocol entities"
   },
   "instructions": [
     {
-      "name": "initialize",
+      "name": "close_entity_registry",
       "discriminator": [
-        175,
-        175,
-        109,
-        31,
-        13,
-        152,
-        155,
-        237
-      ],
-      "accounts": [
-        {
-          "name": "deployer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "global_settings",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108,
-                  45,
-                  115,
-                  101,
-                  116,
-                  116,
-                  105,
-                  110,
-                  103,
-                  115
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "admin",
-          "type": "pubkey"
-        },
-        {
-          "name": "proposed_admin_cooldown",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "propose_admin",
-      "discriminator": [
+        107,
+        232,
+        103,
+        154,
+        200,
         121,
-        214,
-        199,
-        212,
-        87,
-        39,
-        117,
-        234
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "global_settings"
-          ]
-        },
-        {
-          "name": "global_settings",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  108,
-                  111,
-                  98,
-                  97,
-                  108,
-                  45,
-                  115,
-                  101,
-                  116,
-                  116,
-                  105,
-                  110,
-                  103,
-                  115
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": [
-        {
-          "name": "proposed_admin",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "set_entity_allowlist_status",
-      "discriminator": [
-        100,
-        20,
-        23,
-        73,
-        220,
-        118,
-        179,
-        50
+        184,
+        37
       ],
       "accounts": [
         {
@@ -195,32 +76,96 @@
         {
           "name": "entity_pubkey",
           "type": "pubkey"
-        },
-        {
-          "name": "status",
-          "type": {
-            "defined": {
-              "name": "AllowlistStatus"
-            }
-          }
         }
       ]
     },
     {
-      "name": "set_proposed_admin",
+      "name": "create_entity_registry",
       "discriminator": [
-        160,
-        170,
-        199,
-        240,
-        246,
-        244,
-        199,
-        2
+        59,
+        253,
+        73,
+        126,
+        171,
+        188,
+        172,
+        156
       ],
       "accounts": [
         {
-          "name": "proposed_admin",
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_settings"
+          ]
+        },
+        {
+          "name": "entity_registry",
+          "writable": true
+        },
+        {
+          "name": "global_settings",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "entity_type",
+          "type": {
+            "defined": {
+              "name": "EntityType"
+            }
+          }
+        },
+        {
+          "name": "entity_pubkey",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "deployer",
           "writable": true,
           "signer": true
         },
@@ -251,12 +196,91 @@
               }
             ]
           }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "admin",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "set_admin",
+      "discriminator": [
+        251,
+        163,
+        0,
+        52,
+        91,
+        194,
+        187,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_settings"
+          ]
+        },
+        {
+          "name": "global_settings",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_admin",
+          "type": "pubkey"
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "ControllerSettings",
+      "discriminator": [
+        15,
+        70,
+        199,
+        238,
+        59,
+        33,
+        179,
+        47
+      ]
+    },
     {
       "name": "EntityRegistry",
       "discriminator": [
@@ -269,46 +293,33 @@
         158,
         163
       ]
-    },
-    {
-      "name": "GlobalSettings",
-      "discriminator": [
-        109,
-        67,
-        50,
-        55,
-        2,
-        20,
-        148,
-        62
-      ]
     }
   ],
   "events": [
     {
-      "name": "SetEntityAllowlistStatusEvent",
+      "name": "CloseEntityRegistryEvent",
       "discriminator": [
-        137,
-        194,
-        109,
-        101,
-        80,
-        30,
-        4,
-        114
+        133,
+        120,
+        94,
+        102,
+        119,
+        102,
+        166,
+        228
       ]
     },
     {
-      "name": "SetProposedAdminEvent",
+      "name": "SetAdminEvent",
       "discriminator": [
-        153,
-        83,
-        248,
-        103,
+        240,
+        117,
+        204,
+        254,
+        89,
+        150,
         132,
-        126,
-        171,
-        96
+        94
       ]
     }
   ],
@@ -322,41 +333,11 @@
       "code": 6001,
       "name": "OnlyAdmin",
       "msg": "Only admin can call this instruction"
-    },
-    {
-      "code": 6002,
-      "name": "OnlyProposedAdmin",
-      "msg": "Only proposed admin can call this instruction"
-    },
-    {
-      "code": 6003,
-      "name": "ProposedAdminIsAlreadySet",
-      "msg": "Proposed admin is already set"
-    },
-    {
-      "code": 6004,
-      "name": "SetProposedAdminError",
-      "msg": "Can't set proposed admin - either no next admin is proposed or cooldown period is not over yet"
-    },
-    {
-      "code": 6005,
-      "name": "CooldownTooLarge",
-      "msg": "Cooldown too large"
-    },
-    {
-      "code": 6006,
-      "name": "CooldownCantBeZero",
-      "msg": "Cooldown can't be zero"
-    },
-    {
-      "code": 6007,
-      "name": "MathError",
-      "msg": "Math error"
     }
   ],
   "types": [
     {
-      "name": "EntityRegistry",
+      "name": "CloseEntityRegistryEvent",
       "type": {
         "kind": "struct",
         "fields": [
@@ -373,19 +354,43 @@
             "type": "pubkey"
           },
           {
-            "name": "status",
+            "name": "timestamp",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ControllerSettings",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntityRegistry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "entity_type",
             "type": {
               "defined": {
-                "name": "AllowlistStatus"
+                "name": "EntityType"
               }
             }
           },
           {
-            "name": "last_update",
-            "type": "u64"
-          },
-          {
-            "name": "updated_by",
+            "name": "entity_pubkey",
             "type": "pubkey"
           },
           {
@@ -416,100 +421,17 @@
       }
     },
     {
-      "name": "GlobalSettings",
+      "name": "SetAdminEvent",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "admin",
+            "name": "new_admin",
             "type": "pubkey"
-          },
-          {
-            "name": "proposed_admin",
-            "type": {
-              "option": "pubkey"
-            }
-          },
-          {
-            "name": "proposed_admin_cooldown",
-            "type": "u64"
-          },
-          {
-            "name": "proposed_admin_next_change_timestamp",
-            "type": "u64"
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          }
-        ]
-      }
-    },
-    {
-      "name": "SetEntityAllowlistStatusEvent",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "entity_type",
-            "type": {
-              "defined": {
-                "name": "EntityType"
-              }
-            }
-          },
-          {
-            "name": "entity_pubkey",
-            "type": "pubkey"
-          },
-          {
-            "name": "status",
-            "type": {
-              "defined": {
-                "name": "AllowlistStatus"
-              }
-            }
           },
           {
             "name": "timestamp",
             "type": "u64"
-          },
-          {
-            "name": "updated_by",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "SetProposedAdminEvent",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "old_admin",
-            "type": "pubkey"
-          },
-          {
-            "name": "new_admin",
-            "type": "pubkey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "AllowlistStatus",
-      "repr": {
-        "kind": "rust"
-      },
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "Allowlisted"
-          },
-          {
-            "name": "Blacklisted"
           }
         ]
       }

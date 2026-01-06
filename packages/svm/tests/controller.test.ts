@@ -87,7 +87,7 @@ describe('Controller', () => {
         const ix = await deployerSdk.initializeIx(admin.publicKey)
         await makeTxSignAndSend(deployerProvider, ix)
 
-        const settings = await program.account.globalSettings.fetch(deployerSdk.getGlobalSettingsPubkey())
+        const settings = await program.account.controllerSettings.fetch(deployerSdk.getControllerSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(admin.publicKey.toString())
       })
 
@@ -122,7 +122,7 @@ describe('Controller', () => {
         const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
 
-        const settings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
+        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
     })
@@ -181,17 +181,66 @@ describe('Controller', () => {
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
         expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
       })
+
+      it('should change admin for next tests', async () => {
+        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
+        expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
+      })
+
+      it('should close entity registry (validator)', async () => {
+        const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Validator, validator)
+        await makeTxSignAndSend(otherAdminProvider, ix)
+
+        try {
+          await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
+          )
+          expect.fail('Entity registry should not exist after closing')
+        } catch (error: any) {
+          expect(error.message).to.include('Account does not exist')
+        }
+      })
+
+      it('should create entity registry successfully (axia)', async () => {
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Axia, axia)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const entityRegistry = await program.account.entityRegistry.fetch(
+          adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+        )
+
+        expect(entityRegistry.entityType).to.deep.include({ axia: {} })
+        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+      })
+
+      it('should create entity registry successfully (solver)', async () => {
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Solver, solver)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const entityRegistry = await program.account.entityRegistry.fetch(
+          adminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
+        )
+
+        expect(entityRegistry.entityType).to.deep.include({ solver: {} })
+        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+      })
     })
 
     context('when the admin is changed and caller is new admin', async () => {
       before('change admin for next tests', async () => {
         const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
+
+        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
+        expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       context('when the admin was changed', async () => {
         it('should have the new admin as admin', async () => {
-          const settings = await program.account.globalSettings.fetch(adminSdk.getGlobalSettingsPubkey())
+          const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
           expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
         })
       })

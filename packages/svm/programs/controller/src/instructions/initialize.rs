@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use std::str::FromStr;
 
-use crate::{constants::DEPLOYER_KEY, errors::ControllerError, state::GlobalSettings};
+use crate::{constants::DEPLOYER_KEY, errors::ControllerError, state::ControllerSettings};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -10,12 +10,12 @@ pub struct Initialize<'info> {
 
     #[account(
         init,
-        seeds = [b"global-settings"],
+        seeds = [b"controller-settings"],
         bump,
         payer = deployer,
-        space = 8 + GlobalSettings::INIT_SPACE
+        space = 8 + ControllerSettings::INIT_SPACE
     )]
-    pub global_settings: Box<Account<'info, GlobalSettings>>,
+    pub controller_settings: Box<Account<'info, ControllerSettings>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -27,10 +27,10 @@ pub fn initialize(ctx: Context<Initialize>, admin: Pubkey) -> Result<()> {
         ControllerError::OnlyDeployer,
     );
 
-    let global_settings = &mut ctx.accounts.global_settings;
+    let controller_settings = &mut ctx.accounts.controller_settings;
 
-    global_settings.admin = admin;
-    global_settings.bump = ctx.bumps.global_settings;
+    controller_settings.admin = admin;
+    controller_settings.bump = ctx.bumps.controller_settings;
 
     Ok(())
 }
