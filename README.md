@@ -2,7 +2,7 @@
   <a href="https://mimic.fi"><img src="https://www.mimic.fi/logo.png" alt="Mimic Protocol" width="200"></a> 
 </h1>
 
-<h4 align="center">Blockchain automation protocol</h4>
+<h4 align="center">Blockchain execution protocol</h4>
 
 <p align="center">
   <a href="https://discord.mimic.fi">
