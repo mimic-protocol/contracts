@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{errors::ControllerError, state::GlobalSettings};
+use crate::{errors::ControllerError, state::ControllerSettings};
 
 #[derive(Accounts)]
 pub struct SetAdmin<'info> {
@@ -9,17 +9,17 @@ pub struct SetAdmin<'info> {
 
     #[account(
         mut,
-        seeds = [b"global-settings"],
-        bump = global_settings.bump,
+        seeds = [b"controller-settings"],
+        bump = controller_settings.bump,
         has_one = admin @ ControllerError::OnlyAdmin
     )]
-    pub global_settings: Box<Account<'info, GlobalSettings>>,
+    pub controller_settings: Box<Account<'info, ControllerSettings>>,
 }
 
 pub fn set_admin(ctx: Context<SetAdmin>, new_admin: Pubkey) -> Result<()> {
-    let global_settings = &mut ctx.accounts.global_settings;
+    let controller_settings = &mut ctx.accounts.controller_settings;
 
-    global_settings.admin = new_admin;
+    controller_settings.admin = new_admin;
 
     emit!(SetAdminEvent {
         new_admin,

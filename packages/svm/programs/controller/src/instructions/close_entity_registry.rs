@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::{
     errors::ControllerError,
-    state::{EntityRegistry, GlobalSettings},
+    state::{ControllerSettings, EntityRegistry},
     types::EntityType,
 };
 
@@ -21,11 +21,11 @@ pub struct CloseEntityRegistry<'info> {
     pub entity_registry: Box<Account<'info, EntityRegistry>>,
 
     #[account(
-        seeds = [b"global-settings"],
-        bump = global_settings.bump,
+        seeds = [b"controller-settings"],
+        bump = controller_settings.bump,
         has_one = admin @ ControllerError::OnlyAdmin
     )]
-    pub global_settings: Box<Account<'info, GlobalSettings>>,
+    pub controller_settings: Box<Account<'info, ControllerSettings>>,
 
     pub system_program: Program<'info, System>,
 }
