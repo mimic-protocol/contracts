@@ -15,7 +15,7 @@ import { Controller } from '../target/types/controller'
 import { expectTransactionError, randomKeypair, randomPubkey, toLamports } from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
-describe('Controller Program', () => {
+describe('Controller', () => {
   let client: LiteSVM
 
   let deployer: web3.Keypair
@@ -70,136 +70,179 @@ describe('Controller Program', () => {
     client.expireBlockhash()
   })
 
-  describe('Controller', () => {
-    describe('initialize', () => {
-      context('when caller is not deployer', async () => {
-        it('cannot initialize', async () => {
-          const newAdmin = randomPubkey()
+  describe('initialize', () => {
+    context('when caller is not deployer', async () => {
+      it('cannot initialize', async () => {
+        const newAdmin = randomPubkey()
 
-          const ix = await maliciousSdk.initializeIx(newAdmin)
-          const res = await makeTxSignAndSend(maliciousProvider, ix)
+        const ix = await maliciousSdk.initializeIx(newAdmin)
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-          expectTransactionError(res, 'Only deployer can call this instruction')
-        })
-      })
-
-      context('when caller is deployer', async () => {
-        it('should initialize', async () => {
-          const ix = await deployerSdk.initializeIx(admin.publicKey)
-          await makeTxSignAndSend(deployerProvider, ix)
-
-          const settings = await program.account.controllerSettings.fetch(deployerSdk.getControllerSettingsPubkey())
-          expect(settings.admin.toString()).to.be.eq(admin.publicKey.toString())
-        })
-
-        it('cannot call initialize again', async () => {
-          const ix = await deployerSdk.initializeIx(admin.publicKey)
-          const res = await makeTxSignAndSend(deployerProvider, ix)
-
-          expectTransactionError(res, 'already in use')
-        })
+        expectTransactionError(res, 'Only deployer can call this instruction')
       })
     })
 
-    describe('set admin', () => {
-      context('when caller is not admin', async () => {
-        it('cannot set admin', async () => {
-          const newAdmin = randomPubkey()
+    context('when caller is deployer', async () => {
+      it('should initialize', async () => {
+        const ix = await deployerSdk.initializeIx(admin.publicKey)
+        await makeTxSignAndSend(deployerProvider, ix)
 
-          const ix = await maliciousSdk.setAdmin(newAdmin)
-          const res = await makeTxSignAndSend(maliciousProvider, ix)
-
-          expectTransactionError(res, 'Only admin can call this instruction')
-        })
+        const settings = await program.account.controllerSettings.fetch(deployerSdk.getControllerSettingsPubkey())
+        expect(settings.admin.toString()).to.be.eq(admin.publicKey.toString())
       })
 
-      context('when caller is admin', async () => {
-        after('reset admin to original for subsequent tests', async () => {
-          const resetIx = await otherAdminSdk.setAdmin(admin.publicKey)
-          await makeTxSignAndSend(otherAdminProvider, resetIx)
-        })
+      it('cannot call initialize again', async () => {
+        const ix = await deployerSdk.initializeIx(admin.publicKey)
+        const res = await makeTxSignAndSend(deployerProvider, ix)
 
-        it('can set admin', async () => {
-          const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
-          await makeTxSignAndSend(adminProvider, ix)
+        expectTransactionError(res, 'already in use')
+      })
+    })
+  })
 
+  describe('set admin', () => {
+    context('when caller is not admin', async () => {
+      it('cannot set admin', async () => {
+        const newAdmin = randomPubkey()
+
+        const ix = await maliciousSdk.setAdmin(newAdmin)
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
+
+        expectTransactionError(res, 'Only admin can call this instruction')
+      })
+    })
+
+    context('when caller is admin', async () => {
+      after('reset admin to original for subsequent tests', async () => {
+        const resetIx = await otherAdminSdk.setAdmin(admin.publicKey)
+        await makeTxSignAndSend(otherAdminProvider, resetIx)
+      })
+
+      it('can set admin', async () => {
+        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
+        expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
+      })
+    })
+  })
+
+  describe('EntityRegistry management', () => {
+    const validator = randomPubkey()
+    const axia = randomPubkey()
+    const solver = randomPubkey()
+    const validator2 = randomPubkey()
+    const axia2 = randomPubkey()
+    const solver2 = randomPubkey()
+
+    context('when the caller is not admin', async () => {
+      it('cannot create registry', async () => {
+        const ix = await maliciousSdk.setAllowedEntityIx(EntityType.Validator, validator)
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
+
+        expectTransactionError(res, 'Only admin can call this instruction')
+      })
+    })
+
+    context('when the caller is admin', async () => {
+      it('should create entity registry successfully (validator)', async () => {
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Validator, validator)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const entityRegistry = await program.account.entityRegistry.fetch(
+          adminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
+        )
+
+        expect(entityRegistry.entityType).to.deep.include({ validator: {} })
+        expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
+      })
+
+      it('should create entity registry successfully (axia)', async () => {
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Axia, axia)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const entityRegistry = await program.account.entityRegistry.fetch(
+          adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+        )
+
+        expect(entityRegistry.entityType).to.deep.include({ axia: {} })
+        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+      })
+
+      it('should create entity registry successfully (solver)', async () => {
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Solver, solver)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const entityRegistry = await program.account.entityRegistry.fetch(
+          adminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
+        )
+
+        expect(entityRegistry.entityType).to.deep.include({ solver: {} })
+        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+      })
+
+      it('should change admin for next tests', async () => {
+        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
+        expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
+      })
+
+      it('should close entity registry (validator)', async () => {
+        const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Validator, validator)
+        await makeTxSignAndSend(otherAdminProvider, ix)
+
+        try {
+          await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
+          )
+          expect.fail('Entity registry should not exist after closing')
+        } catch (error: any) {
+          expect(error.message).to.include('Account does not exist')
+        }
+      })
+
+      it('should create entity registry successfully (axia)', async () => {
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Axia, axia)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const entityRegistry = await program.account.entityRegistry.fetch(
+          adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+        )
+
+        expect(entityRegistry.entityType).to.deep.include({ axia: {} })
+        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+      })
+
+      it('should create entity registry successfully (solver)', async () => {
+        const ix = await adminSdk.setAllowedEntityIx(EntityType.Solver, solver)
+        await makeTxSignAndSend(adminProvider, ix)
+
+        const entityRegistry = await program.account.entityRegistry.fetch(
+          adminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
+        )
+
+        expect(entityRegistry.entityType).to.deep.include({ solver: {} })
+        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+      })
+    })
+
+    context('when the admin is changed and caller is new admin', async () => {
+      before('change admin for next tests', async () => {
+        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
+        await makeTxSignAndSend(adminProvider, ix)
+      })
+
+      context('when the admin was changed', async () => {
+        it('should have the new admin as admin', async () => {
           const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
           expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
         })
       })
-    })
 
-    describe('EntityRegistry management', () => {
-      let validator: web3.PublicKey
-      let axia: web3.PublicKey
-      let solver: web3.PublicKey
-      let validator2: web3.PublicKey
-      let axia2: web3.PublicKey
-      let solver2: web3.PublicKey
-
-      before(() => {
-        validator = randomPubkey()
-        axia = randomPubkey()
-        solver = randomPubkey()
-        validator2 = randomPubkey()
-        axia2 = randomPubkey()
-        solver2 = randomPubkey()
-      })
-
-      context('when the caller is admin', async () => {
-        it('cannot create registry', async () => {
-          const ix = await maliciousSdk.setAllowedEntityIx(EntityType.Validator, validator)
-          const res = await makeTxSignAndSend(maliciousProvider, ix)
-
-          expectTransactionError(res, 'Only admin can call this instruction')
-        })
-      })
-
-      context('when the caller is admin', async () => {
-        it('should create entity registry successfully (validator)', async () => {
-          const ix = await adminSdk.setAllowedEntityIx(EntityType.Validator, validator)
-          await makeTxSignAndSend(adminProvider, ix)
-
-          const entityRegistry = await program.account.entityRegistry.fetch(
-            adminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
-          )
-
-          expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-        })
-
-        it('should create entity registry successfully (axia)', async () => {
-          const ix = await adminSdk.setAllowedEntityIx(EntityType.Axia, axia)
-          await makeTxSignAndSend(adminProvider, ix)
-
-          const entityRegistry = await program.account.entityRegistry.fetch(
-            adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
-          )
-
-          expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-        })
-
-        it('should create entity registry successfully (solver)', async () => {
-          const ix = await adminSdk.setAllowedEntityIx(EntityType.Solver, solver)
-          await makeTxSignAndSend(adminProvider, ix)
-
-          const entityRegistry = await program.account.entityRegistry.fetch(
-            adminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
-          )
-
-          expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-        })
-
-        it('should change admin for next tests', async () => {
-          const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
-          await makeTxSignAndSend(adminProvider, ix)
-
-          const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
-          expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
-        })
-
+      context('when closing entity registries', async () => {
         it('should close entity registry (validator)', async () => {
           const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Validator, validator)
           await makeTxSignAndSend(otherAdminProvider, ix)
@@ -214,24 +257,62 @@ describe('Controller Program', () => {
           }
         })
 
-        it('should create entity registry successfully (axia)', async () => {
-          const ix = await adminSdk.setAllowedEntityIx(EntityType.Axia, axia)
-          await makeTxSignAndSend(adminProvider, ix)
+        it('should close entity registry (axia)', async () => {
+          const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Axia, axia)
+          await makeTxSignAndSend(otherAdminProvider, ix)
+
+          try {
+            await program.account.entityRegistry.fetch(otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia))
+            expect.fail('Entity registry should not exist after closing')
+          } catch (error: any) {
+            expect(error.message).to.include('Account does not exist')
+          }
+        })
+
+        it('should close entity registry (solver)', async () => {
+          const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Solver, solver)
+          await makeTxSignAndSend(otherAdminProvider, ix)
+
+          try {
+            await program.account.entityRegistry.fetch(otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver))
+            expect.fail('Entity registry should not exist after closing')
+          } catch (error: any) {
+            expect(error.message).to.include('Account does not exist')
+          }
+        })
+      })
+
+      context('when allowing entities after closing their registries', async () => {
+        it('should create entity registry after closing (validator)', async () => {
+          const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, validator)
+          await makeTxSignAndSend(otherAdminProvider, ix)
 
           const entityRegistry = await program.account.entityRegistry.fetch(
-            adminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
+          )
+
+          expect(entityRegistry.entityType).to.deep.include({ validator: {} })
+          expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
+        })
+
+        it('should create entity registry after closing (axia)', async () => {
+          const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Axia, axia)
+          await makeTxSignAndSend(otherAdminProvider, ix)
+
+          const entityRegistry = await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
           )
 
           expect(entityRegistry.entityType).to.deep.include({ axia: {} })
           expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
         })
 
-        it('should create entity registry successfully (solver)', async () => {
-          const ix = await adminSdk.setAllowedEntityIx(EntityType.Solver, solver)
-          await makeTxSignAndSend(adminProvider, ix)
+        it('should create entity registry after closing (solver)', async () => {
+          const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Solver, solver)
+          await makeTxSignAndSend(otherAdminProvider, ix)
 
           const entityRegistry = await program.account.entityRegistry.fetch(
-            adminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
           )
 
           expect(entityRegistry.entityType).to.deep.include({ solver: {} })
@@ -239,149 +320,59 @@ describe('Controller Program', () => {
         })
       })
 
-      context('when the admin is changed and caller is new admin', async () => {
-        before('should change admin for next tests', async () => {
-          const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
-          await makeTxSignAndSend(adminProvider, ix)
+      context('when allowing other entities', async () => {
+        it('should create another validator registry', async () => {
+          const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, validator2)
+          await makeTxSignAndSend(otherAdminProvider, ix)
 
-          const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
-          expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
+          const entityRegistry = await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator2)
+          )
+          expect(entityRegistry.entityType).to.deep.include({ validator: {} })
+          expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
         })
 
-        context('when closing entity registries', async () => {
-          it('should close entity registry (validator)', async () => {
-            const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Validator, validator)
-            await makeTxSignAndSend(otherAdminProvider, ix)
+        it('should create another axia registry', async () => {
+          const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Axia, axia2)
+          await makeTxSignAndSend(otherAdminProvider, ix)
 
-            try {
-              await program.account.entityRegistry.fetch(
-                otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
-              )
-              expect.fail('Entity registry should not exist after closing')
-            } catch (error: any) {
-              expect(error.message).to.include('Account does not exist')
-            }
-          })
-
-          it('should close entity registry (axia)', async () => {
-            const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Axia, axia)
-            await makeTxSignAndSend(otherAdminProvider, ix)
-
-            try {
-              await program.account.entityRegistry.fetch(otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia))
-              expect.fail('Entity registry should not exist after closing')
-            } catch (error: any) {
-              expect(error.message).to.include('Account does not exist')
-            }
-          })
-
-          it('should close entity registry (solver)', async () => {
-            const ix = await otherAdminSdk.closeEntityRegistryIx(EntityType.Solver, solver)
-            await makeTxSignAndSend(otherAdminProvider, ix)
-
-            try {
-              await program.account.entityRegistry.fetch(
-                otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
-              )
-              expect.fail('Entity registry should not exist after closing')
-            } catch (error: any) {
-              expect(error.message).to.include('Account does not exist')
-            }
-          })
+          const entityRegistry = await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia2)
+          )
+          expect(entityRegistry.entityType).to.deep.include({ axia: {} })
+          expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
         })
 
-        context('when allowing entities after closing their registries', async () => {
-          it('should create entity registry after closing (validator)', async () => {
-            const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, validator)
-            await makeTxSignAndSend(otherAdminProvider, ix)
+        it('should create another solver registry', async () => {
+          const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Solver, solver2)
+          await makeTxSignAndSend(otherAdminProvider, ix)
 
-            const entityRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator)
-            )
-
-            expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-            expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
-          })
-
-          it('should create entity registry after closing (axia)', async () => {
-            const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Axia, axia)
-            await makeTxSignAndSend(otherAdminProvider, ix)
-
-            const entityRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
-            )
-
-            expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-            expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
-          })
-
-          it('should create entity registry after closing (solver)', async () => {
-            const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Solver, solver)
-            await makeTxSignAndSend(otherAdminProvider, ix)
-
-            const entityRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver)
-            )
-
-            expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-            expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
-          })
+          const entityRegistry = await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver2)
+          )
+          expect(entityRegistry.entityType).to.deep.include({ solver: {} })
+          expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
         })
+      })
 
-        context('when allowing other entities', async () => {
-          it('should create another validator registry', async () => {
-            const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, validator2)
-            await makeTxSignAndSend(otherAdminProvider, ix)
+      context('when allowing entities for multiple roles', async () => {
+        it('should create separate accounts for same pubkey with different entity types', async () => {
+          const ix1 = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, axia)
+          await makeTxSignAndSend(otherAdminProvider, ix1)
 
-            const entityRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator2)
-            )
-            expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-            expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
-          })
+          const validatorRegistry = await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
+          )
+          const axiaRegistry = await program.account.entityRegistry.fetch(
+            otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+          )
 
-          it('should create another axia registry', async () => {
-            const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Axia, axia2)
-            await makeTxSignAndSend(otherAdminProvider, ix)
+          expect(validatorRegistry.entityType).to.deep.include({ validator: {} })
+          expect(axiaRegistry.entityType).to.deep.include({ axia: {} })
 
-            const entityRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia2)
-            )
-            expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-            expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
-          })
-
-          it('should create another solver registry', async () => {
-            const ix = await otherAdminSdk.setAllowedEntityIx(EntityType.Solver, solver2)
-            await makeTxSignAndSend(otherAdminProvider, ix)
-
-            const entityRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver2)
-            )
-            expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-            expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
-          })
-        })
-
-        context('when allowing entities for multiple roles', async () => {
-          it('should create separate accounts for same pubkey with different entity types', async () => {
-            const ix1 = await otherAdminSdk.setAllowedEntityIx(EntityType.Validator, axia)
-            await makeTxSignAndSend(otherAdminProvider, ix1)
-
-            const validatorRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
-            )
-            const axiaRegistry = await program.account.entityRegistry.fetch(
-              otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
-            )
-
-            expect(validatorRegistry.entityType).to.deep.include({ validator: {} })
-            expect(axiaRegistry.entityType).to.deep.include({ axia: {} })
-
-            const validatorPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
-            const axiaPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
-            expect(validatorPda.toString()).to.not.eq(axiaPda.toString())
-          })
+          const validatorPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, axia)
+          const axiaPda = otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia)
+          expect(validatorPda.toString()).to.not.eq(axiaPda.toString())
         })
       })
     })
