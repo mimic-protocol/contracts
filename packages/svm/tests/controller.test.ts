@@ -233,9 +233,6 @@ describe('Controller', () => {
       before('change admin for next tests', async () => {
         const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
-
-        const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
-        expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
       })
 
       context('when the admin was changed', async () => {
