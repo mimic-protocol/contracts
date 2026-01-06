@@ -25,7 +25,7 @@
           "writable": true,
           "signer": true,
           "relations": [
-            "controller_settings"
+            "global_settings"
           ]
         },
         {
@@ -33,22 +33,90 @@
           "writable": true
         },
         {
-          "name": "controller_settings",
+          "name": "global_settings",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  111,
-                  110,
-                  116,
-                  114,
-                  111,
+                  103,
                   108,
+                  111,
+                  98,
+                  97,
                   108,
+                  45,
+                  115,
                   101,
-                  114,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "entity_type",
+          "type": {
+            "defined": {
+              "name": "EntityType"
+            }
+          }
+        },
+        {
+          "name": "entity_pubkey",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "create_entity_registry",
+      "discriminator": [
+        59,
+        253,
+        73,
+        126,
+        171,
+        188,
+        172,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "global_settings"
+          ]
+        },
+        {
+          "name": "entity_registry",
+          "writable": true
+        },
+        {
+          "name": "global_settings",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
                   45,
                   115,
                   101,
@@ -102,23 +170,19 @@
           "signer": true
         },
         {
-          "name": "controller_settings",
+          "name": "global_settings",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  111,
-                  110,
-                  116,
-                  114,
-                  111,
+                  103,
                   108,
+                  111,
+                  98,
+                  97,
                   108,
-                  101,
-                  114,
                   45,
                   115,
                   101,
@@ -163,27 +227,23 @@
           "writable": true,
           "signer": true,
           "relations": [
-            "controller_settings"
+            "global_settings"
           ]
         },
         {
-          "name": "controller_settings",
+          "name": "global_settings",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  99,
-                  111,
-                  110,
-                  116,
-                  114,
-                  111,
+                  103,
                   108,
+                  111,
+                  98,
+                  97,
                   108,
-                  101,
-                  114,
                   45,
                   115,
                   101,
@@ -202,82 +262,6 @@
       "args": [
         {
           "name": "new_admin",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
-      "name": "set_allowed_entity",
-      "discriminator": [
-        140,
-        26,
-        199,
-        225,
-        147,
-        47,
-        14,
-        29
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "writable": true,
-          "signer": true,
-          "relations": [
-            "controller_settings"
-          ]
-        },
-        {
-          "name": "entity_registry",
-          "writable": true
-        },
-        {
-          "name": "controller_settings",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  110,
-                  116,
-                  114,
-                  111,
-                  108,
-                  108,
-                  101,
-                  114,
-                  45,
-                  115,
-                  101,
-                  116,
-                  116,
-                  105,
-                  110,
-                  103,
-                  115
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "entity_type",
-          "type": {
-            "defined": {
-              "name": "EntityType"
-            }
-          }
-        },
-        {
-          "name": "entity_pubkey",
           "type": "pubkey"
         }
       ]
