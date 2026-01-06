@@ -1,8 +1,9 @@
 [package]
 name = "settler"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "Manages on-chain intent settlement for Mimic protocol"
 edition = "2021"
+license = "GPL-3.0"
 
 [lib]
 crate-type = ["cdylib", "lib"]
