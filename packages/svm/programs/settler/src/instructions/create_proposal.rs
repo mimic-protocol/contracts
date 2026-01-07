@@ -27,7 +27,7 @@ pub struct CreateProposal<'info> {
         seeds = [b"fulfilled-intent", intent.hash.as_ref()],
         bump
     )]
-    /// This PDA must be uninitialized
+    /// This PDA must be uninitialized (checked by SystemAccount type)
     pub fulfilled_intent: SystemAccount<'info>,
 
     #[account(

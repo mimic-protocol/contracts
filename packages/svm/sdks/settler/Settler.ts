@@ -146,7 +146,7 @@ export default class SettlerSDK {
     const ix = await this.program.methods
       .addInstructionsToProposal(parsedInstructions, finalize)
       .accountsPartial({
-        proposalCreator: this.getSignerKey(),
+        creator: this.getSignerKey(),
         proposal: this.getProposalKey(intentHashHex, solver),
       })
       .instruction()
@@ -154,22 +154,16 @@ export default class SettlerSDK {
     return ix
   }
 
-  async claimStaleProposalsIx(
-    intentHashesHex: string[],
+  async claimStaleProposalIx(
+    intentHashHex: string,
     solverPubkey?: web3.PublicKey
   ): Promise<web3.TransactionInstruction> {
     const ix = await this.program.methods
-      .claimStaleProposals()
+      .claimStaleProposal()
       .accountsPartial({
-        proposalCreator: this.getSignerKey(),
+        creator: this.getSignerKey(),
+        proposal: this.getProposalKey(intentHashHex, solverPubkey),
       })
-      .remainingAccounts(
-        intentHashesHex.map((intentHashHex) => ({
-          pubkey: this.getProposalKey(intentHashHex, solverPubkey),
-          isWritable: true,
-          isSigner: false,
-        }))
-      )
       .instruction()
 
     return ix
