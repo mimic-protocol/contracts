@@ -1,5 +1,6 @@
 export * from './addresses'
 export * from './arrays'
+export * from './dynamic-calls.js'
 export * from './intents'
 export * from './proposal'
 export * from './safeguards'
