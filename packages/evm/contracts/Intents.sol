@@ -2,16 +2,20 @@
 
 pragma solidity ^0.8.20;
 
+import './dynamic-calls/DynamicCallTypes.sol';
+
 /**
  * @dev Enum representing the type of intent operation.
  * - Swap: Swap tokens between chains or tokens.
  * - Transfer: Transfer tokens to one or more recipients.
  * - Call: Execute arbitrary contract calls.
+ * - DynamicCall: Execute arbitrary dynamic contract calls.
  */
 enum OpType {
     Swap,
     Transfer,
-    Call
+    Call,
+    DynamicCall
 }
 
 /**
@@ -160,6 +164,16 @@ struct CallData {
     address target;
     bytes data;
     uint256 value;
+}
+
+/**
+ * @dev Represents a generic dynamic call intent consisting of one or more dynamic contract calls.
+ * @param chainId Chain ID where the calls should be executed.
+ * @param calls List of low-level dynamic contract calls to be executed.
+ */
+struct DynamicCallIntent {
+    uint256 chainId;
+    DynamicCall[] calls;
 }
 
 /**
