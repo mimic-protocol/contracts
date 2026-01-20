@@ -1430,34 +1430,34 @@ describe('Settler Program', () => {
 
   describe('add_instructions_to_proposal', () => {
     const createTestProposal = async (isFinal = false): Promise<string> => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + PROPOSAL_DEADLINE_OFFSET
+      const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
+      const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+      const now = Number(client.getClock().unixTimestamp)
+      const deadline = now + PROPOSAL_DEADLINE_OFFSET
 
-        const instructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [
-              {
-                pubkey: Keypair.generate().publicKey,
-                isSigner: false,
-                isWritable: true,
-              },
-            ],
-            data: DEFAULT_DATA_HEX,
-          },
-        ]
+      const instructions = [
+        {
+          programId: Keypair.generate().publicKey,
+          accounts: [
+            {
+              pubkey: Keypair.generate().publicKey,
+              isSigner: false,
+              isWritable: true,
+            },
+          ],
+          data: DEFAULT_DATA_HEX,
+        },
+      ]
 
-        const fees = intent.maxFees.map((maxFee) => ({
-          mint: maxFee.mint,
-          amount: maxFee.amount.toNumber(),
-        }))
+      const fees = intent.maxFees.map((maxFee) => ({
+        mint: maxFee.mint,
+        amount: maxFee.amount.toNumber(),
+      }))
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, isFinal)
-        await makeTxSignAndSend(solverProvider, ix)
-        return intentHash
-      }
+      const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, isFinal)
+      await makeTxSignAndSend(solverProvider, ix)
+      return intentHash
+    }
 
     context('when adding valid instructions', async () => {
       it('should add instructions to proposal', async () => {
