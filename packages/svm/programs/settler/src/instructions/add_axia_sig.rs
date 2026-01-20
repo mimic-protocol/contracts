@@ -4,7 +4,7 @@ use anchor_lang::{
 };
 
 use crate::{
-    controller::{accounts::EntityRegistry, types::EntityType},
+    controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Proposal,
     utils::{check_ed25519_ix, get_args_from_ed25519_ix_data, Ed25519Args},
@@ -18,14 +18,14 @@ pub struct AddAxiaSig<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::controller::ID,
+        seeds::program = controller::ID,
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
     #[account(
         seeds = [b"entity-registry", &[EntityType::Axia as u8 + 1], axia_registry.entity_pubkey.as_ref()],
         bump = axia_registry.bump,
-        seeds::program = crate::controller::ID,
+        seeds::program = controller::ID,
     )]
     pub axia_registry: Box<Account<'info, EntityRegistry>>,
 

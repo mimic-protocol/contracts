@@ -32,10 +32,6 @@ pub mod settler {
         instructions::add_validator_sig(ctx)
     }
 
-    pub fn change_controller_program(ctx: Context<ChangeControllerProgram>) -> Result<()> {
-        instructions::change_controller_program(ctx)
-    }
-
     pub fn claim_stale_intent(ctx: Context<ClaimStaleIntent>) -> Result<()> {
         instructions::claim_stale_intent(ctx)
     }

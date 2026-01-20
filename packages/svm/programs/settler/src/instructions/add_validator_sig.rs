@@ -4,7 +4,7 @@ use anchor_lang::{
 };
 
 use crate::{
-    controller::{accounts::EntityRegistry, types::EntityType},
+    controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Intent,
     utils::{check_ed25519_ix, get_args_from_ed25519_ix_data, Ed25519Args},
@@ -18,7 +18,7 @@ pub struct AddValidatorSig<'info> {
     #[account(
         seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
         bump = solver_registry.bump,
-        seeds::program = crate::controller::ID,
+        seeds::program = controller::ID,
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
@@ -72,7 +72,7 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
                 ed25519_ix_args.pubkey,
                 &[ctx.accounts.validator_registry.bump]
             ],
-            &crate::controller::ID,
+            &controller::ID,
         )
         .map_err(|_| SettlerError::ValidatorNotAllowlisted)?,
         SettlerError::ValidatorNotAllowlisted,
