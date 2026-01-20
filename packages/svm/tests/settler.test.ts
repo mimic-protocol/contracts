@@ -112,15 +112,17 @@ describe('Settler Program', () => {
     client.expireBlockhash()
   })
 
-  describe('Settler', () => {
-    describe('initialize', () => {
+  describe('initialize', () => {
+    context('when caller is not deployer', async () => {
       it('cannot initialize if not deployer', async () => {
         const ix = await maliciousSdk.initializeIx()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only Deployer can call this instruction.')
       })
+    })
 
+    context('when caller is deployer', async () => {
       it('should call initialize', async () => {
         const ix = await sdk.initializeIx()
         await makeTxSignAndSend(provider, ix)
@@ -136,8 +138,10 @@ describe('Settler Program', () => {
         expectTransactionError(res, 'already in use')
       })
     })
+  })
 
-    describe('create_intent', () => {
+  describe('create_intent', () => {
+    context('when creating a valid intent', async () => {
       it('should create an intent', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
@@ -208,30 +212,6 @@ describe('Settler Program', () => {
         expect(intent.isFinal).to.be.true
       })
 
-      it('cannot create an intent with empty max_fees', async () => {
-        const intentHash = generateIntentHash()
-        const nonce = generateNonce()
-        const user = Keypair.generate().publicKey
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + INTENT_DEADLINE_OFFSET
-
-        const params = {
-          op: OpType.Call,
-          user,
-          nonceHex: nonce,
-          deadline,
-          minValidations: MULTIPLE_MIN_VALIDATIONS,
-          dataHex: TEST_DATA_HEX_1,
-          maxFees: [],
-          eventsHex: [],
-        }
-
-        const ix = await solverSdk.createIntentIx(intentHash, params, false)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-
-        expectTransactionError(res, 'No max fees provided')
-      })
-
       it('should create an intent with empty events', async () => {
         const intentHash = await createTestIntent(solverSdk, solverProvider, {
           dataHex: TEST_DATA_HEX_2,
@@ -263,7 +243,67 @@ describe('Settler Program', () => {
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         expect(intent.isFinal).to.be.false
       })
+    })
 
+    context('when validation fails', async () => {
+      it('cannot create an intent with empty max_fees', async () => {
+        const intentHash = generateIntentHash()
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + INTENT_DEADLINE_OFFSET
+
+        const params = {
+          op: OpType.Call,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: MULTIPLE_MIN_VALIDATIONS,
+          dataHex: TEST_DATA_HEX_1,
+          maxFees: [],
+          eventsHex: [],
+        }
+
+        const ix = await solverSdk.createIntentIx(intentHash, params, false)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+
+        expectTransactionError(res, 'No max fees provided')
+      })
+
+      it('cannot create intent with invalid intent_hash', async () => {
+        const invalidIntentHash = '123456'
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + INTENT_DEADLINE_OFFSET
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: DEFAULT_MIN_VALIDATIONS,
+          dataHex: EMPTY_DATA_HEX,
+          maxFees: [
+            {
+              mint: Keypair.generate().publicKey,
+              amount: DEFAULT_MAX_FEE,
+            },
+          ],
+          eventsHex: [],
+        }
+
+        try {
+          const ix = await solverSdk.createIntentIx(invalidIntentHash, params, false)
+          await makeTxSignAndSend(solverProvider, ix)
+          expect.fail('Should have thrown an error')
+        } catch (error: any) {
+          expect(error.message).to.include(`Intent hash must be 32 bytes`)
+        }
+      })
+    })
+
+    context('when caller is not allowlisted solver', async () => {
       it('cannot create intent if not allowlisted solver', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
@@ -294,7 +334,9 @@ describe('Settler Program', () => {
         const intent = client.getAccount(sdk.getIntentKey(intentHash))
         expect(intent).to.be.null
       })
+    })
 
+    context('when deadline is invalid', async () => {
       it('cannot create intent with deadline in the past', async () => {
         warpSeconds(provider, WARP_TIME_LONG)
 
@@ -354,7 +396,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, 'Deadline must be in the future')
       })
+    })
 
+    context('when intent already exists', async () => {
       it('cannot create intent if fulfilled_intent PDA already exists', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
@@ -419,41 +463,11 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, 'already in use')
       })
-
-      it('cannot create intent with invalid intent_hash', async () => {
-        const invalidIntentHash = '123456'
-        const nonce = generateNonce()
-        const user = Keypair.generate().publicKey
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + INTENT_DEADLINE_OFFSET
-
-        const params = {
-          op: OpType.Transfer,
-          user,
-          nonceHex: nonce,
-          deadline,
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          dataHex: EMPTY_DATA_HEX,
-          maxFees: [
-            {
-              mint: Keypair.generate().publicKey,
-              amount: DEFAULT_MAX_FEE,
-            },
-          ],
-          eventsHex: [],
-        }
-
-        try {
-          const ix = await solverSdk.createIntentIx(invalidIntentHash, params, false)
-          await makeTxSignAndSend(solverProvider, ix)
-          expect.fail('Should have thrown an error')
-        } catch (error: any) {
-          expect(error.message).to.include(`Intent hash must be 32 bytes`)
-        }
-      })
     })
+  })
 
-    describe('extend_intent', () => {
+  describe('extend_intent', () => {
+    context('when extending with valid data', async () => {
       it('should extend an intent with more data', async () => {
         const intentHash = await createTestIntent(solverSdk, solverProvider, {
           isFinal: false,
@@ -641,7 +655,9 @@ describe('Settler Program', () => {
         expect(Buffer.from(intent.data).toString('hex')).to.be.eq('0102031c1d1e1f2021')
         expect(intent.isFinal).to.be.false
       })
+    })
 
+    context('when caller is not intent creator', async () => {
       it('cannot extend intent if not intent creator', async () => {
         const intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
 
@@ -654,7 +670,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Signer must be intent creator`)
       })
+    })
 
+    context('when intent does not exist', async () => {
       it('cannot extend non-existent intent', async () => {
         const intentHash = generateIntentHash()
 
@@ -667,7 +685,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `AccountNotInitialized`)
       })
+    })
 
+    context('when intent is already finalized', async () => {
       it('cannot extend intent if already finalized', async () => {
         const intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
 
@@ -692,12 +712,14 @@ describe('Settler Program', () => {
         expectTransactionError(res, `Intent is already final`)
       })
     })
+  })
 
-    describe('claim_stale_intent', () => {
-      const createTestIntentWithDeadline = async (deadline: number, isFinal = false): Promise<string> => {
-        return createTestIntent(solverSdk, solverProvider, { deadline, isFinal })
-      }
+  describe('claim_stale_intent', () => {
+    const createTestIntentWithDeadline = async (deadline: number, isFinal = false): Promise<string> => {
+      return createTestIntent(solverSdk, solverProvider, { deadline, isFinal })
+    }
 
+    context('when intent is stale', async () => {
       it('should claim stale intent', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + STALE_CLAIM_DELAY
@@ -727,7 +749,9 @@ describe('Settler Program', () => {
         expect(intentCreatorBalanceAfter).to.be.eq(intentCreatorBalanceBefore + intentBalanceBefore - ACCOUNT_CLOSE_FEE)
         expect(intentBalanceAfter).to.be.eq(0)
       })
+    })
 
+    context('when deadline has not passed', async () => {
       it('cannot claim intent if deadline has not passed', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + LONG_DEADLINE
@@ -753,7 +777,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, 'Intent not yet expired')
       })
+    })
 
+    context('when caller is not intent creator', async () => {
       it('cannot claim stale intent if not intent creator', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + EXPIRATION_TEST_DELAY
@@ -766,7 +792,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Signer must be intent creator`)
       })
+    })
 
+    context('when intent does not exist', async () => {
       it('cannot claim non-existent intent', async () => {
         const intentHash = generateIntentHash()
 
@@ -775,7 +803,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `AccountNotInitialized`)
       })
+    })
 
+    context('when claiming twice', async () => {
       it('cannot claim intent twice', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + DOUBLE_CLAIM_DELAY
@@ -794,8 +824,10 @@ describe('Settler Program', () => {
         expect(errorMsg.includes(`AccountNotInitialized`)).to.be.true
       })
     })
+  })
 
-    describe('create_proposal', () => {
+  describe('create_proposal', () => {
+    context('when creating a valid proposal', async () => {
       it('should create a proposal', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -927,6 +959,63 @@ describe('Settler Program', () => {
         expect(proposal.instructions.length).to.be.eq(0)
       })
 
+      it('should create proposal with fees matching intent max_fees', async () => {
+        const intentHash = generateIntentHash()
+        const nonce = generateNonce()
+        const user = Keypair.generate().publicKey
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + INTENT_DEADLINE_OFFSET
+        const mint = Keypair.generate().publicKey
+
+        const params = {
+          op: OpType.Transfer,
+          user,
+          nonceHex: nonce,
+          deadline,
+          minValidations: DEFAULT_MIN_VALIDATIONS,
+          dataHex: DEFAULT_DATA_HEX,
+          maxFees: [
+            {
+              mint,
+              amount: DEFAULT_MAX_FEE,
+            },
+          ],
+          eventsHex: [],
+        }
+
+        const ix = await solverSdk.createIntentIx(intentHash, params, true)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        // Add validators
+        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
+
+        const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
+        const instructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: TEST_DATA_HEX_3,
+          },
+        ]
+
+        const fees = [
+          {
+            mint,
+            amount: DEFAULT_MAX_FEE_HALF,
+          },
+        ]
+
+        const proposalIx = await solverSdk.createProposalIx(intentHash, instructions, fees, proposalDeadline)
+        await makeTxSignAndSend(solverProvider, proposalIx)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.fees.length).to.be.eq(1)
+        expect(proposal.fees[0].mint.toString()).to.be.eq(mint.toString())
+        expect(proposal.fees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE_HALF)
+      })
+    })
+
+    context('when caller is not whitelisted solver', async () => {
       it('cannot create proposal if not whitelisted solver', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -950,7 +1039,9 @@ describe('Settler Program', () => {
         const res = await makeTxSignAndSend(maliciousProvider, ix)
         expectTransactionError(res, 'AccountNotInitialized')
       })
+    })
 
+    context('when deadline is invalid', async () => {
       it('cannot create proposal with deadline in the past', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -1065,7 +1156,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Proposal deadline can't be after the Intent's deadline`)
       })
+    })
 
+    context('when intent conditions are not met', async () => {
       it('cannot create proposal if intent has insufficient validations', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
@@ -1134,7 +1227,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Intent is not final`)
       })
+    })
 
+    context('when intent already exists', async () => {
       it('cannot create proposal if fulfilled_intent PDA already exists', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const now = Number(client.getClock().unixTimestamp)
@@ -1200,7 +1295,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `already in use`)
       })
+    })
 
+    context('when intent does not exist', async () => {
       it('cannot create proposal for non-existent intent', async () => {
         const intentHash = generateIntentHash()
         const now = Number(client.getClock().unixTimestamp)
@@ -1219,62 +1316,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `AccountNotInitialized`)
       })
+    })
 
-      it('should create proposal with fees matching intent max_fees', async () => {
-        const intentHash = generateIntentHash()
-        const nonce = generateNonce()
-        const user = Keypair.generate().publicKey
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + INTENT_DEADLINE_OFFSET
-        const mint = Keypair.generate().publicKey
-
-        const params = {
-          op: OpType.Transfer,
-          user,
-          nonceHex: nonce,
-          deadline,
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          dataHex: DEFAULT_DATA_HEX,
-          maxFees: [
-            {
-              mint,
-              amount: DEFAULT_MAX_FEE,
-            },
-          ],
-          eventsHex: [],
-        }
-
-        const ix = await solverSdk.createIntentIx(intentHash, params, true)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        // Add validators
-        await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
-
-        const proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
-        const instructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
-            data: TEST_DATA_HEX_3,
-          },
-        ]
-
-        const fees = [
-          {
-            mint,
-            amount: DEFAULT_MAX_FEE_HALF,
-          },
-        ]
-
-        const proposalIx = await solverSdk.createProposalIx(intentHash, instructions, fees, proposalDeadline)
-        await makeTxSignAndSend(solverProvider, proposalIx)
-
-        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-        expect(proposal.fees.length).to.be.eq(1)
-        expect(proposal.fees[0].mint.toString()).to.be.eq(mint.toString())
-        expect(proposal.fees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE_HALF)
-      })
-
+    context('when fees are invalid', async () => {
       it('cannot create proposal with fees exceeding max_fees', async () => {
         const intentHash = generateIntentHash()
         const nonce = generateNonce()
@@ -1382,9 +1426,10 @@ describe('Settler Program', () => {
         expect(res.toString()).to.match(/InvalidFeeMint|Invalid fee mint/i)
       })
     })
+  })
 
-    describe('add_instructions_to_proposal', () => {
-      const createTestProposal = async (isFinal = false): Promise<string> => {
+  describe('add_instructions_to_proposal', () => {
+    const createTestProposal = async (isFinal = false): Promise<string> => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
         const now = Number(client.getClock().unixTimestamp)
@@ -1414,6 +1459,7 @@ describe('Settler Program', () => {
         return intentHash
       }
 
+    context('when adding valid instructions', async () => {
       it('should add instructions to proposal', async () => {
         const intentHash = await createTestProposal(false)
 
@@ -1503,6 +1549,65 @@ describe('Settler Program', () => {
         expect(proposal.isFinal).to.be.false
       })
 
+      it('should finalize proposal when adding instructions with finalize=true', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '212223',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, true)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.isFinal).to.be.true
+        expect(proposal.instructions.length).to.be.eq(2)
+      })
+
+      it('should not finalize proposal when adding instructions with finalize=false', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '242526',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.isFinal).to.be.false
+        expect(proposal.instructions.length).to.be.eq(2)
+      })
+
+      it('should finalize proposal by default when adding instructions', async () => {
+        const intentHash = await createTestProposal(false)
+
+        const moreInstructions = [
+          {
+            programId: Keypair.generate().publicKey,
+            accounts: [],
+            data: '272829',
+          },
+        ]
+
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+        await makeTxSignAndSend(solverProvider, ix)
+
+        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+        expect(proposal.isFinal).to.be.true
+        expect(proposal.instructions.length).to.be.eq(2)
+      })
+    })
+
+    context('when caller is not proposal creator', async () => {
       it('cannot add instructions if not proposal creator', async () => {
         const intentHash = await createTestProposal(false)
         const proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
@@ -1525,7 +1630,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Signer must be proposal creator`)
       })
+    })
 
+    context('when proposal does not exist', async () => {
       it('cannot add instructions to non-existent proposal', async () => {
         const intentHash = generateIntentHash()
 
@@ -1542,7 +1649,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `AccountNotInitialized`)
       })
+    })
 
+    context('when proposal has expired', async () => {
       it('cannot add instructions if proposal deadline has passed', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -1618,7 +1727,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, 'Proposal has already expired')
       })
+    })
 
+    context('when proposal is already final', async () => {
       it('cannot add instructions if proposal is final', async () => {
         const intentHash = await createTestProposal(true)
 
@@ -1635,94 +1746,39 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Proposal is already final`)
       })
-
-      it('should finalize proposal when adding instructions with finalize=true', async () => {
-        const intentHash = await createTestProposal(false)
-
-        const moreInstructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
-            data: '212223',
-          },
-        ]
-
-        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, true)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-        expect(proposal.isFinal).to.be.true
-        expect(proposal.instructions.length).to.be.eq(2)
-      })
-
-      it('should not finalize proposal when adding instructions with finalize=false', async () => {
-        const intentHash = await createTestProposal(false)
-
-        const moreInstructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
-            data: '242526',
-          },
-        ]
-
-        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-        expect(proposal.isFinal).to.be.false
-        expect(proposal.instructions.length).to.be.eq(2)
-      })
-
-      it('should finalize proposal by default when adding instructions', async () => {
-        const intentHash = await createTestProposal(false)
-
-        const moreInstructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
-            data: '272829',
-          },
-        ]
-
-        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-        expect(proposal.isFinal).to.be.true
-        expect(proposal.instructions.length).to.be.eq(2)
-      })
     })
+  })
 
-    describe('claim_stale_proposal', () => {
-      const createTestProposalWithDeadline = async (deadline: number): Promise<string> => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+  describe('claim_stale_proposal', () => {
+    const createTestProposalWithDeadline = async (deadline: number): Promise<string> => {
+      const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
+      const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
 
-        const instructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [
-              {
-                pubkey: Keypair.generate().publicKey,
-                isSigner: false,
-                isWritable: true,
-              },
-            ],
-            data: DEFAULT_DATA_HEX,
-          },
-        ]
+      const instructions = [
+        {
+          programId: Keypair.generate().publicKey,
+          accounts: [
+            {
+              pubkey: Keypair.generate().publicKey,
+              isSigner: false,
+              isWritable: true,
+            },
+          ],
+          data: DEFAULT_DATA_HEX,
+        },
+      ]
 
-        const fees = intent.maxFees.map((maxFee) => ({
-          mint: maxFee.mint,
-          amount: maxFee.amount.toNumber(),
-        }))
+      const fees = intent.maxFees.map((maxFee) => ({
+        mint: maxFee.mint,
+        amount: maxFee.amount.toNumber(),
+      }))
 
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
-        await makeTxSignAndSend(solverProvider, ix)
-        return intentHash
-      }
+      const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
+      await makeTxSignAndSend(solverProvider, ix)
+      return intentHash
+    }
 
+    context('when proposal is stale', async () => {
       it('should claim stale proposal', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + STALE_CLAIM_DELAY
@@ -1756,7 +1812,9 @@ describe('Settler Program', () => {
         )
         expect(proposalBalanceAfter).to.be.eq(0)
       })
+    })
 
+    context('when deadline has not passed', async () => {
       it('cannot claim proposal if deadline has not passed', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + LONG_DEADLINE
@@ -1782,7 +1840,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Proposal not yet expired`)
       })
+    })
 
+    context('when caller is not proposal creator', async () => {
       it('cannot claim stale proposal if not proposal creator', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + EXPIRATION_TEST_DELAY
@@ -1795,7 +1855,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Signer must be proposal creator`)
       })
+    })
 
+    context('when proposal does not exist', async () => {
       it('cannot claim non-existent proposal', async () => {
         const intentHash = generateIntentHash()
 
@@ -1804,7 +1866,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `AccountNotInitialized`)
       })
+    })
 
+    context('when claiming twice', async () => {
       it('cannot claim proposal twice', async () => {
         const now = Number(client.getClock().unixTimestamp)
         const deadline = now + DOUBLE_CLAIM_DELAY
@@ -1823,19 +1887,21 @@ describe('Settler Program', () => {
         expect(errorMsg.includes(`AccountNotInitialized`)).to.be.true
       })
     })
+  })
 
-    describe('add_validator_sigs', () => {
-      let whitelistedValidator: Keypair
+  describe('add_validator_sigs', () => {
+    let whitelistedValidator: Keypair
 
-      before(async () => {
-        whitelistedValidator = Keypair.generate()
-        const whitelistValidatorIx = await controllerSdk.setAllowedEntityIx(
-          EntityType.Validator,
-          whitelistedValidator.publicKey
-        )
-        await makeTxSignAndSend(provider, whitelistValidatorIx)
-      })
+    before(async () => {
+      whitelistedValidator = Keypair.generate()
+      const whitelistValidatorIx = await controllerSdk.setAllowedEntityIx(
+        EntityType.Validator,
+        whitelistedValidator.publicKey
+      )
+      await makeTxSignAndSend(provider, whitelistValidatorIx)
+    })
 
+    context('when adding valid signatures', async () => {
       it('should add validator signature successfully', async () => {
         const intentHash = await createTestIntent(solverSdk, solverProvider, {
           minValidations: DEFAULT_MIN_VALIDATIONS,
@@ -1979,7 +2045,9 @@ describe('Settler Program', () => {
         expect(intentAfter2.validators.length).to.be.eq(1)
         expect(intentAfter2.validators[0].toString()).to.be.eq(validator1.publicKey.toString())
       })
+    })
 
+    context('when intent conditions are not met', async () => {
       it('cannot add signature if intent is not final', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
           minValidations: DEFAULT_MIN_VALIDATIONS,
@@ -2042,7 +2110,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `Intent has already expired`)
       })
+    })
 
+    context('when validator is not whitelisted', async () => {
       it('cannot add signature if validator is not whitelisted', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
           minValidations: DEFAULT_MIN_VALIDATIONS,
@@ -2067,7 +2137,9 @@ describe('Settler Program', () => {
           `AnchorError caused by account: validator_registry. Error Code: AccountNotInitialized.`
         )
       })
+    })
 
+    context('when solver is not whitelisted', async () => {
       it('cannot add signature if solver is not whitelisted', async () => {
         const intentHash = await createTestIntent(solverSdk, solverProvider, {
           minValidations: DEFAULT_MIN_VALIDATIONS,
@@ -2090,7 +2162,9 @@ describe('Settler Program', () => {
           `AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized.`
         )
       })
+    })
 
+    context('when intent does not exist', async () => {
       it('cannot add signature for non-existent intent', async () => {
         const intentHash = generateIntentHash()
         const intentKey = sdk.getIntentKey(intentHash)
@@ -2119,7 +2193,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `AccountNotInitialized`)
       })
+    })
 
+    context('when signature is invalid', async () => {
       it('cannot add signature if fulfilled_intent PDA already exists', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
           minValidations: DEFAULT_MIN_VALIDATIONS,
@@ -2219,16 +2295,18 @@ describe('Settler Program', () => {
         expectTransactionError(res, `Signature verification failed`)
       })
     })
+  })
 
-    describe('add_axia_sig', () => {
-      let whitelistedAxia: Keypair
+  describe('add_axia_sig', () => {
+    let whitelistedAxia: Keypair
 
-      before(async () => {
-        whitelistedAxia = Keypair.generate()
-        const whitelistAxiaIx = await controllerSdk.setAllowedEntityIx(EntityType.Axia, whitelistedAxia.publicKey)
-        await makeTxSignAndSend(provider, whitelistAxiaIx)
-      })
+    before(async () => {
+      whitelistedAxia = Keypair.generate()
+      const whitelistAxiaIx = await controllerSdk.setAllowedEntityIx(EntityType.Axia, whitelistedAxia.publicKey)
+      await makeTxSignAndSend(provider, whitelistAxiaIx)
+    })
 
+    context('when adding valid signatures', async () => {
       it('should add axia signature successfully', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
 
@@ -2283,6 +2361,22 @@ describe('Settler Program', () => {
         expect(proposalAfter.isSigned).to.be.true
       })
 
+      it('should add signature when proposal deadline is close', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + VERY_SHORT_DEADLINE
+        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program, { deadline })
+
+        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
+
+        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
+        await makeTxSignAndSend(solverProvider, ...ixs)
+
+        const proposalAfter = await program.account.proposal.fetch(proposalKey)
+        expect(proposalAfter.isSigned).to.be.true
+      })
+    })
+
+    context('when proposal conditions are not met', async () => {
       it('cannot add signature if proposal is not final', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -2329,6 +2423,23 @@ describe('Settler Program', () => {
         expectTransactionError(res, 'Proposal has already expired')
       })
 
+      it('cannot add signature if proposal deadline equals now', async () => {
+        const now = Number(client.getClock().unixTimestamp)
+        const deadline = now + SHORT_DEADLINE
+        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program, { deadline })
+
+        warpSeconds(provider, WARP_TIME_SHORT)
+
+        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
+
+        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+
+        expectTransactionError(res, 'Proposal has already expired')
+      })
+    })
+
+    context('when axia is not whitelisted', async () => {
       it('cannot add signature if axia is not whitelisted', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
 
@@ -2340,7 +2451,9 @@ describe('Settler Program', () => {
 
         expectTransactionError(res, `AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized.`)
       })
+    })
 
+    context('when solver is not whitelisted', async () => {
       it('cannot add signature if solver is not whitelisted', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
 
@@ -2354,7 +2467,9 @@ describe('Settler Program', () => {
           `AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized.`
         )
       })
+    })
 
+    context('when proposal does not exist', async () => {
       it('cannot add signature for non-existent proposal', async () => {
         const proposalKey = Keypair.generate().publicKey
 
@@ -2384,22 +2499,9 @@ describe('Settler Program', () => {
           `Program log: AnchorError caused by account: proposal. Error Code: AccountNotInitialized`
         )
       })
+    })
 
-      it('cannot add signature if proposal deadline equals now', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + SHORT_DEADLINE
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program, { deadline })
-
-        warpSeconds(provider, WARP_TIME_SHORT)
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, 'Proposal has already expired')
-      })
-
+    context('when signature is invalid', async () => {
       it('cannot add signature with wrong proposal key', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
         const wrongProposalKey = Keypair.generate().publicKey
@@ -2528,20 +2630,6 @@ describe('Settler Program', () => {
           // eslint-disable-next-line no-secrets/no-secrets
           `FailedTransactionMetadata(FailedTransactionMetadata { err: InvalidProgramForExecution, meta: TransactionMetadata { signature: 1111111111111111111111111111111111111111111111111111111111111111, logs: [], inner_instructions: [], compute_units_consumed: 0, return_data: TransactionReturnData { program_id: 11111111111111111111111111111111, data: [] } } })`
         )
-      })
-
-      it('should add signature when proposal deadline is close', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + VERY_SHORT_DEADLINE
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program, { deadline })
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs)
-
-        const proposalAfter = await program.account.proposal.fetch(proposalKey)
-        expect(proposalAfter.isSigned).to.be.true
       })
     })
   })
