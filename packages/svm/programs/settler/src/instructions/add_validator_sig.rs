@@ -37,7 +37,11 @@ pub struct AddValidatorSig<'info> {
     /// This PDA must be uninitialized
     pub fulfilled_intent: SystemAccount<'info>,
 
-    /// CHECK: other checks in ix body
+    #[account(
+        seeds = [b"entity-registry", &[EntityType::Validator as u8 + 1], validator_registry.entity_pubkey.as_ref()],
+        bump = validator_registry.bump,
+        seeds::program = controller::ID,
+    )]
     pub validator_registry: Box<Account<'info, EntityRegistry>>,
 
     /// CHECK: The address check is needed because otherwise
@@ -64,17 +68,8 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
 
     // Verify pubkey is a whitelisted Validator
     require_keys_eq!(
-        ctx.accounts.validator_registry.key(),
-        Pubkey::create_program_address(
-            &[
-                b"entity-registry",
-                &[EntityType::Validator as u8 + 1],
-                ed25519_ix_args.pubkey,
-                &[ctx.accounts.validator_registry.bump]
-            ],
-            &controller::ID,
-        )
-        .map_err(|_| SettlerError::ValidatorNotAllowlisted)?,
+        ctx.accounts.validator_registry.entity_pubkey,
+        Pubkey::new_from_array(*ed25519_ix_args.pubkey),
         SettlerError::ValidatorNotAllowlisted,
     );
 
