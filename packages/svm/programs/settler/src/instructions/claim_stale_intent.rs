@@ -11,7 +11,7 @@ pub struct ClaimStaleIntent<'info> {
         mut,
         close = creator,
         has_one = creator @ SettlerError::IncorrectIntentCreator,
-        constraint = Clock::get()?.unix_timestamp as u64 > intent.deadline @ SettlerError::IntentNotYetExpired
+        constraint = intent.deadline < Clock::get()?.unix_timestamp as u64 @ SettlerError::IntentNotYetExpired
     )]
     pub intent: Box<Account<'info, Intent>>,
 }

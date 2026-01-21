@@ -11,7 +11,7 @@ pub struct ClaimStaleProposal<'info> {
         mut,
         close = creator,
         has_one = creator @ SettlerError::IncorrectProposalCreator,
-        constraint = Clock::get()?.unix_timestamp as u64 > proposal.deadline @ SettlerError::ProposalNotYetExpired
+        constraint = proposal.deadline < Clock::get()?.unix_timestamp as u64 @ SettlerError::ProposalNotYetExpired
     )]
     pub proposal: Box<Account<'info, Proposal>>,
 }
