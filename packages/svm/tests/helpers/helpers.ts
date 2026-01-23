@@ -40,6 +40,45 @@ export function generateNonce(): string {
 }
 
 /**
+ * Get current timestamp with optional offset
+ */
+export function getCurrentDeadline(client: LiteSVM, offset: number = INTENT_DEADLINE_OFFSET): number {
+  const now = Number(client.getClock().unixTimestamp)
+  return now + offset
+}
+
+/**
+ * Create intent params with defaults (following EVM pattern)
+ * Takes partial params and fills in defaults
+ */
+export function createIntentParams(
+  client: LiteSVM,
+  params: Partial<CreateIntentParams> = {}
+): CreateIntentParams {
+  const now = Number(client.getClock().unixTimestamp)
+  return {
+    op: params.op ?? OpType.Transfer,
+    user: params.user ?? Keypair.generate().publicKey,
+    nonceHex: params.nonceHex ?? generateNonce(),
+    deadline: params.deadline ?? now + INTENT_DEADLINE_OFFSET,
+    minValidations: params.minValidations ?? DEFAULT_MIN_VALIDATIONS,
+    dataHex: params.dataHex ?? DEFAULT_DATA_HEX,
+    maxFees: params.maxFees ?? [
+      {
+        mint: Keypair.generate().publicKey,
+        amount: DEFAULT_MAX_FEE,
+      },
+    ],
+    eventsHex: params.eventsHex ?? [
+      {
+        topicHex: DEFAULT_TOPIC_HEX,
+        dataHex: DEFAULT_EVENT_DATA_HEX,
+      },
+    ],
+  }
+}
+
+/**
  * Create a test intent with configurable parameters
  */
 export async function createTestIntent(
