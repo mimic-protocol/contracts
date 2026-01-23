@@ -25,7 +25,6 @@ import {
   DEFAULT_MAX_FEE_EXCEED,
   DEFAULT_MAX_FEE_HALF,
   DEFAULT_MIN_VALIDATIONS,
-  DEFAULT_TOPIC_HEX,
   DOUBLE_CLAIM_DELAY,
   DOUBLE_CLAIM_DELAY_PLUS_ONE,
   EMPTY_DATA_HEX,
@@ -35,13 +34,11 @@ import {
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   MULTIPLE_MIN_VALIDATIONS,
-  PROPOSAL_DEADLINE_OFFSET,
   SHORT_DEADLINE,
   STALE_CLAIM_DELAY,
   STALE_CLAIM_DELAY_PLUS_ONE,
   TEST_DATA_HEX_1,
   TEST_DATA_HEX_2,
-  TEST_DATA_HEX_3,
   VERY_SHORT_DEADLINE,
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
@@ -52,12 +49,15 @@ import {
   createAxiaSignature,
   createFinalizedProposal,
   createIntentParams,
+  createProposalParams,
   createTestIntent,
+  createTestProposalInstruction,
   createValidatedIntent,
   createValidatorSignature,
   expectTransactionError,
   generateIntentHash,
-  generateNonce,
+  getProposalDeadline,
+  mapIntentFeesToTokenFees,
 } from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
@@ -729,10 +729,6 @@ describe('Settler Program', () => {
       })
 
       it('throws an error', async () => {
-        const extendParams = {
-          moreDataHex: '28292a',
-        }
-
         const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
         const res = await makeTxSignAndSend(solverProvider, ix)
 
@@ -895,35 +891,29 @@ describe('Settler Program', () => {
     context('when creating a valid proposal', () => {
       context('when creating a basic proposal', () => {
         let intentHash: string
-        let intent: any
         let deadline: number
         let instructions: ProposalInstruction[]
         let fees: TokenFee[]
 
         beforeEach('create intent and proposal params', async () => {
-          intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-          intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now + PROPOSAL_DEADLINE_OFFSET
-
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [
-                {
-                  pubkey: Keypair.generate().publicKey,
-                  isSigner: false,
-                  isWritable: true,
-                },
-              ],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
-
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          const params = await createProposalParams(solverSdk, solverProvider, client, program, {
+            intentOptions: { isFinal: true },
+            instructions: [
+              createTestProposalInstruction({
+                accounts: [
+                  {
+                    isSigner: false,
+                    isWritable: true,
+                  },
+                ],
+                data: 'deadbeef',
+              }),
+            ],
+          })
+          intentHash = params.intentHash
+          deadline = params.deadline
+          instructions = params.instructions
+          fees = params.fees
         })
 
         it('creates the proposal', async () => {
@@ -960,38 +950,30 @@ describe('Settler Program', () => {
         beforeEach('create intent and proposal params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now + PROPOSAL_DEADLINE_OFFSET
+          deadline = getProposalDeadline(client)
 
           instructions = [
-            {
-              programId: Keypair.generate().publicKey,
+            createTestProposalInstruction({
               accounts: [
                 {
-                  pubkey: Keypair.generate().publicKey,
                   isSigner: false,
                   isWritable: true,
                 },
               ],
               data: '010203',
-            },
-            {
-              programId: Keypair.generate().publicKey,
+            }),
+            createTestProposalInstruction({
               accounts: [
                 {
-                  pubkey: Keypair.generate().publicKey,
                   isSigner: true,
                   isWritable: false,
                 },
               ],
               data: '040506',
-            },
+            }),
           ]
 
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          fees = mapIntentFeesToTokenFees(intent)
         })
 
         it('creates the proposal with multiple instructions', async () => {
@@ -1031,15 +1013,11 @@ describe('Settler Program', () => {
         beforeEach('create intent and proposal params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now + PROPOSAL_DEADLINE_OFFSET
+          deadline = getProposalDeadline(client)
 
           instructions = []
 
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          fees = mapIntentFeesToTokenFees(intent)
         })
 
         it('creates the proposal with empty instructions', async () => {
@@ -1080,15 +1058,8 @@ describe('Settler Program', () => {
           // Add validators
           await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
-          const now = Number(client.getClock().unixTimestamp)
-          proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          proposalDeadline = getProposalDeadline(client)
+          instructions = [createTestProposalInstruction()]
           fees = [
             {
               mint: mint.publicKey,
@@ -1118,21 +1089,11 @@ describe('Settler Program', () => {
       beforeEach('create intent and proposal params', async () => {
         intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        const now = Number(client.getClock().unixTimestamp)
-        deadline = now + PROPOSAL_DEADLINE_OFFSET
+        deadline = getProposalDeadline(client)
 
-        instructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
-            data: TEST_DATA_HEX_3,
-          },
-        ]
+        instructions = [createTestProposalInstruction()]
 
-        fees = intent.maxFees.map((maxFee) => ({
-          mint: maxFee.mint,
-          amount: maxFee.amount.toNumber(),
-        }))
+        fees = mapIntentFeesToTokenFees(intent)
       })
 
       it('throws an error', async () => {
@@ -1155,18 +1116,9 @@ describe('Settler Program', () => {
           const now = Number(client.getClock().unixTimestamp)
           deadline = now - SHORT_DEADLINE
 
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          instructions = [createTestProposalInstruction()]
 
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          fees = mapIntentFeesToTokenFees(intent)
         })
 
         it('throws an error', async () => {
@@ -1188,18 +1140,9 @@ describe('Settler Program', () => {
           const now = Number(client.getClock().unixTimestamp)
           deadline = now
 
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          instructions = [createTestProposalInstruction()]
 
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          fees = mapIntentFeesToTokenFees(intent)
         })
 
         it('throws an error', async () => {
@@ -1231,13 +1174,7 @@ describe('Settler Program', () => {
           warpSeconds(provider, 101)
 
           proposalDeadline = now + 200
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          instructions = [createTestProposalInstruction()]
         })
 
         it('throws an error', async () => {
@@ -1257,13 +1194,7 @@ describe('Settler Program', () => {
           const intentDeadline = Number((await program.account.intent.fetch(sdk.getIntentKey(intentHash))).deadline)
           proposalDeadline = intentDeadline + SHORT_DEADLINE
 
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          instructions = [createTestProposalInstruction()]
         })
 
         it('throws an error', async () => {
@@ -1294,14 +1225,8 @@ describe('Settler Program', () => {
           // Add validators to 1 (less than min_validations of 2)
           await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
-          proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          proposalDeadline = getProposalDeadline(client)
+          instructions = [createTestProposalInstruction()]
         })
 
         it('throws an error', async () => {
@@ -1318,23 +1243,13 @@ describe('Settler Program', () => {
         let deadline: number
 
         beforeEach('create non-final intent and proposal params', async () => {
-          intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: false })
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now + PROPOSAL_DEADLINE_OFFSET
-
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
-
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          const params = await createProposalParams(solverSdk, solverProvider, client, program, {
+            intentOptions: { isFinal: false },
+          })
+          intentHash = params.intentHash
+          deadline = params.deadline
+          instructions = params.instructions
+          fees = params.fees
         })
 
         it('throws an error', async () => {
@@ -1354,8 +1269,7 @@ describe('Settler Program', () => {
 
         beforeEach('create intent, mock fulfilled intent, and proposal params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now + PROPOSAL_DEADLINE_OFFSET
+          deadline = getProposalDeadline(client)
 
           // Mock FulfilledIntent
           const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
@@ -1367,18 +1281,9 @@ describe('Settler Program', () => {
           })
 
           const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          instructions = [createTestProposalInstruction()]
 
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          fees = mapIntentFeesToTokenFees(intent)
         })
 
         it('throws an error', async () => {
@@ -1401,21 +1306,11 @@ describe('Settler Program', () => {
         beforeEach('create intent, proposal params, and create first proposal', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now + PROPOSAL_DEADLINE_OFFSET
+          deadline = getProposalDeadline(client)
 
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          instructions = [createTestProposalInstruction()]
 
-          fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          fees = mapIntentFeesToTokenFees(intent)
 
           const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
           await makeTxSignAndSend(solverProvider, ix)
@@ -1438,16 +1333,9 @@ describe('Settler Program', () => {
 
       beforeEach('generate non-existent intent hash and proposal params', () => {
         intentHash = generateIntentHash()
-        const now = Number(client.getClock().unixTimestamp)
-        deadline = now + PROPOSAL_DEADLINE_OFFSET
+        deadline = getProposalDeadline(client)
 
-        instructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
-            data: TEST_DATA_HEX_3,
-          },
-        ]
+        instructions = [createTestProposalInstruction()]
       })
 
       it('throws an error', async () => {
@@ -1469,7 +1357,6 @@ describe('Settler Program', () => {
         beforeEach('create intent with max_fees and proposal params with exceeding fees', async () => {
           intentHash = generateIntentHash()
           mint = Keypair.generate()
-          const now = Number(client.getClock().unixTimestamp)
           const intentParams: Partial<CreateIntentParams> = {
             maxFees: [
               {
@@ -1486,14 +1373,8 @@ describe('Settler Program', () => {
           // Add validators
           await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
-          proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          proposalDeadline = getProposalDeadline(client)
+          instructions = [createTestProposalInstruction()]
 
           fees = [
             {
@@ -1524,7 +1405,6 @@ describe('Settler Program', () => {
           intentHash = generateIntentHash()
           mint = Keypair.generate()
           wrongMint = Keypair.generate()
-          const now = Number(client.getClock().unixTimestamp)
           const intentParams: Partial<CreateIntentParams> = {
             maxFees: [
               {
@@ -1541,14 +1421,8 @@ describe('Settler Program', () => {
           // Add validators
           await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
 
-          proposalDeadline = now + PROPOSAL_DEADLINE_OFFSET
-          instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
-              data: TEST_DATA_HEX_3,
-            },
-          ]
+          proposalDeadline = getProposalDeadline(client)
+          instructions = [createTestProposalInstruction()]
 
           fees = [
             {
@@ -1573,27 +1447,21 @@ describe('Settler Program', () => {
     const createTestProposal = async (isFinal = false): Promise<string> => {
       const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
       const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-      const now = Number(client.getClock().unixTimestamp)
-      const deadline = now + PROPOSAL_DEADLINE_OFFSET
+      const deadline = getProposalDeadline(client)
 
       const instructions = [
-        {
-          programId: Keypair.generate().publicKey,
+        createTestProposalInstruction({
           accounts: [
             {
-              pubkey: Keypair.generate().publicKey,
               isSigner: false,
               isWritable: true,
             },
           ],
           data: DEFAULT_DATA_HEX,
-        },
+        }),
       ]
 
-      const fees = intent.maxFees.map((maxFee) => ({
-        mint: maxFee.mint,
-        amount: maxFee.amount.toNumber(),
-      }))
+      const fees = mapIntentFeesToTokenFees(intent)
 
       const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, isFinal)
       await makeTxSignAndSend(solverProvider, ix)
@@ -1609,17 +1477,15 @@ describe('Settler Program', () => {
           intentHash = await createTestProposal(false)
 
           moreInstructions = [
-            {
-              programId: Keypair.generate().publicKey,
+            createTestProposalInstruction({
               accounts: [
                 {
-                  pubkey: Keypair.generate().publicKey,
                   isSigner: false,
                   isWritable: true,
                 },
               ],
               data: '040506',
-            },
+            }),
           ]
         })
 
@@ -1649,16 +1515,12 @@ describe('Settler Program', () => {
           intentHash = await createTestProposal(false)
 
           moreInstructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '070809',
-            },
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            }),
+            createTestProposalInstruction({
               data: '0a0b0c',
-            },
+            }),
           ]
         })
 
@@ -1683,19 +1545,15 @@ describe('Settler Program', () => {
           intentHash = await createTestProposal(false)
 
           moreInstructions1 = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '0d0e0f',
-            },
+            }),
           ]
 
           moreInstructions2 = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '101112',
-            },
+            }),
           ]
         })
 
@@ -1722,11 +1580,9 @@ describe('Settler Program', () => {
           intentHash = await createTestProposal(false)
 
           moreInstructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '212223',
-            },
+            }),
           ]
         })
 
@@ -1748,11 +1604,9 @@ describe('Settler Program', () => {
           intentHash = await createTestProposal(false)
 
           moreInstructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '242526',
-            },
+            }),
           ]
         })
 
@@ -1774,11 +1628,9 @@ describe('Settler Program', () => {
           intentHash = await createTestProposal(false)
 
           moreInstructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '272829',
-            },
+            }),
           ]
         })
 
@@ -1803,11 +1655,9 @@ describe('Settler Program', () => {
         proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
 
         moreInstructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
+          createTestProposalInstruction({
             data: '131415',
-          },
+          }),
         ]
       })
 
@@ -1832,11 +1682,9 @@ describe('Settler Program', () => {
         intentHash = generateIntentHash()
 
         moreInstructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
+          createTestProposalInstruction({
             data: '161718',
-          },
+          }),
         ]
       })
 
@@ -1860,17 +1708,12 @@ describe('Settler Program', () => {
           const deadline = now + STALE_CLAIM_DELAY
 
           const instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '010203',
-            },
+            }),
           ]
 
-          const fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          const fees = mapIntentFeesToTokenFees(intent)
 
           const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
           await makeTxSignAndSend(solverProvider, ix)
@@ -1878,11 +1721,9 @@ describe('Settler Program', () => {
           warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
 
           moreInstructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '19202a',
-            },
+            }),
           ]
         })
 
@@ -1905,17 +1746,12 @@ describe('Settler Program', () => {
           const deadline = now + SHORT_DEADLINE
 
           const instructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '010203',
-            },
+            }),
           ]
 
-          const fees = intent.maxFees.map((maxFee: any) => ({
-            mint: maxFee.mint,
-            amount: maxFee.amount.toNumber(),
-          }))
+          const fees = mapIntentFeesToTokenFees(intent)
 
           const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
           await makeTxSignAndSend(solverProvider, ix)
@@ -1923,11 +1759,9 @@ describe('Settler Program', () => {
           warpSeconds(provider, WARP_TIME_SHORT)
 
           moreInstructions = [
-            {
-              programId: Keypair.generate().publicKey,
-              accounts: [],
+            createTestProposalInstruction({
               data: '1b1c1d',
-            },
+            }),
           ]
         })
 
@@ -1948,11 +1782,9 @@ describe('Settler Program', () => {
         intentHash = await createTestProposal(true)
 
         moreInstructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
+          createTestProposalInstruction({
             data: '1e1f20',
-          },
+          }),
         ]
       })
 
@@ -1971,23 +1803,18 @@ describe('Settler Program', () => {
       const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
 
       const instructions = [
-        {
-          programId: Keypair.generate().publicKey,
+        createTestProposalInstruction({
           accounts: [
             {
-              pubkey: Keypair.generate().publicKey,
               isSigner: false,
               isWritable: true,
             },
           ],
           data: DEFAULT_DATA_HEX,
-        },
+        }),
       ]
 
-      const fees = intent.maxFees.map((maxFee) => ({
-        mint: maxFee.mint,
-        amount: maxFee.amount.toNumber(),
-      }))
+      const fees = mapIntentFeesToTokenFees(intent)
 
       const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
       await makeTxSignAndSend(solverProvider, ix)
@@ -2613,21 +2440,11 @@ describe('Settler Program', () => {
       it('cannot add signature if proposal is not final', async () => {
         const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + PROPOSAL_DEADLINE_OFFSET
+        const deadline = getProposalDeadline(client)
 
-        const instructions = [
-          {
-            programId: Keypair.generate().publicKey,
-            accounts: [],
-            data: TEST_DATA_HEX_3,
-          },
-        ]
+        const instructions = [createTestProposalInstruction()]
 
-        const fees = intent.maxFees.map((maxFee) => ({
-          mint: maxFee.mint,
-          amount: maxFee.amount.toNumber(),
-        }))
+        const fees = mapIntentFeesToTokenFees(intent)
 
         const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
         await makeTxSignAndSend(solverProvider, ix)

@@ -21,7 +21,11 @@ import {
   INTENT_DEADLINE_OFFSET,
   INTENT_HASH_LENGTH,
   NONCE_LENGTH,
+  PROPOSAL_DEADLINE_OFFSET,
+  TEST_DATA_HEX_3,
 } from './constants'
+
+type IntentAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['intent']['fetch']>>>
 
 export const LAMPORTS_PER_SOL = 1_000_000_000
 
@@ -48,19 +52,22 @@ export function getCurrentDeadline(client: LiteSVM, offset: number = INTENT_DEAD
 }
 
 /**
+ * Get proposal deadline with default PROPOSAL_DEADLINE_OFFSET
+ */
+export function getProposalDeadline(client: LiteSVM, offset?: number): number {
+  return getCurrentDeadline(client, offset ?? PROPOSAL_DEADLINE_OFFSET)
+}
+
+/**
  * Create intent params with defaults (following EVM pattern)
  * Takes partial params and fills in defaults
  */
-export function createIntentParams(
-  client: LiteSVM,
-  params: Partial<CreateIntentParams> = {}
-): CreateIntentParams {
-  const now = Number(client.getClock().unixTimestamp)
+export function createIntentParams(client: LiteSVM, params: Partial<CreateIntentParams> = {}): CreateIntentParams {
   return {
     op: params.op ?? OpType.Transfer,
     user: params.user ?? Keypair.generate().publicKey,
     nonceHex: params.nonceHex ?? generateNonce(),
-    deadline: params.deadline ?? now + INTENT_DEADLINE_OFFSET,
+    deadline: params.deadline ?? getCurrentDeadline(client, INTENT_DEADLINE_OFFSET),
     minValidations: params.minValidations ?? DEFAULT_MIN_VALIDATIONS,
     dataHex: params.dataHex ?? DEFAULT_DATA_HEX,
     maxFees: params.maxFees ?? [
@@ -101,29 +108,18 @@ export async function createTestIntent(
   const nonce = options.nonce || generateNonce()
   const user = options.user || Keypair.generate().publicKey
   const client = solverProvider.client
-  const now = Number(client.getClock().unixTimestamp)
-  const deadline = options.deadline ?? now + INTENT_DEADLINE_OFFSET
+  const deadline = options.deadline ?? getCurrentDeadline(client, INTENT_DEADLINE_OFFSET)
 
-  const params: CreateIntentParams = {
-    op: options.op || OpType.Transfer,
+  const params: CreateIntentParams = createIntentParams(client, {
+    op: options.op,
     user,
     nonceHex: nonce,
     deadline,
-    minValidations: options.minValidations ?? DEFAULT_MIN_VALIDATIONS,
-    dataHex: options.dataHex ?? DEFAULT_DATA_HEX,
-    maxFees: options.maxFees || [
-      {
-        mint: Keypair.generate().publicKey,
-        amount: DEFAULT_MAX_FEE,
-      },
-    ],
-    eventsHex: options.eventsHex || [
-      {
-        topicHex: DEFAULT_TOPIC_HEX,
-        dataHex: DEFAULT_EVENT_DATA_HEX,
-      },
-    ],
-  }
+    minValidations: options.minValidations,
+    dataHex: options.dataHex,
+    maxFees: options.maxFees,
+    eventsHex: options.eventsHex,
+  })
 
   const ix = await solverSdk.createIntentIx(intentHash, params, options.isFinal ?? false)
   const res = await makeTxSignAndSend(solverProvider, ix)
@@ -220,29 +216,11 @@ export async function createFinalizedProposal(
   const intentHash =
     options.intentHash || (await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true }))
   const intent = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
-  const now = Number(client.getClock().unixTimestamp)
-  const proposalDeadline = options.deadline ?? now + 1800
+  const proposalDeadline = options.deadline ?? getProposalDeadline(client)
 
-  const instructions = options.instructions || [
-    {
-      programId: Keypair.generate().publicKey,
-      accounts: [
-        {
-          pubkey: Keypair.generate().publicKey,
-          isSigner: false,
-          isWritable: true,
-        },
-      ],
-      data: 'deadbeef',
-    },
-  ]
+  const instructions = options.instructions || [createTestProposalInstruction()]
 
-  const fees =
-    options.fees ||
-    (intent.maxFees.map((maxFee) => ({
-      mint: maxFee.mint,
-      amount: maxFee.amount.toNumber(),
-    })) as TokenFee[])
+  const fees = options.fees || mapIntentFeesToTokenFees(intent)
 
   const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, proposalDeadline, true)
   const res = await makeTxSignAndSend(solverProvider, ix)
@@ -252,6 +230,93 @@ export async function createFinalizedProposal(
 
   const proposalKey = solverSdk.getProposalKey(intentHash, solverProvider.wallet.publicKey)
   return { intentHash, proposalKey }
+}
+
+/**
+ * Map intent maxFees to TokenFee format
+ */
+export function mapIntentFeesToTokenFees(intent: IntentAccount): TokenFee[] {
+  return intent.maxFees.map((maxFee) => ({
+    mint: maxFee.mint,
+    amount: maxFee.amount.toNumber(),
+  }))
+}
+
+/**
+ * Create a test proposal instruction with sensible defaults
+ */
+export function createTestProposalInstruction(options?: {
+  programId?: PublicKey
+  accounts?: Array<{
+    pubkey?: PublicKey
+    isSigner?: boolean
+    isWritable?: boolean
+  }>
+  data?: string
+}): ProposalInstruction {
+  return {
+    programId: options?.programId ?? Keypair.generate().publicKey,
+    accounts:
+      options?.accounts?.map((acc) => ({
+        pubkey: acc.pubkey ?? Keypair.generate().publicKey,
+        isSigner: acc.isSigner ?? false,
+        isWritable: acc.isWritable ?? true,
+      })) ?? [],
+    data: options?.data ?? TEST_DATA_HEX_3,
+  }
+}
+
+/**
+ * Create proposal params (intent, deadline, instructions, fees) for testing
+ */
+export async function createProposalParams(
+  solverSdk: SettlerSDK,
+  solverProvider: LiteSVMProvider,
+  client: LiteSVM,
+  program: Program<Settler>,
+  options?: {
+    intentHash?: string
+    intentOptions?: {
+      isFinal?: boolean
+      minValidations?: number
+      deadline?: number
+    }
+    deadline?: number
+    deadlineOffset?: number
+    instructions?: ProposalInstruction[]
+    fees?: TokenFee[]
+    customFees?: boolean
+  }
+): Promise<{
+  intentHash: string
+  intent: IntentAccount
+  deadline: number
+  instructions: ProposalInstruction[]
+  fees: TokenFee[]
+}> {
+  const intentHash =
+    options?.intentHash ||
+    (await createValidatedIntent(solverSdk, solverProvider, client, {
+      isFinal: options?.intentOptions?.isFinal ?? true,
+      minValidations: options?.intentOptions?.minValidations,
+      deadline: options?.intentOptions?.deadline,
+    }))
+
+  const intent = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+  const deadline = options?.deadline ?? getProposalDeadline(client, options?.deadlineOffset ?? PROPOSAL_DEADLINE_OFFSET)
+
+  const instructions = options?.instructions ?? [createTestProposalInstruction()]
+
+  const fees = options?.fees ?? (options?.customFees ? [] : mapIntentFeesToTokenFees(intent))
+
+  return {
+    intentHash,
+    intent,
+    deadline,
+    instructions,
+    fees,
+  }
 }
 
 /**
