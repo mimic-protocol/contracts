@@ -30,7 +30,7 @@ export function generateIntentHash(): string {
 }
 
 /**
- * Create intent params with defaults (following EVM pattern)
+ * Create intent params with defaults
  * Takes partial params and fills in defaults
  */
 export function createIntentParams(client: LiteSVM, params: Partial<CreateIntentParams> = {}): CreateIntentParams {
