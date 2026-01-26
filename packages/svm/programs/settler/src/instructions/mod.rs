@@ -1,6 +1,8 @@
 pub mod add_axia_sig;
+pub mod add_axia_sig_evm;
 pub mod add_instructions_to_proposal;
 pub mod add_validator_sig;
+pub mod add_validator_sig_evm;
 pub mod claim_stale_intent;
 pub mod claim_stale_proposal;
 pub mod create_intent;
@@ -10,8 +12,10 @@ pub mod extend_intent;
 pub mod initialize;
 
 pub use add_axia_sig::*;
+pub use add_axia_sig_evm::*;
 pub use add_instructions_to_proposal::*;
 pub use add_validator_sig::*;
+pub use add_validator_sig_evm::*;
 pub use claim_stale_intent::*;
 pub use claim_stale_proposal::*;
 pub use create_intent::*;
