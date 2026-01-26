@@ -4,7 +4,7 @@ import hre, { network } from 'hardhat'
 import type { Artifact } from 'hardhat/types/artifacts'
 
 import ControllerArtifact from '../artifacts/contracts/Controller.sol/Controller.json'
-import MimicHelperArtifact from '../artifacts/contracts/MimicHelper.sol/MimicHelper.json'
+import MimicHelperArtifact from '../artifacts/contracts/utils/MimicHelper.sol/MimicHelper.json'
 import SettlerArtifact from '../artifacts/contracts/Settler.sol/Settler.json'
 import SmartAccount7702 from '../artifacts/contracts/smart-accounts/SmartAccount7702.sol/SmartAccount7702.json'
 import buildCreate3Module from '../ignition/modules/Create3'
@@ -12,17 +12,17 @@ import buildCreate3Module from '../ignition/modules/Create3'
 const MIN_VALIDATORS = 1
 
 async function main(): Promise<void> {
-  if (!process.env.AXIA) throw Error('AXIA env variable not provided')
-  if (!process.env.ADMIN) throw Error('ADMIN env variable not provided')
-  if (!process.env.SOLVER) throw Error('SOLVER env variable not provided')
-  if (!process.env.VALIDATOR) throw Error('VALIDATOR env variable not provided')
-  const { ADMIN, SOLVER, AXIA, VALIDATOR } = process.env
+  // if (!process.env.AXIA) throw Error('AXIA env variable not provided')
+  // if (!process.env.ADMIN) throw Error('ADMIN env variable not provided')
+  // if (!process.env.SOLVER) throw Error('SOLVER env variable not provided')
+  // if (!process.env.VALIDATOR) throw Error('VALIDATOR env variable not provided')
+  // const { ADMIN, SOLVER, AXIA, VALIDATOR } = process.env
 
-  const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
-  const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
-  const settler = await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x18')
-  await deployCreate3(SmartAccount7702, [settler.target], '0x19')
-  await deployCreate3(MimicHelperArtifact, [], '0x20')
+  // const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
+  // const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
+  // const settler = await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x18')
+  // await deployCreate3(SmartAccount7702, [settler.target], '0x19')
+  await deployCreate3(MimicHelperArtifact, [], '0x40')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,7 +30,6 @@ async function deployCreate3(artifact: Artifact, args: any[], saltSuffix: string
   const { ethers, ignition } = await network.connect()
   const [signer] = await ethers.getSigners()
   const salt = buildProtectedSalt(signer.address, saltSuffix)
-
   const { contractName, abi, bytecode } = artifact
   const encodedArgs = new Interface(abi).encodeDeploy(args)
   const initCode = bytecode + encodedArgs.slice(2)

@@ -1,0 +1,33 @@
+{
+  "_format": "hh3-artifact-1",
+  "contractName": "MimicHelper",
+  "sourceName": "contracts/utils/MimicHelper.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "target",
+          "type": "address"
+        }
+      ],
+      "name": "getNativeTokenBalance",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600e575f5ffd5b5060cf80601a5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c8063effd663c14602a575b5f5ffd5b604f60353660046061565b73ffffffffffffffffffffffffffffffffffffffff163190565b60405190815260200160405180910390f35b5f602082840312156070575f5ffd5b813573ffffffffffffffffffffffffffffffffffffffff811681146092575f5ffd5b939250505056fea2646970667358221220bb1ce2cd0b8d26244d77e180ab4e56bb52690949ec0a30d5c25e3ac02f58774664736f6c634300081c0033",
+  "deployedBytecode": "0x6080604052348015600e575f5ffd5b50600436106026575f3560e01c8063effd663c14602a575b5f5ffd5b604f60353660046061565b73ffffffffffffffffffffffffffffffffffffffff163190565b60405190815260200160405180910390f35b5f602082840312156070575f5ffd5b813573ffffffffffffffffffffffffffffffffffffffff811681146092575f5ffd5b939250505056fea2646970667358221220bb1ce2cd0b8d26244d77e180ab4e56bb52690949ec0a30d5c25e3ac02f58774664736f6c634300081c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "immutableReferences": {},
+  "inputSourceName": "project/contracts/utils/MimicHelper.sol",
+  "buildInfoId": "b650d0a8e9df290d290e91b2999a1f7443c2b528"
+}
