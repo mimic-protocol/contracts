@@ -19,6 +19,24 @@ import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
 import {
+  addValidatorsToIntent,
+  createAllowlistedEntity,
+  createAxiaSignature,
+  createFinalizedProposal,
+  createIntentParams,
+  createProposalParams,
+  createTestIntent,
+  createTestProposalInstruction,
+  createValidatedIntent,
+  createValidatorSignature,
+  expectTransactionError,
+  generateIntentHash,
+  getProposalDeadline,
+  mapIntentFeesToTokenFees,
+  randomPubkey,
+  toLamports,
+} from './helpers'
+import {
   ACCOUNT_CLOSE_FEE,
   DEFAULT_DATA_HEX,
   DEFAULT_EVENT_DATA_HEX,
@@ -44,24 +62,6 @@ import {
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
 } from './helpers/constants'
-import {
-  addValidatorsToIntent,
-  createAllowlistedEntity,
-  createAxiaSignature,
-  createFinalizedProposal,
-  createIntentParams,
-  createProposalParams,
-  createTestIntent,
-  createTestProposalInstruction,
-  createValidatedIntent,
-  createValidatorSignature,
-  expectTransactionError,
-  generateIntentHash,
-  getProposalDeadline,
-  mapIntentFeesToTokenFees,
-  randomPubkey,
-  toLamports,
-} from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
