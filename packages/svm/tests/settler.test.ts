@@ -286,7 +286,7 @@ describe('Settler', () => {
         itThrowsAnError('No max fees provided')
       })
 
-      context('when intent has invalid hash', () => {
+      context('when intent has hash shorter than 32 bytes', () => {
         let intentHash: string
         let intentParams: Partial<CreateIntentParams> = {}
         let ix: TransactionInstruction
