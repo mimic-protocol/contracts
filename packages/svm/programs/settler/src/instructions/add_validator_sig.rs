@@ -7,7 +7,7 @@ use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Intent,
-    utils::{check_ed25519_ix, get_args_from_ed25519_ix_data, Ed25519Args},
+    utils::{check_secp256k1_ix, get_args_from_secp256k1_ix_data, Secp256k1Args},
 };
 
 #[derive(Accounts)]
@@ -38,7 +38,7 @@ pub struct AddValidatorSig<'info> {
     pub fulfilled_intent: SystemAccount<'info>,
 
     #[account(
-        seeds = [b"entity-registry", &[EntityType::Validator as u8], validator_registry.entity_pubkey.as_ref()],
+        seeds = [b"entity-registry", &[EntityType::Validator as u8], validator_registry.entity_address.as_ref()],
         bump = validator_registry.bump,
         seeds::program = controller::ID,
     )]
@@ -53,23 +53,22 @@ pub struct AddValidatorSig<'info> {
 pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     let intent = &mut ctx.accounts.intent;
 
-    // Get Ed25519 instruction
-    let ed25519_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;
-    let ed25519_ix_args: Ed25519Args = get_args_from_ed25519_ix_data(&ed25519_ix.data)?;
+    // Get Secp256k1 instruction
+    let secp256k1_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;
+    let secp256k1_ix_args: Secp256k1Args = get_args_from_secp256k1_ix_data(&secp256k1_ix.data)?;
 
     // Verify correct program and accounts
-    check_ed25519_ix(&ed25519_ix)?;
+    check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
     require!(
-        ed25519_ix_args.msg == intent.hash,
+        secp256k1_ix_args.msg == intent.hash,
         SettlerError::SigVerificationFailed
     );
 
-    // Verify pubkey is a whitelisted Validator
-    require_keys_eq!(
-        ctx.accounts.validator_registry.entity_pubkey,
-        Pubkey::new_from_array(*ed25519_ix_args.pubkey),
+    // Verify address is a whitelisted Validator
+    require!(
+        ctx.accounts.validator_registry.entity_address == secp256k1_ix_args.eth_address,
         SettlerError::ValidatorNotAllowlisted,
     );
 
@@ -79,13 +78,11 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
         return Ok(());
     }
 
-    let ed25519_pubkey = Pubkey::try_from_slice(ed25519_ix_args.pubkey)?;
-
-    if intent.validators.contains(&ed25519_pubkey) {
+    if intent.validators.contains(secp256k1_ix_args.eth_address) {
         return Ok(());
     }
 
-    intent.validators.push(ed25519_pubkey);
+    intent.validators.push(*secp256k1_ix_args.eth_address);
 
     Ok(())
 }

@@ -14,9 +14,7 @@ pub fn check_secp256k1_ix(ix: &Instruction) -> Result<()> {
 }
 
 pub fn check_ed25519_ix(ix: &Instruction) -> Result<()> {
-    if ix.program_id != ED25519_ID
-        || ix.accounts.len() != 0
-    {
+    if ix.program_id != ED25519_ID || ix.accounts.len() != 0 {
         return err!(SettlerError::SigVerificationFailed);
     }
 

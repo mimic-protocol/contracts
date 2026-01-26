@@ -7,17 +7,17 @@ use crate::{
 };
 
 #[derive(Accounts)]
-#[instruction(entity_type: EntityType, entity_pubkey: Pubkey)]
+#[instruction(entity_type: EntityType, entity_address: Vec<u8>)]
 pub struct SetAllowedEntity<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
         init,
-        seeds = [b"entity-registry".as_ref(), &[entity_type as u8], entity_pubkey.as_ref()],
+        seeds = [b"entity-registry".as_ref(), &[entity_type as u8], entity_address.as_ref()],
         bump,
         payer = admin,
-        space = 8 + EntityRegistry::INIT_SPACE
+        space = 8 + EntityRegistry::size(&entity_address)
     )]
     pub entity_registry: Box<Account<'info, EntityRegistry>>,
 
@@ -34,12 +34,18 @@ pub struct SetAllowedEntity<'info> {
 pub fn set_allowed_entity(
     ctx: Context<SetAllowedEntity>,
     entity_type: EntityType,
-    entity_pubkey: Pubkey,
+    entity_address: Vec<u8>,
 ) -> Result<()> {
     let entity_registry = &mut ctx.accounts.entity_registry;
 
+    let addr_len = entity_address.len();
+    require!(
+        addr_len == 32 || addr_len == 20,
+        ControllerError::EntityAddressHasWrongSize
+    );
+
     entity_registry.entity_type = entity_type;
-    entity_registry.entity_pubkey = entity_pubkey;
+    entity_registry.entity_address = entity_address;
     entity_registry.bump = ctx.bumps.entity_registry;
 
     Ok(())

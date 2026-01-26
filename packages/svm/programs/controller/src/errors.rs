@@ -7,4 +7,7 @@ pub enum ControllerError {
 
     #[msg("Only admin can call this instruction")]
     OnlyAdmin,
+
+    #[msg("Entity address can only be Solana (32 bytes) or Ethereum (20 bytes)")]
+    EntityAddressHasWrongSize,
 }

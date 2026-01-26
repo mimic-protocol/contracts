@@ -20,10 +20,6 @@ pub mod settler {
         instructions::add_axia_sig(ctx)
     }
 
-    pub fn add_axia_sig_evm(ctx: Context<AddAxiaSigEvm>) -> Result<()> {
-        instructions::add_axia_sig_evm(ctx)
-    }
-
     pub fn add_instructions_to_proposal(
         ctx: Context<AddInstructionsToProposal>,
         more_instructions: Vec<ProposalInstruction>,
@@ -34,10 +30,6 @@ pub mod settler {
 
     pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
         instructions::add_validator_sig(ctx)
-    }
-
-    pub fn add_validator_sig_evm(ctx: Context<AddValidatorSigEvm>) -> Result<()> {
-        instructions::add_validator_sig_evm(ctx)
     }
 
     pub fn claim_stale_intent(ctx: Context<ClaimStaleIntent>) -> Result<()> {

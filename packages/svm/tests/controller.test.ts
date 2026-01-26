@@ -155,7 +155,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
+        expect(entityRegistry.entityAddress.toString()).to.be.eq(validator.toString())
       })
 
       it('should create entity registry successfully (axia)', async () => {
@@ -167,7 +167,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+        expect(entityRegistry.entityAddress.toString()).to.be.eq(axia.toString())
       })
 
       it('should create entity registry successfully (solver)', async () => {
@@ -179,7 +179,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+        expect(entityRegistry.entityAddress.toString()).to.be.eq(solver.toString())
       })
 
       it('should change admin for next tests', async () => {
@@ -213,7 +213,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+        expect(entityRegistry.entityAddress.toString()).to.be.eq(axia.toString())
       })
 
       it('should create entity registry successfully (solver)', async () => {
@@ -225,7 +225,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+        expect(entityRegistry.entityAddress.toString()).to.be.eq(solver.toString())
       })
     })
 
@@ -292,7 +292,7 @@ describe('Controller', () => {
           )
 
           expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
+          expect(entityRegistry.entityAddress.toString()).to.be.eq(validator.toString())
         })
 
         it('should create entity registry after closing (axia)', async () => {
@@ -304,7 +304,7 @@ describe('Controller', () => {
           )
 
           expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+          expect(entityRegistry.entityAddress.toString()).to.be.eq(axia.toString())
         })
 
         it('should create entity registry after closing (solver)', async () => {
@@ -316,7 +316,7 @@ describe('Controller', () => {
           )
 
           expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+          expect(entityRegistry.entityAddress.toString()).to.be.eq(solver.toString())
         })
       })
 
@@ -329,7 +329,7 @@ describe('Controller', () => {
             otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator2)
           )
           expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
+          expect(entityRegistry.entityAddress.toString()).to.be.eq(validator2.toString())
         })
 
         it('should create another axia registry', async () => {
@@ -340,7 +340,7 @@ describe('Controller', () => {
             otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia2)
           )
           expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
+          expect(entityRegistry.entityAddress.toString()).to.be.eq(axia2.toString())
         })
 
         it('should create another solver registry', async () => {
@@ -351,7 +351,7 @@ describe('Controller', () => {
             otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver2)
           )
           expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
+          expect(entityRegistry.entityAddress.toString()).to.be.eq(solver2.toString())
         })
       })
 

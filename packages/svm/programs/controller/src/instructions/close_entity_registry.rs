@@ -7,14 +7,14 @@ use crate::{
 };
 
 #[derive(Accounts)]
-#[instruction(entity_type: EntityType, entity_pubkey: Pubkey)]
+#[instruction(entity_type: EntityType, entity_address: Vec<u8>)]
 pub struct CloseEntityRegistry<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [b"entity-registry".as_ref(), &[entity_type as u8], entity_pubkey.as_ref()],
+        seeds = [b"entity-registry".as_ref(), &[entity_type as u8], entity_address.as_ref()],
         bump = entity_registry.bump,
         close = admin,
     )]
@@ -33,11 +33,11 @@ pub struct CloseEntityRegistry<'info> {
 pub fn close_entity_registry(
     _ctx: Context<CloseEntityRegistry>,
     entity_type: EntityType,
-    entity_pubkey: Pubkey,
+    entity_address: Vec<u8>,
 ) -> Result<()> {
     emit!(CloseEntityRegistryEvent {
         entity_type,
-        entity_pubkey,
+        entity_address,
         timestamp: Clock::get()?.unix_timestamp as u64,
     });
 
@@ -47,6 +47,6 @@ pub fn close_entity_registry(
 #[event]
 pub struct CloseEntityRegistryEvent {
     pub entity_type: EntityType,
-    pub entity_pubkey: Pubkey,
+    pub entity_address: Vec<u8>,
     pub timestamp: u64,
 }

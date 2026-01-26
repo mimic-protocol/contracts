@@ -15,7 +15,7 @@ pub struct Intent {
     pub deadline: u64,
     pub min_validations: u16,
     pub is_final: bool,
-    pub validators: Vec<Pubkey>, // TODO: how to store more efficiently?
+    pub validators: Vec<[u8; 20]>, // TODO: how to store more efficiently?
     pub data: Vec<u8>,
     pub max_fees: Vec<TokenFee>,
     pub events: Vec<IntentEvent>,
@@ -35,6 +35,8 @@ impl Intent {
         1 + // is_final
         1 // bump
     ;
+
+    pub const VALIDATOR_ADDRESS_SIZE: usize = 20;
 
     pub fn total_size(
         data_len: usize,
@@ -66,7 +68,10 @@ impl Intent {
     }
 
     pub fn validators_size(min_validations: u16) -> Result<usize> {
-        add(4, mul(min_validations as usize, 32)?)
+        add(
+            4,
+            mul(min_validations as usize, Self::VALIDATOR_ADDRESS_SIZE)?,
+        )
     }
 
     pub fn extended_size(

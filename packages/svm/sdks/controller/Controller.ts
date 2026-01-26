@@ -42,11 +42,12 @@ export default class ControllerSDK {
     return ix
   }
 
-  async setAllowedEntityIx(entityType: EntityType, entityPubkey: web3.PublicKey): Promise<web3.TransactionInstruction> {
-    const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
+  async setAllowedEntityIx(entityType: EntityType, entityAddress: web3.PublicKey | Buffer): Promise<web3.TransactionInstruction> {
+    const entityAddressBuffer = entityAddress instanceof web3.PublicKey ? entityAddress.toBuffer() : entityAddress
+    const entityRegistry = this.getEntityRegistryPubkey(entityType, entityAddressBuffer)
     const controllerSettings = this.getControllerSettingsPubkey()
     const ix = await this.program.methods
-      .setAllowedEntity(this.entityTypeToAnchorEnum(entityType), entityPubkey)
+      .setAllowedEntity(this.entityTypeToAnchorEnum(entityType), entityAddressBuffer)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
@@ -58,12 +59,13 @@ export default class ControllerSDK {
 
   async closeEntityRegistryIx(
     entityType: EntityType,
-    entityPubkey: web3.PublicKey
+    entityAddress: web3.PublicKey | Buffer
   ): Promise<web3.TransactionInstruction> {
-    const entityRegistry = this.getEntityRegistryPubkey(entityType, entityPubkey)
+    const entityAddressBuffer = entityAddress instanceof web3.PublicKey ? entityAddress.toBuffer() : entityAddress
+    const entityRegistry = this.getEntityRegistryPubkey(entityType, entityAddressBuffer)
     const controllerSettings = this.getControllerSettingsPubkey()
     const ix = await this.program.methods
-      .closeEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityPubkey)
+      .closeEntityRegistry(this.entityTypeToAnchorEnum(entityType), entityAddressBuffer)
       .accountsPartial({
         admin: this.getSignerKey(),
         entityRegistry,
@@ -82,9 +84,10 @@ export default class ControllerSDK {
     return web3.PublicKey.findProgramAddressSync([Buffer.from('controller-settings')], this.program.programId)[0]
   }
 
-  getEntityRegistryPubkey(entityType: EntityType, entityPubkey: web3.PublicKey): web3.PublicKey {
+  getEntityRegistryPubkey(entityType: EntityType, entityAddress: web3.PublicKey | Buffer): web3.PublicKey {
+    const entityAddressBuffer = entityAddress instanceof web3.PublicKey ? entityAddress.toBuffer() : entityAddress
     return web3.PublicKey.findProgramAddressSync(
-      [Buffer.from('entity-registry'), Buffer.from([entityType]), entityPubkey.toBuffer()],
+      [Buffer.from('entity-registry'), Buffer.from([entityType]), entityAddressBuffer],
       this.program.programId
     )[0]
   }
