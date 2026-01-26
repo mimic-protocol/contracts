@@ -14,13 +14,11 @@
 
 pragma solidity ^0.8.20;
 
-import './interfaces/IMimicHelper.sol';
-
 /**
  * @title Mimic Helper
  * @dev Collection of helper functions for the Mimic Protocol
  */
-contract MimicHelper is IMimicHelper {
+contract MimicHelper {
     /**
      * @dev Tells the native token balance of an address
      * @param target Address to get native token balance
