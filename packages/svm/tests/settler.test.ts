@@ -5,6 +5,7 @@ import { Program, Wallet } from '@coral-xyz/anchor'
 import { signAsync } from '@noble/ed25519'
 import { Ed25519Program, Keypair, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY, TransactionInstruction } from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
+import { BN } from 'bn.js'
 import { expect } from 'chai'
 import fs from 'fs'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
@@ -58,10 +59,12 @@ import {
   generateIntentHash,
   getProposalDeadline,
   mapIntentFeesToTokenFees,
+  randomPubkey,
+  toLamports,
 } from './helpers/helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
-describe('Settler Program', () => {
+describe('Settler', () => {
   let client: LiteSVM
 
   let provider: LiteSVMProvider
@@ -99,9 +102,9 @@ describe('Settler Program', () => {
     maliciousSdk = new SettlerSDK(maliciousProvider)
     solverSdk = new SettlerSDK(solverProvider)
 
-    provider.client.airdrop(admin.publicKey, BigInt(100_000_000_000))
-    provider.client.airdrop(malicious.publicKey, BigInt(100_000_000_000))
-    provider.client.airdrop(solver.publicKey, BigInt(100_000_000_000))
+    provider.client.airdrop(admin.publicKey, toLamports(100))
+    provider.client.airdrop(malicious.publicKey, toLamports(100))
+    provider.client.airdrop(solver.publicKey, toLamports(100))
 
     // Initialize Controller and add Solver to allowlist
     controllerSdk = new ControllerSDK(provider)
@@ -187,7 +190,7 @@ describe('Settler Program', () => {
             dataHex: EMPTY_DATA_HEX,
             maxFees: [
               {
-                mint: Keypair.generate().publicKey,
+                mint: randomPubkey(),
                 amount: 2000,
               },
             ],
@@ -286,13 +289,54 @@ describe('Settler Program', () => {
       context('when intent has invalid hash', () => {
         let intentHash: string
         let intentParams: Partial<CreateIntentParams> = {}
+        let ix: TransactionInstruction
 
-        beforeEach('create intent params with invalid hash', async () => {
+        before('create intent params with invalid hash', async () => {
           intentHash = '123456' // invalid - not 32 bytes
           intentParams = {}
+
+          // Build ix with invalid hash
+          const params = createIntentParams(client, intentParams)
+          const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
+
+          const intentHashParam = Array.from(Buffer.from(intentHash, 'hex'))
+          const nonce = Array.from(Buffer.from(nonceHex, 'hex'))
+          const data = Buffer.from(dataHex, 'hex')
+          const maxFeesBn = maxFees.map((tokenFee) => ({
+            ...tokenFee,
+            amount: new BN(tokenFee.amount),
+          }))
+          const events = eventsHex.map((eventHex) => ({
+            topic: Array.from(Uint8Array.from(Buffer.from(eventHex.topicHex, 'hex'))),
+            data: Buffer.from(eventHex.dataHex, 'hex'),
+          }))
+          const intentKey = PublicKey.findProgramAddressSync(
+            [Buffer.from('intent'), Buffer.from(intentHash, 'hex')],
+            program.programId
+          )[0]
+
+          ix = await program.methods
+            .createIntent(
+              intentHashParam,
+              data,
+              maxFeesBn,
+              events,
+              minValidations,
+              solverSdk.opTypeToAnchorEnum(op),
+              user,
+              nonce,
+              new BN(deadline),
+              false
+            )
+            .accountsPartial({
+              intent: intentKey,
+              solver: solverSdk.getSignerKey(),
+              solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solver.publicKey),
+            })
+            .instruction()
         })
 
-        it('throws an error', async () => {
+        it('throws an error through sdk', async () => {
           const params = createIntentParams(client, intentParams)
           try {
             const ix = await solverSdk.createIntentIx(intentHash, params, false)
@@ -301,6 +345,11 @@ describe('Settler Program', () => {
           } catch (error: any) {
             expect(error.message).to.include(`Intent hash must be 32 bytes`)
           }
+        })
+
+        it('throws an error calling directly', async () => {
+          const res = await makeTxSignAndSend(solverProvider, ix)
+          expectTransactionError(res, 'AnchorError caused by account: intent. Error Code: ConstraintSeeds.')
         })
       })
     })
@@ -594,9 +643,9 @@ describe('Settler Program', () => {
           for (let i = 0; i < 19; i++) {
             const extendParams = {
               moreMaxFees: [
-                { mint: Keypair.generate().publicKey, amount: i },
-                { mint: Keypair.generate().publicKey, amount: i + 1000 },
-                { mint: Keypair.generate().publicKey, amount: i + 2000 },
+                { mint: randomPubkey(), amount: i },
+                { mint: randomPubkey(), amount: i + 1000 },
+                { mint: randomPubkey(), amount: i + 2000 },
               ],
             }
             const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
@@ -2521,7 +2570,7 @@ describe('Settler Program', () => {
 
     context('when proposal does not exist', () => {
       it('cannot add signature for non-existent proposal', async () => {
-        const proposalKey = Keypair.generate().publicKey
+        const proposalKey = randomPubkey()
 
         const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
 
@@ -2554,7 +2603,7 @@ describe('Settler Program', () => {
     context('when signature is invalid', () => {
       it('cannot add signature with wrong proposal key', async () => {
         const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-        const wrongProposalKey = Keypair.generate().publicKey
+        const wrongProposalKey = randomPubkey()
 
         const signature = await createAxiaSignature(wrongProposalKey, whitelistedAxia)
 
@@ -2653,7 +2702,7 @@ describe('Settler Program', () => {
 
         // Create corrupted Ed25519 instruction with wrong program ID
         const corruptedEd25519Ix = new TransactionInstruction({
-          programId: Keypair.generate().publicKey,
+          programId: randomPubkey(),
           keys: [],
           data: Buffer.from([
             1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
