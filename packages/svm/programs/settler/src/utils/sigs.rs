@@ -152,3 +152,14 @@ pub fn get_args_from_ed25519_ix_data(data: &[u8]) -> Result<Ed25519Args<'_>> {
         msg,
     })
 }
+
+/// Constructs the Ethereum message prefix for a 32-byte message.
+/// Format: "\x19Ethereum Signed Message:\n32" + message
+/// This is the standard format used by Ethereum's signMessage function.
+pub fn create_ethereum_prefixed_message(message: &[u8; 32]) -> Vec<u8> {
+    let prefix = b"\x19Ethereum Signed Message:\n32";
+    let mut prefixed = Vec::with_capacity(prefix.len() + message.len());
+    prefixed.extend_from_slice(prefix);
+    prefixed.extend_from_slice(message);
+    prefixed
+}

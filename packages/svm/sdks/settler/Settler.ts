@@ -172,13 +172,17 @@ export default class SettlerSDK {
   async addValidatorSigIxs(
     intent: web3.PublicKey,
     intentHash: Buffer,
-    validator: web3.PublicKey,
-    signature: number[]
+    validatorEthAddress: Buffer,
+    signature: number[],
+    recoveryId: number
   ): Promise<web3.TransactionInstruction[]> {
-    const ed25519Ix = web3.Ed25519Program.createInstructionWithPublicKey({
-      message: intentHash,
-      publicKey: validator.toBuffer(),
+    const prefixedMessage = this.getEthPrefixedMessage(intentHash)
+
+    const secp256k1Ix = web3.Secp256k1Program.createInstructionWithEthAddress({
+      message: prefixedMessage,
+      ethAddress: validatorEthAddress,
       signature: Buffer.from(signature),
+      recoveryId,
     })
 
     const ix = await this.program.methods
@@ -187,23 +191,27 @@ export default class SettlerSDK {
         solver: this.getSignerKey(),
         solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
         intent,
-        validatorRegistry: this.getEntityRegistryPubkey(EntityType.Validator, validator),
+        validatorRegistry: this.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
         ixSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
       .instruction()
 
-    return [ed25519Ix, ix]
+    return [secp256k1Ix, ix]
   }
 
   async addAxiaSigIxs(
     proposal: web3.PublicKey,
-    axia: web3.PublicKey,
-    signature: number[]
+    axiaEthAddress: Buffer,
+    signature: number[],
+    recoveryId: number
   ): Promise<web3.TransactionInstruction[]> {
-    const ed25519Ix = web3.Ed25519Program.createInstructionWithPublicKey({
-      message: proposal.toBuffer(),
-      publicKey: axia.toBuffer(),
+    const prefixedMessage = this.getEthPrefixedMessage(proposal.toBuffer())
+
+    const secp256k1Ix = web3.Secp256k1Program.createInstructionWithEthAddress({
+      message: prefixedMessage,
+      ethAddress: axiaEthAddress,
       signature: Buffer.from(signature),
+      recoveryId,
     })
 
     const ix = await this.program.methods
@@ -212,12 +220,12 @@ export default class SettlerSDK {
         solver: this.getSignerKey(),
         solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
         proposal,
-        axiaRegistry: this.getEntityRegistryPubkey(EntityType.Axia, axia),
+        axiaRegistry: this.getEntityRegistryPubkey(EntityType.Axia, axiaEthAddress),
         ixSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
       .instruction()
 
-    return [ed25519Ix, ix]
+    return [secp256k1Ix, ix]
   }
 
   getSettlerSettingsPubkey(): web3.PublicKey {
@@ -254,9 +262,10 @@ export default class SettlerSDK {
     )[0]
   }
 
-  getEntityRegistryPubkey(entityType: EntityType, entityPubkey: web3.PublicKey): web3.PublicKey {
+  getEntityRegistryPubkey(entityType: EntityType, entityAddress: web3.PublicKey | Buffer): web3.PublicKey {
+    const addressBuffer = entityAddress instanceof web3.PublicKey ? entityAddress.toBuffer() : entityAddress
     return web3.PublicKey.findProgramAddressSync(
-      [Buffer.from('entity-registry'), Buffer.from([entityType]), entityPubkey.toBuffer()],
+      [Buffer.from('entity-registry'), Buffer.from([entityType]), addressBuffer],
       new web3.PublicKey(ControllerIDL.address)
     )[0]
   }
@@ -272,6 +281,11 @@ export default class SettlerSDK {
     if (op === OpType.Call) return { call: {} }
 
     throw new Error(`Unsupported op ${op}`)
+  }
+
+  getEthPrefixedMessage(message: Buffer): Buffer {
+    const prefix = Buffer.from('\x19Ethereum Signed Message:\n32', 'utf8')
+    return Buffer.concat([prefix, message])
   }
 
   private parseIntentHashHex(intentHashHex: string): number[] {

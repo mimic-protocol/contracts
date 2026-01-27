@@ -7,7 +7,10 @@ use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Proposal,
-    utils::{check_secp256k1_ix, get_args_from_secp256k1_ix_data, Secp256k1Args},
+    utils::{
+        check_secp256k1_ix, create_ethereum_prefixed_message, get_args_from_secp256k1_ix_data,
+        Secp256k1Args,
+    },
 };
 
 #[derive(Accounts)]
@@ -59,14 +62,16 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
+    // Ethereum's signMessage adds a prefix: "\x19Ethereum Signed Message:\n32" + message
+    let expected_message = create_ethereum_prefixed_message(&proposal.key().as_array());
     require!(
-        secp256k1_ix_args.msg == proposal.key().as_array(),
+        secp256k1_ix_args.msg == expected_message.as_slice(),
         SettlerError::SigVerificationFailed
     );
 
     // Verify address is whitelisted Axia
     require!(
-        *secp256k1_ix_args.eth_address == *ctx.accounts.axia_registry.entity_address,
+        ctx.accounts.axia_registry.entity_address == secp256k1_ix_args.eth_address,
         SettlerError::AxiaNotAllowlisted
     );
 

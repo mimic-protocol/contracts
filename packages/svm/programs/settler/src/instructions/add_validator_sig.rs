@@ -7,7 +7,10 @@ use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::Intent,
-    utils::{check_secp256k1_ix, get_args_from_secp256k1_ix_data, Secp256k1Args},
+    utils::{
+        check_secp256k1_ix, create_ethereum_prefixed_message, get_args_from_secp256k1_ix_data,
+        Secp256k1Args,
+    },
 };
 
 #[derive(Accounts)]
@@ -61,8 +64,10 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
+    // Ethereum's signMessage adds a prefix: "\x19Ethereum Signed Message:\n32" + message
+    let expected_message = create_ethereum_prefixed_message(&intent.hash);
     require!(
-        secp256k1_ix_args.msg == intent.hash,
+        secp256k1_ix_args.msg == expected_message.as_slice(),
         SettlerError::SigVerificationFailed
     );
 

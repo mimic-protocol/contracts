@@ -1,18 +1,50 @@
-import { signAsync } from '@noble/ed25519'
-import { Keypair, PublicKey } from '@solana/web3.js'
+import { PublicKey } from '@solana/web3.js'
+import { ethers } from 'ethers'
 
 /**
- * Create an Ed25519 signature for a validator (signs intent hash)
+ * Create a Secp256k1 signature for a validator (signs intent hash)
+ * Uses Ethereum's signMessage which adds the standard prefix
  */
-export async function createValidatorSignature(intentHash: string, validator: Keypair): Promise<number[]> {
-  const signature = await signAsync(Buffer.from(intentHash, 'hex'), validator.secretKey.slice(0, 32))
-  return Array.from(new Uint8Array(signature))
+export async function createValidatorSignature(
+  intentHash: string,
+  validator: ethers.HDNodeWallet | ethers.Wallet
+): Promise<{ signature: number[]; recoveryId: number }> {
+  const messageHash = Buffer.from(intentHash, 'hex')
+  if (messageHash.length !== 32) {
+    throw new Error(`Intent hash must be 32 bytes, got ${messageHash.length}`)
+  }
+
+  // Sign with Ethereum's signMessage (adds prefix automatically)
+  const fullSignature = await validator.signMessage(messageHash)
+  const fullSigBytes = ethers.getBytes(fullSignature)
+
+  // Extract signature (64 bytes) and recovery ID
+  const signature = Array.from(fullSigBytes.slice(0, 64))
+  const recoveryId = fullSigBytes[64] - 27 // Adjust from Ethereum's 27-30 range to 0-3
+
+  return { signature, recoveryId }
 }
 
 /**
- * Create an Ed25519 signature for an axia (signs proposal key)
+ * Create a Secp256k1 signature for an axia (signs proposal key)
+ * Uses Ethereum's signMessage which adds the standard prefix
  */
-export async function createAxiaSignature(proposalKey: PublicKey, axia: Keypair): Promise<number[]> {
-  const signature = await signAsync(proposalKey.toBuffer(), axia.secretKey.slice(0, 32))
-  return Array.from(new Uint8Array(signature))
+export async function createAxiaSignature(
+  proposalKey: PublicKey,
+  axia: ethers.HDNodeWallet | ethers.Wallet
+): Promise<{ signature: number[]; recoveryId: number }> {
+  const message = proposalKey.toBuffer()
+  if (message.length !== 32) {
+    throw new Error(`Proposal key must be 32 bytes, got ${message.length}`)
+  }
+
+  // Sign with Ethereum's signMessage (adds prefix automatically)
+  const fullSignature = await axia.signMessage(message)
+  const fullSigBytes = ethers.getBytes(fullSignature)
+
+  // Extract signature (64 bytes) and recovery ID
+  const signature = Array.from(fullSigBytes.slice(0, 64))
+  const recoveryId = fullSigBytes[64] - 27 // Adjust from Ethereum's 27-30 range to 0-3
+
+  return { signature, recoveryId }
 }
