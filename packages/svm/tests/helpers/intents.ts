@@ -118,9 +118,9 @@ export async function addValidatorsToIntent(
   const intent = await programInstance.account.intent.fetch(intentKey)
 
   // Generate validators
-  const validators: PublicKey[] = []
+  const validators: Buffer[] = []
   for (let i = 0; i < numValidators; i++) {
-    validators.push(Keypair.generate().publicKey)
+    validators.push(Buffer.from(randomHex(40)))
   }
 
   // Modify the intent to add validators

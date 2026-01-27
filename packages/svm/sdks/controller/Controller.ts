@@ -42,7 +42,10 @@ export default class ControllerSDK {
     return ix
   }
 
-  async setAllowedEntityIx(entityType: EntityType, entityAddress: web3.PublicKey | Buffer): Promise<web3.TransactionInstruction> {
+  async setAllowedEntityIx(
+    entityType: EntityType,
+    entityAddress: web3.PublicKey | Buffer
+  ): Promise<web3.TransactionInstruction> {
     const entityAddressBuffer = entityAddress instanceof web3.PublicKey ? entityAddress.toBuffer() : entityAddress
     const entityRegistry = this.getEntityRegistryPubkey(entityType, entityAddressBuffer)
     const controllerSettings = this.getControllerSettingsPubkey()

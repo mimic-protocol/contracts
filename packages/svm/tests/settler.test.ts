@@ -659,7 +659,7 @@ describe('Settler', () => {
           expect(intent.maxFees.length).to.be.eq(58)
           expect(intent.events.length).to.be.eq(51)
           expect(intent.isFinal).to.be.false
-          expect(intentAcc?.data.length).to.be.eq(19359)
+          expect(intentAcc?.data.length).to.be.eq(19347)
         })
       })
 
