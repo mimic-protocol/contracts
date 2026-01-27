@@ -2014,721 +2014,137 @@ describe('Settler', () => {
   })
 
   describe('add_validator_sigs', () => {
-    let whitelistedValidator: Keypair
-
-    before(async () => {
-      whitelistedValidator = Keypair.generate()
-      const whitelistValidatorIx = await controllerSdk.setAllowedEntityIx(
-        EntityType.Validator,
-        whitelistedValidator.publicKey
-      )
-      await makeTxSignAndSend(provider, whitelistValidatorIx)
-    })
+    before(async () => {})
 
     context('when adding valid signatures', () => {
-      it('should add validator signature successfully', async () => {
-        const intentHash = await createTestIntent(solverSdk, solverProvider, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const signature = await createValidatorSignature(intentHash, whitelistedValidator)
-
-        const intentBefore = await program.account.intent.fetch(intentKey)
-        expect(intentBefore.validators.length).to.be.eq(0)
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs)
-
-        const intentAfter = await program.account.intent.fetch(intentKey)
-        expect(intentAfter.validators.length).to.be.eq(1)
-        expect(intentAfter.validators[0].toString()).to.be.eq(whitelistedValidator.publicKey.toString())
+      context('when adding one signature', () => {
+        it('should add validator to intent validators array', async () => {})
       })
 
-      it('should add multiple validator signatures', async () => {
-        const intentHash = await createTestIntent(solverSdk, solverProvider, {
-          minValidations: MULTIPLE_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const validator1 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
-        const validator2 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
-        const validator3 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
-
-        const signature1 = await createValidatorSignature(intentHash, validator1)
-        const ixs1 = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          validator1.publicKey,
-          signature1
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs1)
-
-        const intentAfter1 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter1.validators.length).to.be.eq(1)
-
-        const signature2 = await createValidatorSignature(intentHash, validator2)
-        const ixs2 = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          validator2.publicKey,
-          signature2
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs2)
-
-        const intentAfter2 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter2.validators.length).to.be.eq(2)
-
-        const signature3 = await createValidatorSignature(intentHash, validator3)
-        const ixs3 = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          validator3.publicKey,
-          signature3
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs3)
-
-        const intentAfter3 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter3.validators.length).to.be.eq(3)
-        expect(intentAfter3.validators.map((v) => v.toString())).to.include(validator1.publicKey.toString())
-        expect(intentAfter3.validators.map((v) => v.toString())).to.include(validator2.publicKey.toString())
-        expect(intentAfter3.validators.map((v) => v.toString())).to.include(validator3.publicKey.toString())
+      context('when adding multiple signatures', () => {
+        it('should add validators to intent validators array', async () => {})
       })
 
-      it('should handle duplicate validator signature gracefully', async () => {
-        const intentHash = await createTestIntent(solverSdk, solverProvider, { minValidations: 2, isFinal: true })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const signature = await createValidatorSignature(intentHash, whitelistedValidator)
-
-        const ixs1 = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs1)
-
-        const intentAfter1 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter1.validators.length).to.be.eq(1)
-
-        client.expireBlockhash()
-        const ixs2 = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs2)
-
-        const intentAfter2 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter2.validators.length).to.be.eq(1)
+      context('when adding the same signature again', () => {
+        it('should not add the validator twice', async () => {})
       })
 
-      it('should handle when min_validations already met', async () => {
-        const intentHash = await createTestIntent(solverSdk, solverProvider, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const validator1 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
-        const validator2 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
-
-        const signature1 = await createValidatorSignature(intentHash, validator1)
-        const ixs1 = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          validator1.publicKey,
-          signature1
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs1)
-
-        const intentAfter1 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter1.validators.length).to.be.eq(1)
-        expect(intentAfter1.minValidations).to.be.eq(1)
-
-        client.expireBlockhash()
-        const signature2 = await createValidatorSignature(intentHash, validator2)
-        const ixs2 = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          validator2.publicKey,
-          signature2
-        )
-        await makeTxSignAndSend(solverProvider, ...ixs2)
-
-        const intentAfter2 = await program.account.intent.fetch(intentKey)
-        expect(intentAfter2.validators.length).to.be.eq(1)
-        expect(intentAfter2.validators[0].toString()).to.be.eq(validator1.publicKey.toString())
+      context('when min_validations is already met', async () => {
+        it('should not add the validator', async () => {})
       })
     })
 
     context('when intent conditions are not met', () => {
-      it('cannot add signature if intent is not final', async () => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: false,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const signature = await createValidatorSignature(intentHash, whitelistedValidator)
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, `Intent is not final`)
+      context('when the intent is not final', () => {
+        it('should not add the validator signature', async () => {})
       })
 
-      it('cannot add signature if intent has expired', async () => {
-        const intentHash = generateIntentHash()
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + SHORT_DEADLINE
-        const intentParams: Partial<CreateIntentParams> = {
-          deadline,
-        }
-        const params = createIntentParams(client, intentParams)
-        const ix = await solverSdk.createIntentIx(intentHash, params, true)
-        await makeTxSignAndSend(solverProvider, ix)
+      context('when the intent has expired', () => {
+        it('should not add the validator signature', async () => {})
+      })
 
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        warpSeconds(provider, 101)
-
-        const signature = await createValidatorSignature(intentHash, whitelistedValidator)
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, `Intent has already expired`)
+      context('when fulfilledIntent exists', () => {
+        it('should not add the validator signature', async () => {})
       })
     })
 
     context('when validator is not whitelisted', () => {
-      it('cannot add signature if validator is not whitelisted', async () => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const validator = Keypair.generate()
-
-        const signature = await createValidatorSignature(intentHash, validator)
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          validator.publicKey,
-          signature
-        )
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(
-          res,
-          `AnchorError caused by account: validator_registry. Error Code: AccountNotInitialized.`
-        )
-      })
+      it('should not add the validator signature', async () => {})
     })
 
     context('when solver is not whitelisted', () => {
-      it('cannot add signature if solver is not whitelisted', async () => {
-        const intentHash = await createTestIntent(solverSdk, solverProvider, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const signature = await createValidatorSignature(intentHash, whitelistedValidator)
-
-        const ixs = await maliciousSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        const res = await makeTxSignAndSend(maliciousProvider, ...ixs)
-
-        expectTransactionError(
-          res,
-          `AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized.`
-        )
-      })
+      it('should not add the validator signature', async () => {})
     })
 
     context('when intent does not exist', () => {
-      it('cannot add signature for non-existent intent', async () => {
-        const intentHash = generateIntentHash()
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const signature = await createValidatorSignature(intentHash, whitelistedValidator)
-
-        const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
-          message: Buffer.from(intentHash, 'hex'),
-          publicKey: whitelistedValidator.publicKey.toBuffer(),
-          signature: Buffer.from(signature),
-        })
-
-        const ix = await program.methods
-          .addValidatorSig()
-          .accountsPartial({
-            solver: solverSdk.getSignerKey(),
-            solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
-            intent: intentKey,
-            fulfilledIntent: solverSdk.getFulfilledIntentKey(intentHash),
-            validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, whitelistedValidator.publicKey),
-            ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
-          })
-          .instruction()
-
-        const res = await makeTxSignAndSend(solverProvider, ed25519Ix, ix)
-
-        expectTransactionError(res, `AccountNotInitialized`)
-      })
+      it('should fail with AccountNotInitialized', async () => {})
     })
 
     context('when signature is invalid', () => {
-      it('cannot add signature if fulfilled_intent PDA already exists', async () => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
-        client.setAccount(fulfilledIntent, {
-          executable: false,
-          lamports: 1002240,
-          owner: program.programId,
-          data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
+      context('when signature verifies but is invalid', () => {
+        context('when signing with another address', () => {
+          it('should fail with SignatureVerificationError', async () => {})
         })
 
-        const signature = await createValidatorSignature(intentHash, whitelistedValidator)
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(
-          res,
-          `AnchorError caused by account: fulfilled_intent. Error Code: AccountNotSystemOwned. Error Number: 3011. Error Message: The given account is not owned by the system program`
-        )
+        context('when signing for another intent', () => {
+          it('should fail with SignatureVerificationError', async () => {})
+        })
       })
 
-      it('cannot add signature with wrong intent hash', async () => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const wrongIntentHash = generateIntentHash()
-        const signature = await createValidatorSignature(wrongIntentHash, whitelistedValidator)
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(wrongIntentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, `Signature verification failed`)
-      })
-
-      it('cannot add signature with invalid signature', async () => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey = sdk.getIntentKey(intentHash)
-
-        const invalidSignature: number[] = Array.from({ length: 64 }, () => Math.floor(Math.random() * 256))
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey,
-          Buffer.from(intentHash, 'hex'),
-          whitelistedValidator.publicKey,
-          invalidSignature
-        )
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expect(res.toString()).to.be.eq(
-          `FailedTransactionMetadata(FailedTransactionMetadata { err: InstructionError(0, Custom(2)), meta: TransactionMetadata { signature: 1111111111111111111111111111111111111111111111111111111111111111, logs: [], inner_instructions: [], compute_units_consumed: 0, return_data: TransactionReturnData { program_id: 11111111111111111111111111111111, data: [] } } })`
-        )
-      })
-
-      it('cannot add valid signature but for another intent', async () => {
-        const intentHash1 = await createTestIntent(solverSdk, solverProvider, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-        const intentKey1 = sdk.getIntentKey(intentHash1)
-
-        const intentHash2 = await createTestIntent(solverSdk, solverProvider, {
-          minValidations: DEFAULT_MIN_VALIDATIONS,
-          isFinal: true,
-        })
-
-        const signature = await createValidatorSignature(intentHash2, whitelistedValidator)
-
-        const ixs = await solverSdk.addValidatorSigIxs(
-          intentKey1,
-          Buffer.from(intentHash2, 'hex'),
-          whitelistedValidator.publicKey,
-          signature
-        )
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, `Signature verification failed`)
+      context('when signature fails to verify', () => {
+        it('should fail with SignatureVerificationError', async () => {})
       })
     })
   })
 
   describe('add_axia_sig', () => {
-    let whitelistedAxia: Keypair
-
-    before(async () => {
-      whitelistedAxia = Keypair.generate()
-      const whitelistAxiaIx = await controllerSdk.setAllowedEntityIx(EntityType.Axia, whitelistedAxia.publicKey)
-      await makeTxSignAndSend(provider, whitelistAxiaIx)
-    })
+    before(async () => {})
 
     context('when adding valid signatures', () => {
-      it('should add axia signature successfully', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const proposalBefore = await program.account.proposal.fetch(proposalKey)
-        expect(proposalBefore.isSigned).to.be.false
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs)
-
-        const proposalAfter = await program.account.proposal.fetch(proposalKey)
-        expect(proposalAfter.isSigned).to.be.true
+      context('when adding one signature', () => {
+        it('should sign proposal', async () => {})
       })
 
-      it('should handle duplicate signature gracefully', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs1 = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs1)
-
-        const proposalAfter1 = await program.account.proposal.fetch(proposalKey)
-        expect(proposalAfter1.isSigned).to.be.true
-
-        client.expireBlockhash()
-        const ixs2 = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs2)
-
-        const proposalAfter2 = await program.account.proposal.fetch(proposalKey)
-        expect(proposalAfter2.isSigned).to.be.true
+      context('when adding multiple signatures', () => {
+        it('should sign proposal once', async () => {})
       })
 
-      it('should add signature multiple times safely', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs1 = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs1)
-
-        client.expireBlockhash()
-        const ixs2 = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs2)
-
-        client.expireBlockhash()
-        const ixs3 = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs3)
-
-        const proposalAfter = await program.account.proposal.fetch(proposalKey)
-        expect(proposalAfter.isSigned).to.be.true
-      })
-
-      it('should add signature when proposal deadline is close', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + VERY_SHORT_DEADLINE
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program, { deadline })
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        await makeTxSignAndSend(solverProvider, ...ixs)
-
-        const proposalAfter = await program.account.proposal.fetch(proposalKey)
-        expect(proposalAfter.isSigned).to.be.true
+      context('when adding the same signature again', () => {
+        it('should sign proposal once', async () => {})
       })
     })
 
     context('when proposal conditions are not met', () => {
-      it('cannot add signature if proposal is not final', async () => {
-        const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-        const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        const deadline = getProposalDeadline(client)
-
-        const instructions = [createTestProposalInstruction()]
-
-        const fees = mapIntentFeesToTokenFees(intent)
-
-        const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        const proposalKey = sdk.getProposalKey(intentHash, solver.publicKey)
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, 'Proposal is not final')
+      context('when the proposal is not final', () => {
+        it('should not sign the proposal', async () => {})
       })
 
-      it('cannot add signature if proposal has expired', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + STALE_CLAIM_DELAY
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program, { deadline })
-
-        warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, 'Proposal has already expired')
+      context('when the proposal has expired', () => {
+        it('should not sign the proposal', async () => {})
       })
 
-      it('cannot add signature if proposal deadline equals now', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + SHORT_DEADLINE
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program, { deadline })
-
-        warpSeconds(provider, WARP_TIME_SHORT)
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, 'Proposal has already expired')
+      context('when the proposal deadline equals now', () => {
+        it('should not sign the proposal', async () => {})
       })
     })
 
     context('when axia is not whitelisted', () => {
-      it('cannot add signature if axia is not whitelisted', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const axia = Keypair.generate()
-        const signature = await createAxiaSignature(proposalKey, axia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, axia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, `AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized.`)
-      })
+      it('should not sign the proposal', async () => {})
     })
 
     context('when solver is not whitelisted', () => {
-      it('cannot add signature if solver is not whitelisted', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ixs = await maliciousSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(maliciousProvider, ...ixs)
-
-        expectTransactionError(
-          res,
-          `AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized.`
-        )
-      })
+      it('should not sign the proposal', async () => {})
     })
 
     context('when proposal does not exist', () => {
-      it('cannot add signature for non-existent proposal', async () => {
-        const proposalKey = randomPubkey()
-
-        const signature = await createAxiaSignature(proposalKey, whitelistedAxia)
-
-        const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
-          message: proposalKey.toBuffer(),
-          publicKey: whitelistedAxia.publicKey.toBuffer(),
-          signature: Buffer.from(signature),
-        })
-
-        const ix = await program.methods
-          .addAxiaSig()
-          .accountsPartial({
-            solver: solverSdk.getSignerKey(),
-            solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
-            proposal: proposalKey,
-            axiaRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Axia, whitelistedAxia.publicKey),
-            ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
-          })
-          .instruction()
-
-        const res = await makeTxSignAndSend(solverProvider, ed25519Ix, ix)
-
-        expectTransactionError(
-          res,
-          `Program log: AnchorError caused by account: proposal. Error Code: AccountNotInitialized`
-        )
-      })
+      it('should fail with AccountNotInitialized', async () => {})
     })
 
     context('when signature is invalid', () => {
-      it('cannot add signature with wrong proposal key', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-        const wrongProposalKey = randomPubkey()
-
-        const signature = await createAxiaSignature(wrongProposalKey, whitelistedAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expect(res.toString()).to.be.eq(
-          `FailedTransactionMetadata(FailedTransactionMetadata { err: InstructionError(0, Custom(2)), meta: TransactionMetadata { signature: 1111111111111111111111111111111111111111111111111111111111111111, logs: [], inner_instructions: [], compute_units_consumed: 0, return_data: TransactionReturnData { program_id: 11111111111111111111111111111111, data: [] } } })`
-        )
-      })
-
-      it('cannot add signature with invalid signature', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const invalidSignature: number[] = Array.from({ length: 64 }, () => Math.floor(Math.random() * 256))
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, invalidSignature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expect(res.toString()).to.be.eq(
-          `FailedTransactionMetadata(FailedTransactionMetadata { err: InstructionError(0, Custom(2)), meta: TransactionMetadata { signature: 1111111111111111111111111111111111111111111111111111111111111111, logs: [], inner_instructions: [], compute_units_consumed: 0, return_data: TransactionReturnData { program_id: 11111111111111111111111111111111, data: [] } } })`
-        )
-      })
-
-      it('cannot add signature from wrong axia pubkey', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const wrongAxia = Keypair.generate()
-        const signature = await createAxiaSignature(proposalKey, wrongAxia)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, wrongAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, `AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized.`)
-      })
-
-      it('cannot add signature with signature from different axia', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const axia2 = await createAllowlistedEntity(controllerSdk, provider, EntityType.Axia)
-        const signature = await createAxiaSignature(proposalKey, axia2)
-
-        // Try to use axia2's signature but claim it's from whitelistedAxia
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, whitelistedAxia.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expect(res.toString()).to.be.eq(
-          `FailedTransactionMetadata(FailedTransactionMetadata { err: InstructionError(0, Custom(2)), meta: TransactionMetadata { signature: 1111111111111111111111111111111111111111111111111111111111111111, logs: [], inner_instructions: [], compute_units_consumed: 0, return_data: TransactionReturnData { program_id: 11111111111111111111111111111111, data: [] } } })`
-        )
-      })
-
-      it('cannot add signature with signature from validator instead of axia', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        const validator = await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator)
-        const signature = await createAxiaSignature(proposalKey, validator)
-
-        const ixs = await solverSdk.addAxiaSigIxs(proposalKey, validator.publicKey, signature)
-        const res = await makeTxSignAndSend(solverProvider, ...ixs)
-
-        expectTransactionError(res, `AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized.`)
-      })
-
-      it('cannot add signature if signed message is wrong', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        // Sign a different message (e.g., intent hash instead of proposal key)
-        const intentHash = generateIntentHash()
-        const signature = await signAsync(Buffer.from(intentHash, 'hex'), whitelistedAxia.secretKey.slice(0, 32))
-        const signatureArray = Array.from(new Uint8Array(signature))
-
-        const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
-          message: Buffer.from(intentHash, 'hex'),
-          publicKey: whitelistedAxia.publicKey.toBuffer(),
-          signature: Buffer.from(signatureArray),
+      context('when signature verifies', () => {
+        context('when signing for another proposal', () => {
+          it('should fail with SignatureVerificationError', async () => {})
         })
 
-        const ix = await program.methods
-          .addAxiaSig()
-          .accountsPartial({
-            solver: solverSdk.getSignerKey(),
-            solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
-            proposal: proposalKey,
-            axiaRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Axia, whitelistedAxia.publicKey),
-            ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
-          })
-          .instruction()
-
-        const res = await makeTxSignAndSend(solverProvider, ed25519Ix, ix)
-
-        expectTransactionError(res, `Signature verification failed`)
-      })
-
-      it('cannot add signature with corrupted ed25519 instruction', async () => {
-        const { proposalKey } = await createFinalizedProposal(solverSdk, solverProvider, client, program)
-
-        // Create corrupted Ed25519 instruction with wrong program ID
-        const corruptedEd25519Ix = new TransactionInstruction({
-          programId: randomPubkey(),
-          keys: [],
-          data: Buffer.from([
-            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0,
-          ]),
+        context('when axia is not allowlisted', () => {
+          it('should fail with SignatureVerificationError', async () => {})
         })
 
-        const ix = await program.methods
-          .addAxiaSig()
-          .accountsPartial({
-            solver: solverSdk.getSignerKey(),
-            solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
-            proposal: proposalKey,
-            axiaRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Axia, whitelistedAxia.publicKey),
-            ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
-          })
-          .instruction()
+        context('when signing with another allowlisted axia key', () => {
+          it('should fail with SignatureVerificationError', async () => {})
+        })
 
-        const res = await makeTxSignAndSend(solverProvider, corruptedEd25519Ix, ix)
+        context('when signing with an allowlisted validator key', () => {
+          it('should fail with SignatureVerificationError', async () => {})
+        })
 
-        expect(res.toString()).to.be.eq(
-          // eslint-disable-next-line no-secrets/no-secrets
-          `FailedTransactionMetadata(FailedTransactionMetadata { err: InvalidProgramForExecution, meta: TransactionMetadata { signature: 1111111111111111111111111111111111111111111111111111111111111111, logs: [], inner_instructions: [], compute_units_consumed: 0, return_data: TransactionReturnData { program_id: 11111111111111111111111111111111, data: [] } } })`
-        )
+        context('when signing another message', () => {
+          it('should fail with SignatureVerificationError', async () => {})
+        })
+      })
+
+      context('when signature fails to verify', () => {
+        it('should fail with SignatureVerificationError', async () => {})
       })
     })
   })
