@@ -7,6 +7,7 @@ import { Ed25519Program, Keypair, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY, Transac
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { BN } from 'bn.js'
 import { expect } from 'chai'
+import { ethers } from 'ethers'
 import fs from 'fs'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 import os from 'os'
@@ -29,8 +30,10 @@ import {
   createTestProposalInstruction,
   createValidatedIntent,
   createValidatorSignature,
+  ethAddressToByteArray,
   expectTransactionError,
   generateIntentHash,
+  getCurrentDeadline,
   getProposalDeadline,
   mapIntentFeesToTokenFees,
   randomPubkey,
@@ -2014,42 +2017,219 @@ describe('Settler', () => {
   })
 
   describe('add_validator_sigs', () => {
-    before(async () => {})
+    const createSigAndGetIxs = async (validator: ethers.HDNodeWallet) => {
+      const { signature, recoveryId } = await createValidatorSignature(intentHash, validator)
+      return solverSdk.addValidatorSigIxs(
+        solverSdk.getIntentKey(intentHash),
+        Buffer.from(intentHash, 'hex'),
+        Buffer.from(validator.address.slice(2), 'hex'),
+        signature,
+        recoveryId
+      )
+    }
 
+    const createAllowlistedValidator = async () => {
+      const validator = ethers.Wallet.createRandom()
+      await createAllowlistedEntity(
+        controllerSdk,
+        provider,
+        EntityType.Validator,
+        Buffer.from(validator.address.slice(2), 'hex')
+      )
+      return validator
+    }
+
+    let intentHash: string
     context('when adding valid signatures', () => {
       context('when adding one signature', () => {
-        it('should add validator to intent validators array', async () => {})
+        let validator: ethers.HDNodeWallet
+        let ixs: TransactionInstruction[]
+
+        before(async () => {
+          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+          validator = await createAllowlistedValidator()
+          ixs = await createSigAndGetIxs(validator)
+        })
+
+        it('should add validator to intent validators array', async () => {
+          const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+          await makeTxSignAndSend(solverProvider, ...ixs)
+          const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+          expect(intentBefore.validators.length).to.be.eq(0)
+          expect(intentAfter.validators.length).to.be.eq(1)
+          expect(intentAfter.validators[0]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+        })
       })
 
       context('when adding multiple signatures', () => {
-        it('should add validators to intent validators array', async () => {})
+        const validators: ethers.HDNodeWallet[] = []
+        const sigIxs: TransactionInstruction[][] = []
+
+        before(async () => {
+          intentHash = await createTestIntent(solverSdk, solverProvider, { minValidations: 3, isFinal: true })
+          for (let i = 0; i < 3; i++) {
+            const validator = await createAllowlistedValidator()
+            const ixs = await createSigAndGetIxs(validator)
+            validators.push(validator)
+            sigIxs.push(ixs)
+          }
+        })
+
+        it('should add validators to intent validators array', async () => {
+          for (let i = 0; i < 3; i++) {
+            const validator = validators[i]
+            const ixs = sigIxs[i]
+
+            const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+            await makeTxSignAndSend(solverProvider, ...ixs)
+            const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+            expect(intentBefore.validators.length).to.be.eq(i)
+            expect(intentAfter.validators.length).to.be.eq(i + 1)
+            expect(intentAfter.validators[i]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+          }
+        })
       })
 
       context('when adding the same signature again', () => {
-        it('should not add the validator twice', async () => {})
+        let validator: ethers.HDNodeWallet
+        let ixs: TransactionInstruction[]
+
+        before(async () => {
+          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+          validator = await createAllowlistedValidator()
+          ixs = await createSigAndGetIxs(validator)
+        })
+
+        beforeEach(() => {
+          client.expireBlockhash()
+        })
+
+        it('should add the validator once', async () => {
+          const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+          await makeTxSignAndSend(solverProvider, ...ixs)
+          const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+          expect(intentBefore.validators.length).to.be.eq(0)
+          expect(intentAfter.validators.length).to.be.eq(1)
+          expect(intentAfter.validators[0]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+        })
+
+        it('should not add the validator twice', async () => {
+          ixs = await createSigAndGetIxs(validator)
+          await makeTxSignAndSend(solverProvider, ...ixs)
+
+          const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+          expect(intentAfter.validators.length).to.be.eq(1)
+          expect(intentAfter.validators[0]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+        })
       })
 
       context('when min_validations is already met', async () => {
-        it('should not add the validator', async () => {})
+        let validator: ethers.HDNodeWallet
+        let ixs: TransactionInstruction[]
+
+        before(async () => {
+          intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
+            isFinal: true,
+            minValidations: 1,
+          })
+          validator = await createAllowlistedValidator()
+          ixs = await createSigAndGetIxs(validator)
+        })
+
+        it('should not add the validator', async () => {
+          const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+          await makeTxSignAndSend(solverProvider, ...ixs)
+          const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+          expect(intentBefore.validators.length).to.be.eq(1)
+          expect(intentAfter.validators.length).to.be.eq(1)
+          expect(intentAfter.validators[0]).to.not.be.deep.eq(ethAddressToByteArray(validator.address))
+        })
       })
     })
 
     context('when intent conditions are not met', () => {
+      let validator: ethers.HDNodeWallet
+      let ixs: TransactionInstruction[]
+
+      before(async () => {
+        validator = await createAllowlistedValidator()
+        ixs = await createSigAndGetIxs(validator)
+      })
+
       context('when the intent is not final', () => {
-        it('should not add the validator signature', async () => {})
+        before(async () => {
+          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+          ixs = await createSigAndGetIxs(validator)
+        })
+
+        it('should not add the validator signature', async () => {
+          const res = await makeTxSignAndSend(solverProvider, ...ixs)
+          expectTransactionError(res, 'IntentIsNotFinal')
+        })
       })
 
       context('when the intent has expired', () => {
-        it('should not add the validator signature', async () => {})
+        before(async () => {
+          const deadline = getCurrentDeadline(client, 10)
+          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true, deadline })
+          ixs = await createSigAndGetIxs(validator)
+          warpSeconds(solverProvider, 10)
+        })
+
+        it('should not add the validator signature', async () => {
+          const res = await makeTxSignAndSend(solverProvider, ...ixs)
+          expectTransactionError(res, 'IntentIsExpired')
+        })
       })
 
       context('when fulfilledIntent exists', () => {
-        it('should not add the validator signature', async () => {})
+        before(async () => {
+          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+
+          // Mock FulfilledIntent
+          const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
+          client.setAccount(fulfilledIntent, {
+            executable: false,
+            lamports: 1002240,
+            owner: program.programId,
+            data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
+          })
+
+          ixs = await createSigAndGetIxs(validator)
+        })
+
+        it('should not add the validator signature', async () => {
+          const res = await makeTxSignAndSend(solverProvider, ...ixs)
+          expectTransactionError(
+            res,
+            'Program log: AnchorError caused by account: fulfilled_intent. Error Code: AccountNotSystemOwned'
+          )
+        })
       })
     })
 
     context('when validator is not whitelisted', () => {
-      it('should not add the validator signature', async () => {})
+      let validator: ethers.HDNodeWallet
+      let ixs: TransactionInstruction[]
+
+      before(async () => {
+        intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+        validator = ethers.Wallet.createRandom()
+        ixs = await createSigAndGetIxs(validator)
+      })
+
+      it('should not add the validator signature', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+        expectTransactionError(
+          res,
+          'Program log: AnchorError caused by account: validator_registry. Error Code: AccountNotInitialized'
+        )
+      })
     })
 
     context('when solver is not whitelisted', () => {

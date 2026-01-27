@@ -48,3 +48,7 @@ export async function createAxiaSignature(
 
   return { signature, recoveryId }
 }
+
+export function ethAddressToByteArray(address: string) {
+  return Array.from(Buffer.from(address.slice(2), 'hex'))
+}
