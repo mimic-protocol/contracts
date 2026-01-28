@@ -21,13 +21,16 @@ import {
   addValidatorsToIntent,
   createIntentParams,
   createProposalParams,
+  createSignerInstructionAccount,
   createTestIntent,
   createTestProposalInstruction,
   createValidatedIntent,
+  createWritableInstructionAccount,
   expectTransactionError,
   generateIntentHash,
-  getProposalDeadline,
+  getCurrentTimestamp,
   mapIntentFeesToTokenFees,
+  randomKeypair,
   randomPubkey,
   toLamports,
 } from './helpers'
@@ -48,6 +51,7 @@ import {
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   MULTIPLE_MIN_VALIDATIONS,
+  PROPOSAL_DEADLINE_OFFSET,
   SHORT_DEADLINE,
   STALE_CLAIM_DELAY,
   STALE_CLAIM_DELAY_PLUS_ONE,
@@ -81,8 +85,8 @@ describe('Settler', () => {
     admin = Keypair.fromSecretKey(
       Uint8Array.from(JSON.parse(fs.readFileSync(path.join(os.homedir(), '.config', 'solana', 'id.json'), 'utf8')))
     )
-    malicious = Keypair.generate()
-    solver = Keypair.generate()
+    malicious = randomKeypair()
+    solver = randomKeypair()
 
     client = fromWorkspace(path.join(__dirname, '../')).withBuiltins().withPrecompiles().withSysvars()
 
@@ -164,7 +168,7 @@ describe('Settler', () => {
           expect(Buffer.from(intent.nonce).toString('hex')).to.be.eq(nonce)
           expect(intent.deadline.toNumber()).to.be.eq(deadline)
           expect(intent.minValidations).to.be.eq(DEFAULT_MIN_VALIDATIONS)
-          expect(intent.isFinal).to.be.false
+          expect(intent.isFinal).to.be.true
           expect(Buffer.from(intent.data).toString('hex')).to.be.eq(DEFAULT_DATA_HEX)
           expect(intent.maxFees.length).to.be.eq(1)
           expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
@@ -385,9 +389,8 @@ describe('Settler', () => {
         beforeEach('create intent params with past deadline', async () => {
           warpSeconds(provider, WARP_TIME_LONG)
           intentHash = generateIntentHash()
-          const now = Number(client.getClock().unixTimestamp)
           intentParams = {
-            deadline: now - SHORT_DEADLINE,
+            deadline: getCurrentTimestamp(client, -1 * SHORT_DEADLINE),
           }
         })
 
@@ -409,9 +412,8 @@ describe('Settler', () => {
 
         beforeEach('create intent params with deadline equal to now', async () => {
           intentHash = generateIntentHash()
-          const now = Number(client.getClock().unixTimestamp)
           intentParams = {
-            deadline: now,
+            deadline: getCurrentTimestamp(client),
           }
         })
 
@@ -507,7 +509,7 @@ describe('Settler', () => {
 
         beforeEach('create intent and extend params', async () => {
           intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-          newMint = Keypair.generate()
+          newMint = randomKeypair()
           extendParams = {
             moreMaxFees: [
               {
@@ -574,7 +576,7 @@ describe('Settler', () => {
 
         beforeEach('create intent and extend params', async () => {
           intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-          newMint = Keypair.generate()
+          newMint = randomKeypair()
           newTopic = Buffer.from(Array(32).fill(3)).toString('hex')
           extendParams = {
             moreDataHex: '0d0e0f',
@@ -795,8 +797,7 @@ describe('Settler', () => {
       let intentCreatorBalanceBefore: number
 
       beforeEach('create stale intent and get balances', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + STALE_CLAIM_DELAY
+        const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
         intentHash = await createTestIntent(solverSdk, solverProvider, {
           deadline,
           isFinal: false,
@@ -833,8 +834,7 @@ describe('Settler', () => {
         let intentHash: string
 
         beforeEach('create intent and warp time', async () => {
-          const now = Number(client.getClock().unixTimestamp)
-          const deadline = now + LONG_DEADLINE
+          const deadline = getCurrentTimestamp(client, LONG_DEADLINE)
           intentHash = await createTestIntent(solverSdk, solverProvider, {
             deadline,
             isFinal: false,
@@ -853,8 +853,7 @@ describe('Settler', () => {
         let intentHash: string
 
         beforeEach('create intent and warp time', async () => {
-          const now = Number(client.getClock().unixTimestamp)
-          const deadline = now + MEDIUM_DEADLINE
+          const deadline = getCurrentTimestamp(client, MEDIUM_DEADLINE)
           intentHash = await createTestIntent(solverSdk, solverProvider, {
             deadline,
             isFinal: false,
@@ -874,8 +873,7 @@ describe('Settler', () => {
       let intentHash: string
 
       beforeEach('create intent and warp time', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + EXPIRATION_TEST_DELAY
+        const deadline = getCurrentTimestamp(client, EXPIRATION_TEST_DELAY)
         intentHash = await createTestIntent(solverSdk, solverProvider, {
           deadline,
           isFinal: false,
@@ -908,8 +906,7 @@ describe('Settler', () => {
       let intentHash: string
 
       beforeEach('create intent, warp time, and claim once', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + DOUBLE_CLAIM_DELAY
+        const deadline = getCurrentTimestamp(client, DOUBLE_CLAIM_DELAY)
         intentHash = await createTestIntent(solverSdk, solverProvider, {
           deadline,
           isFinal: false,
@@ -939,16 +936,11 @@ describe('Settler', () => {
         let fees: TokenFee[]
 
         beforeEach('create intent and proposal params', async () => {
-          const params = await createProposalParams(solverSdk, solverProvider, client, program, {
+          const params = await createProposalParams(solverSdk, solverProvider, client, {
             intentOptions: { isFinal: true },
             instructions: [
               createTestProposalInstruction({
-                accounts: [
-                  {
-                    isSigner: false,
-                    isWritable: true,
-                  },
-                ],
+                accounts: [createWritableInstructionAccount()],
                 data: 'deadbeef',
               }),
             ],
@@ -993,25 +985,15 @@ describe('Settler', () => {
         beforeEach('create intent and proposal params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          deadline = getProposalDeadline(client)
+          deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
 
           instructions = [
             createTestProposalInstruction({
-              accounts: [
-                {
-                  isSigner: false,
-                  isWritable: true,
-                },
-              ],
+              accounts: [createWritableInstructionAccount()],
               data: '010203',
             }),
             createTestProposalInstruction({
-              accounts: [
-                {
-                  isSigner: true,
-                  isWritable: false,
-                },
-              ],
+              accounts: [createSignerInstructionAccount()],
               data: '040506',
             }),
           ]
@@ -1042,7 +1024,7 @@ describe('Settler', () => {
             instructions[1].accounts[0].pubkey.toString()
           )
           expect(proposal.instructions[1].accounts[0].isSigner).to.be.eq(true)
-          expect(proposal.instructions[1].accounts[0].isWritable).to.be.eq(false)
+          expect(proposal.instructions[1].accounts[0].isWritable).to.be.eq(true)
         })
       })
 
@@ -1056,7 +1038,7 @@ describe('Settler', () => {
         beforeEach('create intent and proposal params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          deadline = getProposalDeadline(client)
+          deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
 
           instructions = []
 
@@ -1083,7 +1065,7 @@ describe('Settler', () => {
         let fees: TokenFee[]
 
         beforeEach('create intent and proposal params', async () => {
-          mint = Keypair.generate()
+          mint = randomKeypair()
           const intentParams: Partial<CreateIntentParams> = {
             maxFees: [
               {
@@ -1099,9 +1081,9 @@ describe('Settler', () => {
           await makeTxSignAndSend(solverProvider, ix)
 
           // Add validators
-          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
+          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1)
 
-          proposalDeadline = getProposalDeadline(client)
+          proposalDeadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
           instructions = [createTestProposalInstruction()]
           fees = [
             {
@@ -1132,7 +1114,7 @@ describe('Settler', () => {
       beforeEach('create intent and proposal params', async () => {
         intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
         const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        deadline = getProposalDeadline(client)
+        deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
 
         instructions = [createTestProposalInstruction()]
 
@@ -1156,8 +1138,7 @@ describe('Settler', () => {
         beforeEach('create intent and proposal params with past deadline', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now - SHORT_DEADLINE
+          deadline = getCurrentTimestamp(client, -1 * SHORT_DEADLINE)
 
           instructions = [createTestProposalInstruction()]
 
@@ -1180,8 +1161,7 @@ describe('Settler', () => {
         beforeEach('create intent and proposal params with deadline equal to now', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          deadline = now
+          deadline = getCurrentTimestamp(client)
 
           instructions = [createTestProposalInstruction()]
 
@@ -1201,8 +1181,7 @@ describe('Settler', () => {
         let proposalDeadline: number
 
         beforeEach('create intent with short deadline and expire it', async () => {
-          const now = Number(client.getClock().unixTimestamp)
-          const intentDeadline = now + SHORT_DEADLINE
+          const intentDeadline = getCurrentTimestamp(client, SHORT_DEADLINE)
           const intentParams: Partial<CreateIntentParams> = {
             deadline: intentDeadline,
           }
@@ -1212,11 +1191,11 @@ describe('Settler', () => {
           await makeTxSignAndSend(solverProvider, ix)
 
           // Add validators
-          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
+          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1)
 
           warpSeconds(provider, 101)
 
-          proposalDeadline = now + 200
+          proposalDeadline = getCurrentTimestamp(client, 200)
           instructions = [createTestProposalInstruction()]
         })
 
@@ -1255,7 +1234,7 @@ describe('Settler', () => {
         let proposalDeadline: number
 
         beforeEach('create intent with insufficient validations', async () => {
-          const now = Number(client.getClock().unixTimestamp)
+          const now = getCurrentTimestamp(client)
           const intentParams: Partial<CreateIntentParams> = {
             deadline: now + INTENT_DEADLINE_OFFSET,
             minValidations: 2,
@@ -1266,9 +1245,9 @@ describe('Settler', () => {
           await makeTxSignAndSend(solverProvider, ix)
 
           // Add validators to 1 (less than min_validations of 2)
-          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
+          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1)
 
-          proposalDeadline = getProposalDeadline(client)
+          proposalDeadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
           instructions = [createTestProposalInstruction()]
         })
 
@@ -1286,7 +1265,7 @@ describe('Settler', () => {
         let deadline: number
 
         beforeEach('create non-final intent and proposal params', async () => {
-          const params = await createProposalParams(solverSdk, solverProvider, client, program, {
+          const params = await createProposalParams(solverSdk, solverProvider, client, {
             intentOptions: { isFinal: false },
           })
           intentHash = params.intentHash
@@ -1312,7 +1291,7 @@ describe('Settler', () => {
 
         beforeEach('create intent, mock fulfilled intent, and proposal params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-          deadline = getProposalDeadline(client)
+          deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
 
           // Mock FulfilledIntent
           const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
@@ -1349,7 +1328,7 @@ describe('Settler', () => {
         beforeEach('create intent, proposal params, and create first proposal', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          deadline = getProposalDeadline(client)
+          deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
 
           instructions = [createTestProposalInstruction()]
 
@@ -1376,7 +1355,7 @@ describe('Settler', () => {
 
       beforeEach('generate non-existent intent hash and proposal params', () => {
         intentHash = generateIntentHash()
-        deadline = getProposalDeadline(client)
+        deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
 
         instructions = [createTestProposalInstruction()]
       })
@@ -1399,7 +1378,7 @@ describe('Settler', () => {
 
         beforeEach('create intent with max_fees and proposal params with exceeding fees', async () => {
           intentHash = generateIntentHash()
-          mint = Keypair.generate()
+          mint = randomKeypair()
           const intentParams: Partial<CreateIntentParams> = {
             maxFees: [
               {
@@ -1414,9 +1393,9 @@ describe('Settler', () => {
           await makeTxSignAndSend(solverProvider, ix)
 
           // Add validators
-          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
+          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1)
 
-          proposalDeadline = getProposalDeadline(client)
+          proposalDeadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
           instructions = [createTestProposalInstruction()]
 
           fees = [
@@ -1446,8 +1425,8 @@ describe('Settler', () => {
 
         beforeEach('create intent with max_fees and proposal params with wrong mint', async () => {
           intentHash = generateIntentHash()
-          mint = Keypair.generate()
-          wrongMint = Keypair.generate()
+          mint = randomKeypair()
+          wrongMint = randomKeypair()
           const intentParams: Partial<CreateIntentParams> = {
             maxFees: [
               {
@@ -1462,9 +1441,9 @@ describe('Settler', () => {
           await makeTxSignAndSend(solverProvider, ix)
 
           // Add validators
-          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1, program)
+          await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, 1)
 
-          proposalDeadline = getProposalDeadline(client)
+          proposalDeadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
           instructions = [createTestProposalInstruction()]
 
           fees = [
@@ -1490,16 +1469,11 @@ describe('Settler', () => {
     const createTestProposal = async (isFinal = false): Promise<string> => {
       const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
       const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-      const deadline = getProposalDeadline(client)
+      const deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
 
       const instructions = [
         createTestProposalInstruction({
-          accounts: [
-            {
-              isSigner: false,
-              isWritable: true,
-            },
-          ],
+          accounts: [createWritableInstructionAccount()],
           data: DEFAULT_DATA_HEX,
         }),
       ]
@@ -1521,12 +1495,7 @@ describe('Settler', () => {
 
           moreInstructions = [
             createTestProposalInstruction({
-              accounts: [
-                {
-                  isSigner: false,
-                  isWritable: true,
-                },
-              ],
+              accounts: [createWritableInstructionAccount()],
               data: '040506',
             }),
           ]
@@ -1747,8 +1716,7 @@ describe('Settler', () => {
         beforeEach('create proposal with short deadline, warp time, and instruction params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          const deadline = now + STALE_CLAIM_DELAY
+          const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
 
           const instructions = [
             createTestProposalInstruction({
@@ -1785,8 +1753,7 @@ describe('Settler', () => {
         beforeEach('create proposal with short deadline, warp time, and instruction params', async () => {
           intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
           const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const now = Number(client.getClock().unixTimestamp)
-          const deadline = now + SHORT_DEADLINE
+          const deadline = getCurrentTimestamp(client, SHORT_DEADLINE)
 
           const instructions = [
             createTestProposalInstruction({
@@ -1847,12 +1814,7 @@ describe('Settler', () => {
 
       const instructions = [
         createTestProposalInstruction({
-          accounts: [
-            {
-              isSigner: false,
-              isWritable: true,
-            },
-          ],
+          accounts: [createWritableInstructionAccount()],
           data: DEFAULT_DATA_HEX,
         }),
       ]
@@ -1871,8 +1833,7 @@ describe('Settler', () => {
       let proposalCreatorBalanceBefore: number
 
       beforeEach('create proposal with short deadline, warp time, and get balances', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + STALE_CLAIM_DELAY
+        const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
         intentHash = await createTestProposalWithDeadline(deadline)
 
         proposalBefore = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
@@ -1912,8 +1873,7 @@ describe('Settler', () => {
         let intentHash: string
 
         beforeEach('create proposal and warp time', async () => {
-          const now = Number(client.getClock().unixTimestamp)
-          const deadline = now + LONG_DEADLINE
+          const deadline = getCurrentTimestamp(client, LONG_DEADLINE)
           intentHash = await createTestProposalWithDeadline(deadline)
 
           warpSeconds(provider, WARP_TIME_SHORT)
@@ -1931,8 +1891,7 @@ describe('Settler', () => {
         let intentHash: string
 
         beforeEach('create proposal and warp time', async () => {
-          const now = Number(client.getClock().unixTimestamp)
-          const deadline = now + MEDIUM_DEADLINE
+          const deadline = getCurrentTimestamp(client, MEDIUM_DEADLINE)
           intentHash = await createTestProposalWithDeadline(deadline)
 
           warpSeconds(provider, MEDIUM_DEADLINE)
@@ -1951,8 +1910,7 @@ describe('Settler', () => {
       let intentHash: string
 
       beforeEach('create proposal and warp time', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + EXPIRATION_TEST_DELAY
+        const deadline = getCurrentTimestamp(client, EXPIRATION_TEST_DELAY)
         intentHash = await createTestProposalWithDeadline(deadline)
 
         warpSeconds(provider, EXPIRATION_TEST_DELAY_PLUS_ONE)
@@ -1985,8 +1943,7 @@ describe('Settler', () => {
       let intentHash: string
 
       beforeEach('create proposal, warp time, and claim once', async () => {
-        const now = Number(client.getClock().unixTimestamp)
-        const deadline = now + DOUBLE_CLAIM_DELAY
+        const deadline = getCurrentTimestamp(client, DOUBLE_CLAIM_DELAY)
         intentHash = await createTestProposalWithDeadline(deadline)
 
         warpSeconds(provider, DOUBLE_CLAIM_DELAY_PLUS_ONE)

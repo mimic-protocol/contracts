@@ -1,11 +1,11 @@
 import { Program } from '@coral-xyz/anchor'
 import { randomHex } from '@mimicprotocol/sdk'
-import { Keypair, PublicKey } from '@solana/web3.js'
+import { PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 
 import SettlerSDK from '../../sdks/settler/Settler'
-import { CreateIntentParams, IntentEvent, OpType, TokenFee } from '../../sdks/settler/types'
+import { CreateIntentParams, OpType, TokenFee } from '../../sdks/settler/types'
 import * as SettlerIDL from '../../target/idl/settler.json'
 import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
@@ -18,15 +18,17 @@ import {
   INTENT_DEADLINE_OFFSET,
   INTENT_HASH_LENGTH,
 } from './constants'
-import { generateNonce, getCurrentDeadline } from './misc'
+import { generateNonce, getCurrentTimestamp, randomPubkey } from './misc'
 
 export type IntentAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['intent']['fetch']>>>
+
+export type CreateIntentOptions = Partial<CreateIntentParams> & { isFinal?: boolean }
 
 /**
  * Generate a random 32-byte hex string for intent hash
  */
 export function generateIntentHash(): string {
-  return randomHex(INTENT_HASH_LENGTH).slice(2)
+  return randomHex(INTENT_HASH_LENGTH)
 }
 
 /**
@@ -35,24 +37,8 @@ export function generateIntentHash(): string {
  */
 export function createIntentParams(client: LiteSVM, params: Partial<CreateIntentParams> = {}): CreateIntentParams {
   return {
-    op: params.op ?? OpType.Transfer,
-    user: params.user ?? Keypair.generate().publicKey,
-    nonceHex: params.nonceHex ?? generateNonce(),
-    deadline: params.deadline ?? getCurrentDeadline(client, INTENT_DEADLINE_OFFSET),
-    minValidations: params.minValidations ?? DEFAULT_MIN_VALIDATIONS,
-    dataHex: params.dataHex ?? DEFAULT_DATA_HEX,
-    maxFees: params.maxFees ?? [
-      {
-        mint: Keypair.generate().publicKey,
-        amount: DEFAULT_MAX_FEE,
-      },
-    ],
-    eventsHex: params.eventsHex ?? [
-      {
-        topicHex: DEFAULT_TOPIC_HEX,
-        dataHex: DEFAULT_EVENT_DATA_HEX,
-      },
-    ],
+    ...getDefaultCreateIntentParams(client),
+    ...params,
   }
 }
 
@@ -62,37 +48,13 @@ export function createIntentParams(client: LiteSVM, params: Partial<CreateIntent
 export async function createTestIntent(
   solverSdk: SettlerSDK,
   solverProvider: LiteSVMProvider,
-  options: {
-    intentHash?: string
-    nonce?: string
-    user?: PublicKey
-    deadline?: number
-    op?: OpType
-    minValidations?: number
-    dataHex?: string
-    maxFees?: TokenFee[]
-    eventsHex?: IntentEvent[]
-    isFinal?: boolean
-  } = {}
+  options: CreateIntentOptions = {}
 ): Promise<string> {
-  const intentHash = options.intentHash || generateIntentHash()
-  const nonce = options.nonce || generateNonce()
-  const user = options.user || Keypair.generate().publicKey
   const client = solverProvider.client
-  const deadline = options.deadline ?? getCurrentDeadline(client, INTENT_DEADLINE_OFFSET)
+  const intentHash = generateIntentHash()
+  const params = createIntentParams(client, options)
 
-  const params: CreateIntentParams = createIntentParams(client, {
-    op: options.op,
-    user,
-    nonceHex: nonce,
-    deadline,
-    minValidations: options.minValidations,
-    dataHex: options.dataHex,
-    maxFees: options.maxFees,
-    eventsHex: options.eventsHex,
-  })
-
-  const ix = await solverSdk.createIntentIx(intentHash, params, options.isFinal ?? false)
+  const ix = await solverSdk.createIntentIx(intentHash, params, options.isFinal)
   const res = await makeTxSignAndSend(solverProvider, ix)
   if (res instanceof FailedTransactionMetadata) {
     throw new Error(`Failed to create intent: ${res.toString()}`)
@@ -108,19 +70,18 @@ export async function addValidatorsToIntent(
   solverSdk: SettlerSDK,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
-  numValidators: number,
-  program?: Program<Settler>
+  numValidators: number
 ): Promise<void> {
   const intentKey = solverSdk.getIntentKey(intentHash)
-  const programInstance = program || new Program<Settler>(SettlerIDL, solverProvider)
+  const program = new Program<Settler>(SettlerIDL, solverProvider)
 
   // Fetch and deserialize the intent account
-  const intent = await programInstance.account.intent.fetch(intentKey)
+  const intent = await program.account.intent.fetch(intentKey)
 
   // Generate validators
   const validators: PublicKey[] = []
   for (let i = 0; i < numValidators; i++) {
-    validators.push(Keypair.generate().publicKey)
+    validators.push(randomPubkey())
   }
 
   // Modify the intent to add validators
@@ -130,7 +91,7 @@ export async function addValidatorsToIntent(
   }
 
   // Serialize the modified intent back to account data
-  const serializedData = await programInstance.coder.accounts.encode('intent', modifiedIntent)
+  const serializedData = await program.coder.accounts.encode('intent', modifiedIntent)
 
   // Update the account data
   const intentAccount = client.getAccount(intentKey)
@@ -149,22 +110,13 @@ export async function createValidatedIntent(
   solverSdk: SettlerSDK,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
-  options: {
-    intentHash?: string
-    minValidations?: number
-    isFinal?: boolean
-    deadline?: number
-    program?: Program<Settler>
-  } = {}
+  options: CreateIntentOptions = {}
 ): Promise<string> {
-  const intentHash = await createTestIntent(solverSdk, solverProvider, {
-    ...options,
-    isFinal: options.isFinal ?? true,
-  })
+  const intentHash = await createTestIntent(solverSdk, solverProvider, options)
 
   // Add validators to meet min_validations requirement
   const minValidations = options.minValidations ?? DEFAULT_MIN_VALIDATIONS
-  await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, minValidations, options.program)
+  await addValidatorsToIntent(intentHash, solverSdk, solverProvider, client, minValidations)
 
   return intentHash
 }
@@ -177,4 +129,31 @@ export function mapIntentFeesToTokenFees(intent: IntentAccount): TokenFee[] {
     mint: maxFee.mint,
     amount: maxFee.amount.toNumber(),
   }))
+}
+
+const DEFAULT_CREATE_INTENT_PARAMS: Omit<CreateIntentParams, 'deadline'> = {
+  op: OpType.Transfer,
+  user: randomPubkey(),
+  nonceHex: generateNonce(),
+  minValidations: DEFAULT_MIN_VALIDATIONS,
+  dataHex: DEFAULT_DATA_HEX,
+  maxFees: [
+    {
+      mint: randomPubkey(),
+      amount: DEFAULT_MAX_FEE,
+    },
+  ],
+  eventsHex: [
+    {
+      topicHex: DEFAULT_TOPIC_HEX,
+      dataHex: DEFAULT_EVENT_DATA_HEX,
+    },
+  ],
+}
+
+function getDefaultCreateIntentParams(client: LiteSVM): CreateIntentParams {
+  return {
+    ...DEFAULT_CREATE_INTENT_PARAMS,
+    deadline: getCurrentTimestamp(client, INTENT_DEADLINE_OFFSET),
+  }
 }
