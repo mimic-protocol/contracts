@@ -2233,7 +2233,18 @@ describe('Settler', () => {
     })
 
     context('when solver is not whitelisted', () => {
-      it('should not add the validator signature', async () => {})
+      let validator: ethers.HDNodeWallet
+      let ixs: TransactionInstruction[]
+
+      before(async () => {
+        intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+        validator = ethers.Wallet.createRandom()
+        ixs = await createSigAndGetIxs(validator)
+      })
+
+      it('should not add the validator signature', async () => {
+        
+      })
     })
 
     context('when intent does not exist', () => {
