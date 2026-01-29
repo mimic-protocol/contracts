@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Program, Wallet } from '@coral-xyz/anchor'
+import { randomHex } from '@mimicprotocol/sdk'
 import { Keypair, PublicKey, TransactionInstruction } from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { BN } from 'bn.js'
@@ -19,6 +20,7 @@ import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
 import {
   addValidatorsToIntent,
+  CreateIntentOptions,
   createIntentParams,
   createProposalParams,
   createSignerInstructionAccount,
@@ -28,6 +30,7 @@ import {
   createWritableInstructionAccount,
   expectTransactionError,
   generateIntentHash,
+  generateNonce,
   getCurrentTimestamp,
   mapIntentFeesToTokenFees,
   randomKeypair,
@@ -37,11 +40,9 @@ import {
 import {
   ACCOUNT_CLOSE_FEE,
   DEFAULT_DATA_HEX,
-  DEFAULT_EVENT_DATA_HEX,
   DEFAULT_MAX_FEE,
   DEFAULT_MAX_FEE_EXCEED,
   DEFAULT_MAX_FEE_HALF,
-  DEFAULT_MIN_VALIDATIONS,
   DOUBLE_CLAIM_DELAY,
   DOUBLE_CLAIM_DELAY_PLUS_ONE,
   EMPTY_DATA_HEX,
@@ -50,7 +51,6 @@ import {
   INTENT_DEADLINE_OFFSET,
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
-  MULTIPLE_MIN_VALIDATIONS,
   PROPOSAL_DEADLINE_OFFSET,
   SHORT_DEADLINE,
   STALE_CLAIM_DELAY,
@@ -143,336 +143,262 @@ describe('Settler', () => {
   })
 
   describe('create_intent', () => {
-    context('when creating a valid intent', () => {
-      context('when creating a basic intent', () => {
-        let intentHash: string
-        let user: Keypair
-        let nonce: string
-        let deadline: number
+    let intentHash: string
+    let intentOptions: CreateIntentOptions = {}
 
-        beforeEach('create intent', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            op: OpType.Transfer,
-          })
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          user = { publicKey: intent.user } as Keypair
-          nonce = Buffer.from(intent.nonce).toString('hex')
-          deadline = intent.deadline.toNumber()
-        })
-
-        it('creates the intent with correct properties', async () => {
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.op).to.deep.include({ transfer: {} })
-          expect(intent.user.toString()).to.be.eq(user.publicKey.toString())
-          expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
-          expect(Buffer.from(intent.nonce).toString('hex')).to.be.eq(nonce)
-          expect(intent.deadline.toNumber()).to.be.eq(deadline)
-          expect(intent.minValidations).to.be.eq(DEFAULT_MIN_VALIDATIONS)
-          expect(intent.isFinal).to.be.true
-          expect(Buffer.from(intent.data).toString('hex')).to.be.eq(DEFAULT_DATA_HEX)
-          expect(intent.maxFees.length).to.be.eq(1)
-          expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
-          expect(intent.events.length).to.be.eq(1)
-          expect(intent.validators.length).to.be.eq(0)
-          expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(DEFAULT_EVENT_DATA_HEX)
-        })
+    const itThrowsAnError = (errorMessage: string) => {
+      it('throws an error', async () => {
+        const params = createIntentParams(client, intentOptions)
+        const ix = await solverSdk.createIntentIx(intentHash, params, intentOptions.isFinal)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expectTransactionError(res, errorMessage)
       })
+    }
 
-      context('when creating an intent with empty data', () => {
-        let intentHash: string
+    context('when caller is an allowlisted solver', () => {
+      context('when intent data is valid', () => {
+        context('when intent does not exist', () => {
+          context('when creating a basic intent', () => {
+            const intentOptions: CreateIntentOptions = {
+              op: OpType.Transfer,
+              user: randomPubkey(),
+              nonceHex: generateNonce(),
+              deadline: 10_000,
+              minValidations: 5,
+              dataHex: TEST_DATA_HEX_1,
+              maxFees: [
+                {
+                  mint: randomPubkey(),
+                  amount: 1000,
+                },
+              ],
+              eventsHex: [
+                {
+                  topicHex: randomHex(32).slice(2),
+                  dataHex: randomHex(100).slice(2),
+                },
+              ],
+              isFinal: true,
+            }
 
-        beforeEach('create intent with empty data', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            op: OpType.Swap,
-            minValidations: 2,
-            dataHex: EMPTY_DATA_HEX,
-            maxFees: [
-              {
-                mint: randomPubkey(),
-                amount: 2000,
-              },
-            ],
-            eventsHex: [],
-            isFinal: true,
-          })
-        })
+            it('creates the intent with correct properties', async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
+              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
 
-        it('creates the intent with empty data', async () => {
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.op).to.deep.include({ swap: {} })
-          expect(Buffer.from(intent.data).toString('hex')).to.be.eq(EMPTY_DATA_HEX)
-          expect(intent.isFinal).to.be.true
-        })
-      })
-
-      context('when creating an intent with empty events', () => {
-        let intentHash: string
-
-        beforeEach('create intent with empty events', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            dataHex: TEST_DATA_HEX_2,
-            eventsHex: [],
-          })
-        })
-
-        it('creates the intent with empty events', async () => {
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.events.length).to.be.eq(0)
-        })
-      })
-
-      context('when creating an intent with is_final true', () => {
-        let intentHash: string
-
-        beforeEach('create intent with is_final true', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            dataHex: EMPTY_DATA_HEX,
-            eventsHex: [],
-            isFinal: true,
-          })
-        })
-
-        it('creates the intent with is_final true', async () => {
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.isFinal).to.be.true
-        })
-      })
-
-      context('when creating an intent with is_final false', () => {
-        let intentHash: string
-
-        beforeEach('create intent with is_final false', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            dataHex: EMPTY_DATA_HEX,
-            eventsHex: [],
-            isFinal: false,
-          })
-        })
-
-        it('creates the intent with is_final false', async () => {
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.isFinal).to.be.false
-        })
-      })
-    })
-
-    context('when validation fails', () => {
-      context('when intent has empty max_fees', () => {
-        let intentHash: string
-        let intentParams: Partial<CreateIntentParams> = {}
-
-        const itThrowsAnError = (errorMessage: string) => {
-          it('throws an error', async () => {
-            const params = createIntentParams(client, intentParams)
-            const ix = await solverSdk.createIntentIx(intentHash, params, false)
-            const res = await makeTxSignAndSend(solverProvider, ix)
-            expectTransactionError(res, errorMessage)
-          })
-        }
-
-        beforeEach('create intent params with empty max_fees', async () => {
-          intentHash = generateIntentHash()
-          intentParams = {
-            op: OpType.Call,
-            minValidations: MULTIPLE_MIN_VALIDATIONS,
-            dataHex: TEST_DATA_HEX_1,
-            maxFees: [],
-            eventsHex: [],
-          }
-        })
-
-        itThrowsAnError('No max fees provided')
-      })
-
-      context('when intent has hash shorter than 32 bytes', () => {
-        let intentHash: string
-        let intentParams: Partial<CreateIntentParams> = {}
-        let ix: TransactionInstruction
-
-        before('create intent params with invalid hash', async () => {
-          intentHash = '123456' // invalid - not 32 bytes
-          intentParams = {}
-
-          // Build ix with invalid hash
-          const params = createIntentParams(client, intentParams)
-          const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
-
-          const intentHashParam = Array.from(Buffer.from(intentHash, 'hex'))
-          const nonce = Array.from(Buffer.from(nonceHex, 'hex'))
-          const data = Buffer.from(dataHex, 'hex')
-          const maxFeesBn = maxFees.map((tokenFee) => ({
-            ...tokenFee,
-            amount: new BN(tokenFee.amount),
-          }))
-          const events = eventsHex.map((eventHex) => ({
-            topic: Array.from(Uint8Array.from(Buffer.from(eventHex.topicHex, 'hex'))),
-            data: Buffer.from(eventHex.dataHex, 'hex'),
-          }))
-          const intentKey = PublicKey.findProgramAddressSync(
-            [Buffer.from('intent'), Buffer.from(intentHash, 'hex')],
-            program.programId
-          )[0]
-
-          ix = await program.methods
-            .createIntent(
-              intentHashParam,
-              data,
-              maxFeesBn,
-              events,
-              minValidations,
-              solverSdk.opTypeToAnchorEnum(op),
-              user,
-              nonce,
-              new BN(deadline),
-              false
-            )
-            .accountsPartial({
-              intent: intentKey,
-              solver: solverSdk.getSignerKey(),
-              solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solver.publicKey),
+              expect(intent.op).to.deep.include({ transfer: {} })
+              expect(intent.user.toString()).to.be.eq(intentOptions.user!.toString())
+              expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
+              expect('0x' + Buffer.from(intent.nonce).toString('hex')).to.be.eq(intentOptions.nonceHex)
+              expect(intent.deadline.toNumber()).to.be.eq(intentOptions.deadline)
+              expect(intent.minValidations).to.be.eq(intentOptions.minValidations)
+              expect(intent.isFinal).to.be.true
+              expect(Buffer.from(intent.data).toString('hex')).to.be.eq(intentOptions.dataHex)
+              expect(intent.maxFees.length).to.be.eq(1)
+              expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
+              expect(intent.events.length).to.be.eq(1)
+              expect(intent.validators.length).to.be.eq(0)
+              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].dataHex)
             })
-            .instruction()
+          })
+
+          context('when creating an intent with empty data', () => {
+            intentHash = generateIntentHash()
+            const intentOptions: CreateIntentOptions = {
+              dataHex: EMPTY_DATA_HEX,
+            }
+
+            it('creates the intent', async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
+              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              expect(intent.op).to.deep.include({ transfer: {} })
+              expect(Buffer.from(intent.data).toString('hex')).to.be.eq(EMPTY_DATA_HEX)
+              expect(intent.isFinal).to.be.true
+            })
+          })
+
+          context('when creating an intent with empty events', () => {
+            intentHash = generateIntentHash()
+            const intentOptions: CreateIntentOptions = {
+              eventsHex: [],
+            }
+
+            it('creates the intent', async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
+              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              expect(intent.events.length).to.be.eq(0)
+            })
+          })
+
+          context('when creating an intent with is_final true', () => {
+            intentHash = generateIntentHash()
+            const intentOptions: CreateIntentOptions = {
+              isFinal: true,
+            }
+
+            it('creates the intent', async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
+              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              expect(intent.isFinal).to.be.true
+            })
+          })
+
+          context('when creating an intent with is_final false', () => {
+            intentHash = generateIntentHash()
+            const intentOptions: CreateIntentOptions = {
+              isFinal: false,
+            }
+
+            it('creates the intent', async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
+              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              expect(intent.isFinal).to.be.false
+            })
+          })
         })
 
-        it('throws an error through sdk', async () => {
-          const params = createIntentParams(client, intentParams)
-          try {
-            const ix = await solverSdk.createIntentIx(intentHash, params, false)
-            await makeTxSignAndSend(solverProvider, ix)
-            expect.fail('Should have thrown an error')
-          } catch (error: any) {
-            expect(error.message).to.include(`Intent hash must be 32 bytes`)
-          }
+        context('when intent already exists', () => {
+          context('when fulfilled_intent PDA already exists', () => {
+            beforeEach('create intent params and mock fulfilled intent', async () => {
+              intentHash = generateIntentHash()
+
+              // Mock FulfilledIntent
+              const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
+              client.setAccount(fulfilledIntent, {
+                executable: false,
+                lamports: 1002240,
+                owner: program.programId,
+                data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
+              })
+            })
+
+            itThrowsAnError('AccountNotSystemOwned')
+          })
+
+          context('when intent with same hash already exists', () => {
+            beforeEach('create existing intent', async () => {
+              intentOptions = {}
+              intentHash = await createTestIntent(solverSdk, solverProvider)
+              client.expireBlockhash()
+            })
+
+            itThrowsAnError('already in use')
+          })
+        })
+      })
+
+      context('when intent data is invalid', () => {
+        context('when intent has empty max_fees', () => {
+          beforeEach('create intent params with empty max_fees', async () => {
+            intentHash = generateIntentHash()
+            intentOptions = { maxFees: [] }
+          })
+
+          itThrowsAnError('No max fees provided')
         })
 
-        it('throws an error calling directly', async () => {
-          const res = await makeTxSignAndSend(solverProvider, ix)
-          expectTransactionError(res, 'AnchorError caused by account: intent. Error Code: ConstraintSeeds.')
+        context('when intent has hash shorter than 32 bytes', () => {
+          let ix: TransactionInstruction
+
+          before('create intent params with invalid hash', async () => {
+            intentHash = '123456' // invalid - not 32 bytes
+            intentOptions = {}
+          })
+
+          it('throws an error through sdk', async () => {
+            const params = createIntentParams(client, intentOptions)
+            try {
+              const ix = await solverSdk.createIntentIx(intentHash, params, false)
+              await makeTxSignAndSend(solverProvider, ix)
+              expect.fail('Should have thrown an error')
+            } catch (error: any) {
+              expect(error.message).to.include(`Intent hash must be 32 bytes`)
+            }
+          })
+
+          it('throws an error calling directly', async () => {
+            // Build ix with invalid hash
+            const params = createIntentParams(client, intentOptions)
+            const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
+
+            const intentHashParam = Array.from(Buffer.from(intentHash, 'hex'))
+            const nonce = Array.from(Buffer.from(nonceHex, 'hex'))
+            const data = Buffer.from(dataHex, 'hex')
+            const maxFeesBn = maxFees.map((tokenFee) => ({
+              ...tokenFee,
+              amount: new BN(tokenFee.amount),
+            }))
+            const events = eventsHex.map((eventHex) => ({
+              topic: Array.from(Uint8Array.from(Buffer.from(eventHex.topicHex, 'hex'))),
+              data: Buffer.from(eventHex.dataHex, 'hex'),
+            }))
+            const intentKey = PublicKey.findProgramAddressSync(
+              [Buffer.from('intent'), Buffer.from(intentHash, 'hex')],
+              program.programId
+            )[0]
+
+            ix = await program.methods
+              .createIntent(
+                intentHashParam,
+                data,
+                maxFeesBn,
+                events,
+                minValidations,
+                solverSdk.opTypeToAnchorEnum(op),
+                user,
+                nonce,
+                new BN(deadline),
+                false
+              )
+              .accountsPartial({
+                intent: intentKey,
+                solver: solverSdk.getSignerKey(),
+                solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solver.publicKey),
+              })
+              .instruction()
+
+            const res = await makeTxSignAndSend(solverProvider, ix)
+            expectTransactionError(res, 'AnchorError caused by account: intent. Error Code: ConstraintSeeds.')
+          })
+        })
+
+        context('when deadline is invalid', () => {
+          context('when deadline is in the past', () => {
+            beforeEach('create intent params with past deadline', async () => {
+              // Warp as time is likely still t=0
+              warpSeconds(solverProvider, WARP_TIME_LONG)
+              intentHash = generateIntentHash()
+              intentOptions = { deadline: getCurrentTimestamp(client, -1 * SHORT_DEADLINE) }
+            })
+
+            itThrowsAnError('Deadline must be in the future')
+          })
+
+          context('when deadline equals now', () => {
+            beforeEach('create intent params with deadline equal to now', async () => {
+              intentHash = generateIntentHash()
+              intentOptions = { deadline: getCurrentTimestamp(client) }
+            })
+
+            itThrowsAnError('Deadline must be in the future')
+          })
         })
       })
     })
 
     context('when caller is not allowlisted solver', () => {
-      let intentHash: string
-      let intentParams: Partial<CreateIntentParams> = {}
-
       beforeEach('create intent params', async () => {
         intentHash = generateIntentHash()
-        intentParams = {}
+        intentOptions = {}
       })
 
       it('throws an error', async () => {
-        const params = createIntentParams(client, intentParams)
+        const params = createIntentParams(client, intentOptions)
         const ix = await maliciousSdk.createIntentIx(intentHash, params, false)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
         expectTransactionError(res, 'AccountNotInitialized')
 
         const intent = client.getAccount(sdk.getIntentKey(intentHash))
         expect(intent).to.be.null
-      })
-    })
-
-    context('when deadline is invalid', () => {
-      context('when deadline is in the past', () => {
-        let intentHash: string
-        let intentParams: Partial<CreateIntentParams> = {}
-
-        const itThrowsAnError = (errorMessage: string) => {
-          it('throws an error', async () => {
-            const params = createIntentParams(client, intentParams)
-            const ix = await solverSdk.createIntentIx(intentHash, params, false)
-            const res = await makeTxSignAndSend(solverProvider, ix)
-            expectTransactionError(res, errorMessage)
-          })
-        }
-
-        beforeEach('create intent params with past deadline', async () => {
-          warpSeconds(provider, WARP_TIME_LONG)
-          intentHash = generateIntentHash()
-          intentParams = {
-            deadline: getCurrentTimestamp(client, -1 * SHORT_DEADLINE),
-          }
-        })
-
-        itThrowsAnError('Deadline must be in the future')
-      })
-
-      context('when deadline equals now', () => {
-        let intentHash: string
-        let intentParams: Partial<CreateIntentParams> = {}
-
-        const itThrowsAnError = (errorMessage: string) => {
-          it('throws an error', async () => {
-            const params = createIntentParams(client, intentParams)
-            const ix = await solverSdk.createIntentIx(intentHash, params, false)
-            const res = await makeTxSignAndSend(solverProvider, ix)
-            expectTransactionError(res, errorMessage)
-          })
-        }
-
-        beforeEach('create intent params with deadline equal to now', async () => {
-          intentHash = generateIntentHash()
-          intentParams = {
-            deadline: getCurrentTimestamp(client),
-          }
-        })
-
-        itThrowsAnError('Deadline must be in the future')
-      })
-    })
-
-    context('when intent already exists', () => {
-      context('when fulfilled_intent PDA already exists', () => {
-        let intentHash: string
-        let intentParams: Partial<CreateIntentParams> = {}
-
-        const itThrowsAnError = (errorMessage: string) => {
-          it('throws an error', async () => {
-            const params = createIntentParams(client, intentParams)
-            const ix = await solverSdk.createIntentIx(intentHash, params, false)
-            const res = await makeTxSignAndSend(solverProvider, ix)
-            expectTransactionError(res, errorMessage)
-          })
-        }
-
-        beforeEach('create intent params and mock fulfilled intent', async () => {
-          intentHash = generateIntentHash()
-          intentParams = {}
-          // Mock FulfilledIntent
-          const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
-          client.setAccount(fulfilledIntent, {
-            executable: false,
-            lamports: 1002240,
-            owner: program.programId,
-            data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
-          })
-        })
-
-        itThrowsAnError('AccountNotSystemOwned')
-      })
-
-      context('when intent with same hash already exists', () => {
-        let intentHash: string
-        let intentParams: Partial<CreateIntentParams> = {}
-
-        const itThrowsAnError = (errorMessage: string) => {
-          it('throws an error', async () => {
-            const params = createIntentParams(client, intentParams)
-            const ix = await solverSdk.createIntentIx(intentHash, params, false)
-            const res = await makeTxSignAndSend(solverProvider, ix)
-            expectTransactionError(res, errorMessage)
-          })
-        }
-
-        beforeEach('create existing intent', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            isFinal: false,
-          })
-          client.expireBlockhash()
-          intentParams = {}
-        })
-
-        itThrowsAnError('already in use')
       })
     })
   })
