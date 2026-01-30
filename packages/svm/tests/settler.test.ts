@@ -299,23 +299,10 @@ describe('Settler', () => {
         context('when intent has hash shorter than 32 bytes', () => {
           let ix: TransactionInstruction
 
-          before('create intent params with invalid hash', async () => {
+          before('create intent params and ix with invalid hash', async () => {
             intentHash = '123456' // invalid - not 32 bytes
             intentOptions = {}
-          })
 
-          it('throws an error through sdk', async () => {
-            const params = createIntentParams(client, intentOptions)
-            try {
-              const ix = await solverSdk.createIntentIx(intentHash, params, false)
-              await makeTxSignAndSend(solverProvider, ix)
-              expect.fail('Should have thrown an error')
-            } catch (error: any) {
-              expect(error.message).to.include(`Intent hash must be 32 bytes`)
-            }
-          })
-
-          it('throws an error calling directly', async () => {
             // Build ix with invalid hash
             const params = createIntentParams(client, intentOptions)
             const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
@@ -355,7 +342,9 @@ describe('Settler', () => {
                 solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solver.publicKey),
               })
               .instruction()
+          })
 
+          it('throws an error calling directly', async () => {
             const res = await makeTxSignAndSend(solverProvider, ix)
             expectTransactionError(res, 'AnchorError caused by account: intent. Error Code: ConstraintSeeds.')
           })
