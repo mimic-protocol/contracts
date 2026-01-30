@@ -47,7 +47,7 @@ describe('MimicHelper', () => {
       it('sets the data', async () => {
         const tx = await mimicHelper.setStorage(key, data)
 
-        const currentData = await mimicHelper.getStorage(key)
+        const currentData = await mimicHelper.getStorage(user.address, key)
         expect(currentData).to.be.equal(data)
 
         const events = await mimicHelper.queryFilter(mimicHelper.filters.StorageSet(), tx.blockNumber)
@@ -68,7 +68,7 @@ describe('MimicHelper', () => {
       it('replaces the previous data', async () => {
         const tx = await mimicHelper.setStorage(key, data)
 
-        const currentData = await mimicHelper.getStorage(key)
+        const currentData = await mimicHelper.getStorage(user.address, key)
         expect(currentData).to.be.equal(data)
         expect(currentData).to.not.be.equal(previousData)
 
@@ -89,12 +89,12 @@ describe('MimicHelper', () => {
       })
 
       it('differentiates the data', async () => {
-        const beforeData = await mimicHelper.getStorage(key)
+        const beforeData = await mimicHelper.getStorage(other.address, key)
         expect(beforeData).to.not.be.equal(data)
         expect(beforeData).to.be.equal('0x')
 
         await mimicHelper.setStorage(key, otherData)
-        const afterData = await mimicHelper.getStorage(key)
+        const afterData = await mimicHelper.getStorage(other.address, key)
         expect(afterData).to.not.be.equal(data)
         expect(afterData).to.be.equal(otherData)
       })
