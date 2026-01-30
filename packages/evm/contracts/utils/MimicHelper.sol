@@ -19,11 +19,37 @@ pragma solidity ^0.8.20;
  * @dev Collection of helper functions for the Mimic Protocol
  */
 contract MimicHelper {
+    // Custom byte storage per user and key
+    mapping (address => mapping (string => bytes)) internal _customStorage;
+
+    /**
+     * @dev Emitted every time the storage is set
+     */
+    event StorageSet(address indexed user, string indexed key, bytes indexed data);
+
     /**
      * @dev Tells the native token balance of an address
      * @param target Address to get native token balance
      */
     function getNativeTokenBalance(address target) external view returns (uint256) {
         return target.balance;
+    }
+
+    /**
+     * @dev Tells the data set for the user and the key
+     * @param key String of the key being queried
+     */
+    function getStorage(string calldata key) external view returns (bytes memory) {
+        return _customStorage[msg.sender][key];
+    }
+
+    /**
+     * @dev Sets a data for the user and a key
+     * @param key String of the key to set the data for
+     * @param data Bytes to be set
+     */
+    function setStorage(string calldata key, bytes memory data) external {
+        _customStorage[msg.sender][key] = data;
+        emit StorageSet(msg.sender, key, data);
     }
 }
