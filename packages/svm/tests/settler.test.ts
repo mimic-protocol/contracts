@@ -14,7 +14,7 @@ import path from 'path'
 
 import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import SettlerSDK from '../sdks/settler/Settler'
-import { CreateIntentParams, OpType, ProposalInstruction, TokenFee } from '../sdks/settler/types'
+import { CreateIntentParams, ExtendIntentParams, OpType, ProposalInstruction, TokenFee } from '../sdks/settler/types'
 import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
@@ -57,6 +57,7 @@ import {
   STALE_CLAIM_DELAY_PLUS_ONE,
   TEST_DATA_HEX_1,
   TEST_DATA_HEX_2,
+  TEST_DATA_HEX_3,
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
 } from './helpers/constants'
@@ -393,261 +394,297 @@ describe('Settler', () => {
   })
 
   describe('extend_intent', () => {
-    context('when extending with valid data', () => {
-      context('when extending with more data', () => {
-        let intentHash: string
-        let extendParams: { moreDataHex: string }
+    let intentHash: string
+    let intentKey: PublicKey
+    let extendParams: ExtendIntentParams = {}
 
-        beforeEach('create intent and extend params', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            isFinal: false,
+    context('when caller is intent creator', () => {
+      context('when intent exists', () => {
+        context('when intent is not finalized', () => {
+          context('when not finalizing intent', () => {
+            context('when extending once', () => {
+              context('when extending with more data', () => {
+                beforeEach('create intent and extend params', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                  extendParams = { moreDataHex: randomHex(6).slice(2) }
+                })
+
+                it('extends the intent with more data', async () => {
+                  const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  expect(Buffer.from(intent.data).toString('hex')).to.be.eq(
+                    `${DEFAULT_DATA_HEX}${extendParams.moreDataHex}`
+                  )
+                  expect(intent.isFinal).to.be.false
+                })
+              })
+
+              context('when extending with more max_fees', () => {
+                beforeEach('create intent and extend params', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                  extendParams = {
+                    moreMaxFees: [
+                      {
+                        mint: randomPubkey(),
+                        amount: 2000,
+                      },
+                    ],
+                  }
+                })
+
+                it('extends the intent with more max_fees', async () => {
+                  const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  expect(intent.maxFees.length).to.be.eq(2)
+                  expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
+                  expect(intent.maxFees[1].mint.toString()).to.be.eq(extendParams.moreMaxFees![0].mint.toString())
+                  expect(intent.maxFees[1].amount.toNumber()).to.be.eq(extendParams.moreMaxFees![0].amount)
+                })
+              })
+
+              context('when extending with more events', () => {
+                beforeEach('create intent and extend params', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                  extendParams = {
+                    moreEventsHex: [
+                      {
+                        topicHex: randomHex(32).slice(2),
+                        dataHex: TEST_DATA_HEX_2,
+                      },
+                    ],
+                  }
+                })
+
+                it('extends the intent with more events', async () => {
+                  const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  expect(intent.events.length).to.be.eq(2)
+                  expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
+                    extendParams.moreEventsHex![0].topicHex
+                  )
+                  expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(
+                    extendParams.moreEventsHex![0].dataHex
+                  )
+                })
+              })
+
+              context('when extending with all optional fields', () => {
+                beforeEach('create intent and extend params', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, {
+                    isFinal: false,
+                    dataHex: TEST_DATA_HEX_1,
+                  })
+                  extendParams = {
+                    moreDataHex: TEST_DATA_HEX_2,
+                    moreMaxFees: [
+                      {
+                        mint: randomPubkey(),
+                        amount: 3000,
+                      },
+                    ],
+                    moreEventsHex: [
+                      {
+                        topicHex: randomHex(32).slice(2),
+                        dataHex: TEST_DATA_HEX_3,
+                      },
+                    ],
+                  }
+                })
+
+                it('extends the intent with all optional fields', async () => {
+                  const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  expect(Buffer.from(intent.data).toString('hex')).to.be.eq(`${TEST_DATA_HEX_1}${TEST_DATA_HEX_2}`)
+                  expect(intent.maxFees.length).to.be.eq(2)
+                  expect(intent.maxFees[1].amount.toNumber()).to.be.eq(extendParams.moreMaxFees![0].amount)
+                  expect(intent.events.length).to.be.eq(2)
+                  expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
+                    extendParams.moreEventsHex![0].topicHex
+                  )
+                  expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(TEST_DATA_HEX_3)
+                })
+              })
+            })
+
+            context('when extending more than once', () => {
+              context('when extending to large size', () => {
+                const EXTEND_DATA_LOOPS = 100
+                const EXTEND_EVENTS_LOOPS = 22
+                const EXTEND_MAX_FEES_LOOPS = 18
+
+                extendParams = {
+                  moreDataHex: randomHex(50).slice(2),
+                  moreEventsHex: [
+                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
+                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
+                  ],
+                  moreMaxFees: [
+                    { mint: randomPubkey(), amount: 1 },
+                    { mint: randomPubkey(), amount: 1 + 1000 },
+                    { mint: randomPubkey(), amount: 1 + 2000 },
+                  ],
+                }
+
+                before('create intent', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, {
+                    isFinal: false,
+                    dataHex: '',
+                    eventsHex: [],
+                  })
+                  intentKey = sdk.getIntentKey(intentHash)
+                })
+
+                const itExtendsIntentWithoutFailing = async (
+                  fieldName: string,
+                  loops: number,
+                  extendParams: ExtendIntentParams
+                ) => {
+                  it(`extends intent ${fieldName} without failing`, async () => {
+                    for (let i = 0; i < loops; i++) {
+                      const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
+                      const res = await makeTxSignAndSend(solverProvider, ix)
+                      expect(res.toString()).to.include(`Program ${program.programId} success`)
+                      client.expireBlockhash()
+                    }
+                  })
+                }
+
+                itExtendsIntentWithoutFailing('data', EXTEND_DATA_LOOPS, { moreDataHex: extendParams.moreDataHex })
+
+                itExtendsIntentWithoutFailing('events', EXTEND_EVENTS_LOOPS, {
+                  moreEventsHex: extendParams.moreEventsHex,
+                })
+
+                itExtendsIntentWithoutFailing('max fees', EXTEND_MAX_FEES_LOOPS, {
+                  moreMaxFees: extendParams.moreMaxFees,
+                })
+
+                it('extended the intent fields as expected', async () => {
+                  const intent = await program.account.intent.fetch(intentKey)
+                  const intentAcc = client.getAccount(intentKey)
+                  expect(intent.data.length).to.be.eq(5000)
+                  expect(intent.maxFees.length).to.be.eq(55)
+                  expect(intent.events.length).to.be.eq(44)
+                  expect(intent.isFinal).to.be.false
+                  expect(intentAcc?.data.length).to.be.eq(26581)
+                })
+              })
+
+              context('when extending multiple times', () => {
+                let extendParams1: ExtendIntentParams
+                let extendParams2: ExtendIntentParams
+
+                before('create intent', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, {
+                    isFinal: false,
+                    dataHex: TEST_DATA_HEX_1,
+                  })
+                  extendParams1 = { moreDataHex: randomHex(6).slice(2) }
+                  extendParams2 = { moreDataHex: randomHex(6).slice(2) }
+                })
+
+                it('extends the intent once without failing', async () => {
+                  const ix = await solverSdk.extendIntentIx(intentHash, extendParams1, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+                })
+
+                it('extends the intent again without failing', async () => {
+                  const ix = await solverSdk.extendIntentIx(intentHash, extendParams2, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+                })
+
+                it('extended the intent as expected', async () => {
+                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  expect(Buffer.from(intent.data).toString('hex')).to.be.eq(
+                    `${TEST_DATA_HEX_1}${extendParams1.moreDataHex}${extendParams2.moreDataHex}`
+                  )
+                  expect(intent.isFinal).to.be.false
+                })
+              })
+            })
           })
-          extendParams = {
-            moreDataHex: TEST_DATA_HEX_1,
-          }
+
+          context('when finalizing intent', () => {
+            context('when finalizing an intent', () => {
+              beforeEach('create intent', async () => {
+                intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                extendParams = {}
+              })
+
+              it('finalizes the intent', async () => {
+                const ix = await solverSdk.extendIntentIx(intentHash, extendParams, true)
+                await makeTxSignAndSend(solverProvider, ix)
+
+                const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                expect(intent.isFinal).to.be.true
+              })
+            })
+
+            context('when extending and finalizing in one call', () => {
+              beforeEach('create intent and extend params', async () => {
+                intentHash = await createTestIntent(solverSdk, solverProvider, {
+                  isFinal: false,
+                  dataHex: TEST_DATA_HEX_2,
+                })
+                extendParams = { moreDataHex: randomHex(6).slice(2) }
+              })
+
+              it('extends and finalizes the intent in one call', async () => {
+                const ix = await solverSdk.extendIntentIx(intentHash, extendParams, true)
+                await makeTxSignAndSend(solverProvider, ix)
+
+                const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                expect(Buffer.from(intent.data).toString('hex')).to.be.eq(
+                  `${TEST_DATA_HEX_2}${extendParams.moreDataHex}`
+                )
+                expect(intent.isFinal).to.be.true
+              })
+            })
+          })
         })
 
-        it('extends the intent with more data', async () => {
-          const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
-          await makeTxSignAndSend(solverProvider, ix)
+        context('when intent is already finalized', () => {
+          beforeEach('create finalized intent and extend params', async () => {
+            intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+            extendParams = { moreDataHex: TEST_DATA_HEX_1 }
+          })
 
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(Buffer.from(intent.data).toString('hex')).to.be.eq('010203070809')
-          expect(intent.isFinal).to.be.false
-        })
-      })
-
-      context('when extending with more max_fees', () => {
-        let intentHash: string
-        let newMint: Keypair
-        let extendParams: { moreMaxFees: Array<{ mint: PublicKey; amount: number }> }
-
-        beforeEach('create intent and extend params', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-          newMint = randomKeypair()
-          extendParams = {
-            moreMaxFees: [
-              {
-                mint: newMint.publicKey,
-                amount: 2000,
-              },
-            ],
-          }
-        })
-
-        it('extends the intent with more max_fees', async () => {
-          const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.maxFees.length).to.be.eq(2)
-          expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
-          expect(intent.maxFees[1].mint.toString()).to.be.eq(newMint.publicKey.toString())
-          expect(intent.maxFees[1].amount.toNumber()).to.be.eq(2000)
-        })
-      })
-
-      context('when extending with more events', () => {
-        let intentHash: string
-        let newTopic: string
-        let extendParams: { moreEventsHex: Array<{ topicHex: string; dataHex: string }> }
-
-        beforeEach('create intent and extend params', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-          newTopic = Buffer.from(Array(32).fill(2)).toString('hex')
-          extendParams = {
-            moreEventsHex: [
-              {
-                topicHex: newTopic,
-                dataHex: TEST_DATA_HEX_2,
-              },
-            ],
-          }
-        })
-
-        it('extends the intent with more events', async () => {
-          const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.events.length).to.be.eq(2)
-          expect(Buffer.from(intent.events[0].topic).toString('hex')).to.be.eq(
-            Buffer.from(Array(32).fill(1)).toString('hex')
-          )
-          expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(newTopic)
-          expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq('0a0b0c')
-        })
-      })
-
-      context('when extending with all optional fields', () => {
-        let intentHash: string
-        let newMint: Keypair
-        let newTopic: string
-        let extendParams: {
-          moreDataHex: string
-          moreMaxFees: Array<{ mint: PublicKey; amount: number }>
-          moreEventsHex: Array<{ topicHex: string; dataHex: string }>
-        }
-
-        beforeEach('create intent and extend params', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-          newMint = randomKeypair()
-          newTopic = Buffer.from(Array(32).fill(3)).toString('hex')
-          extendParams = {
-            moreDataHex: '0d0e0f',
-            moreMaxFees: [
-              {
-                mint: newMint.publicKey,
-                amount: 3000,
-              },
-            ],
-            moreEventsHex: [
-              {
-                topicHex: newTopic,
-                dataHex: '101112',
-              },
-            ],
-          }
-        })
-
-        it('extends the intent with all optional fields', async () => {
-          const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(Buffer.from(intent.data).toString('hex')).to.be.eq('0102030d0e0f')
-          expect(intent.maxFees.length).to.be.eq(2)
-          expect(intent.maxFees[1].amount.toNumber()).to.be.eq(3000)
-          expect(intent.events.length).to.be.eq(2)
-          expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq('101112')
-        })
-      })
-
-      context('when extending to large size', () => {
-        let intentHash: string
-        let intentKey: PublicKey
-
-        beforeEach('create intent', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-          intentKey = sdk.getIntentKey(intentHash)
-        })
-
-        it('extends the intent to a large size', async () => {
-          for (let i = 0; i < 100; i++) {
-            const ix = await solverSdk.extendIntentIx(intentHash, { moreDataHex: 'f'.repeat(100) }, false)
-            await makeTxSignAndSend(solverProvider, ix)
-            client.expireBlockhash()
-          }
-
-          for (let i = 0; i < 25; i++) {
-            const extendParams = {
-              moreEventsHex: [
-                { topicHex: 'e'.repeat(64), dataHex: 'beef'.repeat(100) },
-                { topicHex: 'd'.repeat(64), dataHex: 'beef'.repeat(100) },
-              ],
-            }
+          it('throws an error', async () => {
             const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
-            await makeTxSignAndSend(solverProvider, ix)
-            client.expireBlockhash()
-          }
+            const res = await makeTxSignAndSend(solverProvider, ix)
 
-          for (let i = 0; i < 19; i++) {
-            const extendParams = {
-              moreMaxFees: [
-                { mint: randomPubkey(), amount: i },
-                { mint: randomPubkey(), amount: i + 1000 },
-                { mint: randomPubkey(), amount: i + 2000 },
-              ],
-            }
-            const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
-            await makeTxSignAndSend(solverProvider, ix)
-            client.expireBlockhash()
-          }
-
-          const intent = await program.account.intent.fetch(intentKey)
-          const intentAcc = client.getAccount(intentKey)
-          expect(intent.data.length).to.be.eq(3 + 5000) // Keep literal for specific test case
-          expect(intent.maxFees.length).to.be.eq(58)
-          expect(intent.events.length).to.be.eq(51)
-          expect(intent.isFinal).to.be.false
-          expect(intentAcc?.data.length).to.be.eq(19359)
+            expectTransactionError(res, `Intent is already final`)
+          })
         })
       })
 
-      context('when finalizing an intent', () => {
-        let intentHash: string
-
-        beforeEach('create intent', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+      context('when intent does not exist', () => {
+        beforeEach('generate non-existent intent hash and extend params', () => {
+          intentHash = generateIntentHash()
+          extendParams = { moreDataHex: randomHex(6).slice(2) }
         })
 
-        it('finalizes the intent', async () => {
-          const extendParams = {}
-          const ix = await solverSdk.extendIntentIx(intentHash, extendParams, true)
-          await makeTxSignAndSend(solverProvider, ix)
+        it('throws an error', async () => {
+          const ix = await sdk.extendIntentIx(intentHash, extendParams, false)
+          const res = await makeTxSignAndSend(provider, ix)
 
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(intent.isFinal).to.be.true
-        })
-      })
-
-      context('when extending and finalizing in one call', () => {
-        let intentHash: string
-        let extendParams: { moreDataHex: string }
-
-        beforeEach('create intent and extend params', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-          extendParams = {
-            moreDataHex: '191a1b',
-          }
-        })
-
-        it('extends and finalizes the intent in one call', async () => {
-          const ix = await solverSdk.extendIntentIx(intentHash, extendParams, true)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(Buffer.from(intent.data).toString('hex')).to.be.eq('010203191a1b')
-          expect(intent.isFinal).to.be.true
-        })
-      })
-
-      context('when extending multiple times', () => {
-        let intentHash: string
-
-        beforeEach('create intent', async () => {
-          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-        })
-
-        it('extends the intent multiple times', async () => {
-          const extendParams1 = {
-            moreDataHex: '1c1d1e',
-          }
-          const ix1 = await solverSdk.extendIntentIx(intentHash, extendParams1, false)
-          await makeTxSignAndSend(solverProvider, ix1)
-
-          const extendParams2 = {
-            moreDataHex: '1f2021',
-          }
-          const ix2 = await solverSdk.extendIntentIx(intentHash, extendParams2, false)
-          await makeTxSignAndSend(solverProvider, ix2)
-
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect(Buffer.from(intent.data).toString('hex')).to.be.eq('0102031c1d1e1f2021')
-          expect(intent.isFinal).to.be.false
+          expectTransactionError(res, `AccountNotInitialized`)
         })
       })
     })
 
     context('when caller is not intent creator', () => {
-      let intentHash: string
-      let extendParams: { moreDataHex: string }
-
       beforeEach('create intent and extend params', async () => {
         intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
-        extendParams = {
-          moreDataHex: '222324',
-        }
+        extendParams = { moreDataHex: randomHex(6).slice(2) }
       })
 
       it('throws an error', async () => {
@@ -655,51 +692,6 @@ describe('Settler', () => {
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be intent creator`)
-      })
-    })
-
-    context('when intent does not exist', () => {
-      let intentHash: string
-      let extendParams: { moreDataHex: string }
-
-      beforeEach('generate non-existent intent hash and extend params', () => {
-        intentHash = generateIntentHash()
-        extendParams = {
-          moreDataHex: '252627',
-        }
-      })
-
-      it('throws an error', async () => {
-        const ix = await sdk.extendIntentIx(intentHash, extendParams, false)
-        const res = await makeTxSignAndSend(provider, ix)
-
-        expectTransactionError(res, `AccountNotInitialized`)
-      })
-    })
-
-    context('when intent is already finalized', () => {
-      let intentHash: string
-      let extendParams: { moreDataHex: string }
-
-      beforeEach('create finalized intent and extend params', async () => {
-        intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
-        extendParams = {
-          moreDataHex: TEST_DATA_HEX_1,
-        }
-      })
-
-      it('throws an error', async () => {
-        const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-
-        expectTransactionError(res, `Intent is already final`)
-      })
-
-      it('throws an error when trying to finalize again', async () => {
-        const extendParams = {}
-        const ix = await solverSdk.extendIntentIx(intentHash, extendParams, true)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-        expectTransactionError(res, `Intent is already final`)
       })
     })
   })
