@@ -697,94 +697,140 @@ describe('Settler', () => {
   })
 
   describe('claim_stale_intent', () => {
-    context('when intent is stale', () => {
-      let intentHash: string
-      let intentBefore: any
-      let intentBalanceBefore: number
-      let intentCreatorBalanceBefore: number
+    let intentHash: string
 
-      beforeEach('create stale intent and get balances', async () => {
-        const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
-        intentHash = await createTestIntent(solverSdk, solverProvider, {
-          deadline,
-          isFinal: false,
+    context('when caller is intent creator', () => {
+      context('when intent exists', () => {
+        context('when intent is stale', () => {
+          context('when intent is final', () => {
+            before('create final stale intent', async () => {
+              const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
+              intentHash = await createTestIntent(solverSdk, solverProvider, { deadline, isFinal: true })
+
+              warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
+            })
+
+            it('claims the stale intent', async () => {
+              const intentBefore = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intentBalanceBefore = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceBefore = Number(provider.client.getBalance(intentBefore.creator)) || 0
+
+              const ix = await solverSdk.claimStaleIntentIx(intentHash)
+              await makeTxSignAndSend(solverProvider, ix)
+
+              const intentBalanceAfter = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceAfter = Number(provider.client.getBalance(intentBefore.creator)) || 0
+
+              try {
+                await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                expect.fail('Intent account should be closed')
+              } catch (error: any) {
+                expect(error.message).to.include(`Account does not exist`)
+              }
+
+              expect(intentCreatorBalanceAfter).to.be.eq(
+                intentCreatorBalanceBefore + intentBalanceBefore - ACCOUNT_CLOSE_FEE
+              )
+              expect(intentBalanceAfter).to.be.eq(0)
+            })
+
+            it('cannot claim the stale intent again', async () => {
+              const ix = await solverSdk.claimStaleIntentIx(intentHash)
+              const res = await makeTxSignAndSend(solverProvider, ix)
+
+              expectTransactionError(res, 'AccountNotInitialized')
+            })
+          })
+
+          context('when intent is not final', () => {
+            before('create not final stale intent', async () => {
+              const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
+              intentHash = await createTestIntent(solverSdk, solverProvider, { deadline, isFinal: false })
+
+              warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
+            })
+
+            it('claims the stale intent', async () => {
+              const intentBefore = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intentBalanceBefore = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceBefore = Number(provider.client.getBalance(intentBefore.creator)) || 0
+
+              const ix = await solverSdk.claimStaleIntentIx(intentHash)
+              await makeTxSignAndSend(solverProvider, ix)
+
+              const intentBalanceAfter = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceAfter = Number(provider.client.getBalance(intentBefore.creator)) || 0
+
+              try {
+                await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                expect.fail('Intent account should be closed')
+              } catch (error: any) {
+                expect(error.message).to.include(`Account does not exist`)
+              }
+
+              expect(intentCreatorBalanceAfter).to.be.eq(
+                intentCreatorBalanceBefore + intentBalanceBefore - ACCOUNT_CLOSE_FEE
+              )
+              expect(intentBalanceAfter).to.be.eq(0)
+            })
+
+            it('cannot claim the stale intent again', async () => {
+              const ix = await solverSdk.claimStaleIntentIx(intentHash)
+              const res = await makeTxSignAndSend(solverProvider, ix)
+
+              expectTransactionError(res, 'AccountNotInitialized')
+            })
+          })
         })
 
-        intentBefore = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-        intentBalanceBefore = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-        intentCreatorBalanceBefore = Number(provider.client.getBalance(intentBefore.creator)) || 0
+        context('when intent is not stale', () => {
+          context('when deadline is in the past', () => {
+            beforeEach('create intent and warp time', async () => {
+              const deadline = getCurrentTimestamp(client, LONG_DEADLINE)
+              intentHash = await createTestIntent(solverSdk, solverProvider, { deadline })
+              warpSeconds(provider, WARP_TIME_SHORT)
+            })
 
-        warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
-      })
-
-      it('claims the stale intent', async () => {
-        const ix = await solverSdk.claimStaleIntentIx(intentHash)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        const intentBalanceAfter = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-        const intentCreatorBalanceAfter = Number(provider.client.getBalance(intentBefore.creator)) || 0
-
-        try {
-          await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          expect.fail('Intent account should be closed')
-        } catch (error: any) {
-          expect(error.message).to.include(`Account does not exist`)
-        }
-
-        expect(intentCreatorBalanceAfter).to.be.eq(intentCreatorBalanceBefore + intentBalanceBefore - ACCOUNT_CLOSE_FEE)
-        expect(intentBalanceAfter).to.be.eq(0)
-      })
-    })
-
-    context('when deadline has not passed', () => {
-      context('when deadline has not passed', () => {
-        let intentHash: string
-
-        beforeEach('create intent and warp time', async () => {
-          const deadline = getCurrentTimestamp(client, LONG_DEADLINE)
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            deadline,
-            isFinal: false,
+            it('throws an error', async () => {
+              const ix = await solverSdk.claimStaleIntentIx(intentHash)
+              const res = await makeTxSignAndSend(solverProvider, ix)
+              expectTransactionError(res, 'Intent not yet expired')
+            })
           })
-          warpSeconds(provider, WARP_TIME_SHORT)
+
+          context('when deadline equals now', () => {
+            beforeEach('create intent and warp time', async () => {
+              const deadline = getCurrentTimestamp(client, MEDIUM_DEADLINE)
+              intentHash = await createTestIntent(solverSdk, solverProvider, { deadline })
+              warpSeconds(provider, MEDIUM_DEADLINE)
+            })
+
+            it('throws an error', async () => {
+              const ix = await solverSdk.claimStaleIntentIx(intentHash)
+              const res = await makeTxSignAndSend(solverProvider, ix)
+              expectTransactionError(res, 'Intent not yet expired')
+            })
+          })
+        })
+      })
+
+      context('when intent does not exist', () => {
+        beforeEach('generate non-existent intent hash', () => {
+          intentHash = generateIntentHash()
         })
 
         it('throws an error', async () => {
           const ix = await solverSdk.claimStaleIntentIx(intentHash)
           const res = await makeTxSignAndSend(solverProvider, ix)
-          expectTransactionError(res, 'Intent not yet expired')
-        })
-      })
-
-      context('when deadline equals now', () => {
-        let intentHash: string
-
-        beforeEach('create intent and warp time', async () => {
-          const deadline = getCurrentTimestamp(client, MEDIUM_DEADLINE)
-          intentHash = await createTestIntent(solverSdk, solverProvider, {
-            deadline,
-            isFinal: false,
-          })
-          warpSeconds(provider, MEDIUM_DEADLINE)
-        })
-
-        it('throws an error', async () => {
-          const ix = await solverSdk.claimStaleIntentIx(intentHash)
-          const res = await makeTxSignAndSend(solverProvider, ix)
-          expectTransactionError(res, 'Intent not yet expired')
+          expectTransactionError(res, `AccountNotInitialized`)
         })
       })
     })
 
     context('when caller is not intent creator', () => {
-      let intentHash: string
-
       beforeEach('create intent and warp time', async () => {
         const deadline = getCurrentTimestamp(client, EXPIRATION_TEST_DELAY)
-        intentHash = await createTestIntent(solverSdk, solverProvider, {
-          deadline,
-          isFinal: false,
-        })
+        intentHash = await createTestIntent(solverSdk, solverProvider, { deadline })
         warpSeconds(provider, EXPIRATION_TEST_DELAY_PLUS_ONE)
       })
 
@@ -792,44 +838,6 @@ describe('Settler', () => {
         const ix = await maliciousSdk.claimStaleIntentIx(intentHash)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
         expectTransactionError(res, `Signer must be intent creator`)
-      })
-    })
-
-    context('when intent does not exist', () => {
-      let intentHash: string
-
-      beforeEach('generate non-existent intent hash', () => {
-        intentHash = generateIntentHash()
-      })
-
-      it('throws an error', async () => {
-        const ix = await solverSdk.claimStaleIntentIx(intentHash)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-        expectTransactionError(res, `AccountNotInitialized`)
-      })
-    })
-
-    context('when claiming twice', () => {
-      let intentHash: string
-
-      beforeEach('create intent, warp time, and claim once', async () => {
-        const deadline = getCurrentTimestamp(client, DOUBLE_CLAIM_DELAY)
-        intentHash = await createTestIntent(solverSdk, solverProvider, {
-          deadline,
-          isFinal: false,
-        })
-        warpSeconds(provider, DOUBLE_CLAIM_DELAY_PLUS_ONE)
-
-        const ix = await solverSdk.claimStaleIntentIx(intentHash)
-        await makeTxSignAndSend(solverProvider, ix)
-        client.expireBlockhash()
-      })
-
-      it('throws an error', async () => {
-        const ix = await solverSdk.claimStaleIntentIx(intentHash)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-        const errorMsg = res.toString()
-        expect(errorMsg.includes(`AccountNotInitialized`)).to.be.true
       })
     })
   })
