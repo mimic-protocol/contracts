@@ -61,7 +61,7 @@ export async function createProposalParams(
   solverSdk: SettlerSDK,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
-  options: CreateProposalOptions
+  options: CreateProposalOptions = {}
 ): Promise<ProposalWithIntent> {
   const intentHash =
     options?.intentHash ||
