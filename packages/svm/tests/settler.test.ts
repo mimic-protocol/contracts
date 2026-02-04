@@ -14,7 +14,7 @@ import path from 'path'
 
 import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import SettlerSDK from '../sdks/settler/Settler'
-import { ExtendIntentParams, OpType, ProposalInstruction, TokenFee } from '../sdks/settler/types'
+import { CreateProposalParams, ExtendIntentParams, OpType, ProposalInstruction, TokenFee } from '../sdks/settler/types'
 import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
@@ -33,7 +33,6 @@ import {
   generateNonce,
   getCurrentTimestamp,
   mapIntentFeesToTokenFees,
-  ProposalWithIntent,
   randomKeypair,
   randomPubkey,
   toLamports,
@@ -782,7 +781,7 @@ describe('Settler', () => {
         })
 
         context('when intent is not stale', () => {
-          context('when deadline is in the past', () => {
+          context('when deadline is in the future', () => {
             beforeEach('create intent and warp time', async () => {
               const deadline = getCurrentTimestamp(client, LONG_DEADLINE)
               intentHash = await createTestIntent(solverSdk, solverProvider, { deadline })
@@ -841,11 +840,10 @@ describe('Settler', () => {
   })
 
   describe('create_proposal', () => {
-    let params: ProposalWithIntent
+    let params: CreateProposalParams & { intentHash: string }
 
     const createProposalFromParams = async () => {
-      const { intentHash, instructions, fees, deadline } = params
-      const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
+      const ix = await solverSdk.createProposalIx(params.intentHash, params)
       return await makeTxSignAndSend(solverProvider, ix)
     }
 
@@ -863,12 +861,14 @@ describe('Settler', () => {
             context('when creating a basic proposal', () => {
               beforeEach('create intent and proposal params', async () => {
                 params = await createProposalParams(solverSdk, solverProvider, client, {
-                  instructions: [
-                    createTestProposalInstruction({
-                      accounts: [createWritableInstructionAccount()],
-                      data: TEST_DATA_HEX_1,
-                    }),
-                  ],
+                  proposalParams: {
+                    instructions: [
+                      createTestProposalInstruction({
+                        accounts: [createWritableInstructionAccount()],
+                        data: TEST_DATA_HEX_1,
+                      }),
+                    ],
+                  },
                 })
               })
 
@@ -899,16 +899,18 @@ describe('Settler', () => {
             context('when creating a proposal with multiple instructions', () => {
               beforeEach('create intent and proposal params', async () => {
                 params = await createProposalParams(solverSdk, solverProvider, client, {
-                  instructions: [
-                    createTestProposalInstruction({
-                      accounts: [createWritableInstructionAccount()],
-                      data: TEST_DATA_HEX_1,
-                    }),
-                    createTestProposalInstruction({
-                      accounts: [createSignerInstructionAccount()],
-                      data: TEST_DATA_HEX_2,
-                    }),
-                  ],
+                  proposalParams: {
+                    instructions: [
+                      createTestProposalInstruction({
+                        accounts: [createWritableInstructionAccount()],
+                        data: TEST_DATA_HEX_1,
+                      }),
+                      createTestProposalInstruction({
+                        accounts: [createSignerInstructionAccount()],
+                        data: TEST_DATA_HEX_2,
+                      }),
+                    ],
+                  },
                 })
               })
 
@@ -940,7 +942,9 @@ describe('Settler', () => {
             context('when creating a proposal with empty instructions', () => {
               beforeEach('create intent and proposal params', async () => {
                 params = await createProposalParams(solverSdk, solverProvider, client, {
-                  instructions: [],
+                  proposalParams: {
+                    instructions: [],
+                  },
                 })
               })
 
@@ -973,7 +977,7 @@ describe('Settler', () => {
 
                 params = await createProposalParams(solverSdk, solverProvider, client, {
                   intentHash,
-                  fees: testMaxFees,
+                  proposalParams: { fees: testMaxFees },
                 })
               })
 
@@ -997,7 +1001,9 @@ describe('Settler', () => {
               context('when deadline is in the past', () => {
                 beforeEach('create intent and proposal params with past deadline', async () => {
                   const deadline = getCurrentTimestamp(client, -1 * SHORT_DEADLINE)
-                  params = await createProposalParams(solverSdk, solverProvider, client, { deadline })
+                  params = await createProposalParams(solverSdk, solverProvider, client, {
+                    proposalParams: { deadline },
+                  })
                 })
 
                 itThrowsAnErrorWhenCreatingProposalFromParams('Deadline must be in the future')
@@ -1006,7 +1012,9 @@ describe('Settler', () => {
               context('when deadline equals now', () => {
                 beforeEach('create intent and proposal params with deadline equal to now', async () => {
                   const deadline = getCurrentTimestamp(client)
-                  params = await createProposalParams(solverSdk, solverProvider, client, { deadline })
+                  params = await createProposalParams(solverSdk, solverProvider, client, {
+                    proposalParams: { deadline },
+                  })
                 })
 
                 itThrowsAnErrorWhenCreatingProposalFromParams('Deadline must be in the future')
@@ -1021,7 +1029,7 @@ describe('Settler', () => {
 
                   params = await createProposalParams(solverSdk, solverProvider, client, {
                     intentHash,
-                    deadline: intentDeadline + SHORT_DEADLINE,
+                    proposalParams: { deadline: intentDeadline + SHORT_DEADLINE },
                   })
                 })
 
@@ -1051,7 +1059,7 @@ describe('Settler', () => {
 
                   params = await createProposalParams(solverSdk, solverProvider, client, {
                     intentHash,
-                    fees: largerMaxFees,
+                    proposalParams: { fees: largerMaxFees },
                   })
                 })
 
@@ -1080,7 +1088,7 @@ describe('Settler', () => {
 
                   params = await createProposalParams(solverSdk, solverProvider, client, {
                     intentHash,
-                    fees: otherMaxFees,
+                    proposalParams: { fees: otherMaxFees },
                   })
                 })
 
@@ -1096,9 +1104,8 @@ describe('Settler', () => {
                 const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
 
                 params = await createProposalParams(solverSdk, solverProvider, client, { intentHash })
-                const { instructions, fees, deadline } = params
 
-                const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
+                const ix = await solverSdk.createProposalIx(intentHash, params)
                 await makeTxSignAndSend(solverProvider, ix)
                 client.expireBlockhash()
 
@@ -1185,7 +1192,7 @@ describe('Settler', () => {
         })
 
         it('throws an error', async () => {
-          const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline)
+          const ix = await solverSdk.createProposalIx(intentHash, { instructions, deadline, fees, isFinal: true })
           const res = await makeTxSignAndSend(solverProvider, ix)
 
           expectTransactionError(res, 'AnchorError caused by account: intent. Error Code: AccountNotInitialized')
@@ -1199,8 +1206,7 @@ describe('Settler', () => {
       })
 
       it('throws an error', async () => {
-        const { intentHash, instructions, fees, deadline } = params
-        const ix = await maliciousSdk.createProposalIx(intentHash, instructions, fees, deadline)
+        const ix = await maliciousSdk.createProposalIx(params.intentHash, params)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
         expectTransactionError(res, 'AccountNotInitialized')
       })
@@ -1222,7 +1228,7 @@ describe('Settler', () => {
 
       const fees = mapIntentFeesToTokenFees(intent)
 
-      const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, isFinal)
+      const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal })
       await makeTxSignAndSend(solverProvider, ix)
       return intentHash
     }
@@ -1468,7 +1474,7 @@ describe('Settler', () => {
 
           const fees = mapIntentFeesToTokenFees(intent)
 
-          const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
+          const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal: false })
           await makeTxSignAndSend(solverProvider, ix)
 
           warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
@@ -1505,7 +1511,7 @@ describe('Settler', () => {
 
           const fees = mapIntentFeesToTokenFees(intent)
 
-          const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
+          const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal: false })
           await makeTxSignAndSend(solverProvider, ix)
 
           warpSeconds(provider, WARP_TIME_SHORT)
@@ -1563,7 +1569,7 @@ describe('Settler', () => {
 
       const fees = mapIntentFeesToTokenFees(intent)
 
-      const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, false)
+      const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal: false })
       await makeTxSignAndSend(solverProvider, ix)
       return intentHash
     }

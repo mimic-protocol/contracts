@@ -6,6 +6,7 @@ import { Settler } from '../../target/types/settler'
 import { EntityType } from '../controller/Controller'
 import {
   CreateIntentParams,
+  CreateProposalParams,
   ExtendIntentParams,
   IntentEvent,
   OpType,
@@ -111,18 +112,13 @@ export default class SettlerSDK {
     return ix
   }
 
-  async createProposalIx(
-    intentHashHex: string,
-    instructions: ProposalInstruction[],
-    fees: TokenFee[],
-    deadline: number,
-    isFinal = true
-  ): Promise<web3.TransactionInstruction> {
+  async createProposalIx(intentHashHex: string, params: CreateProposalParams): Promise<web3.TransactionInstruction> {
+    const { instructions, fees, deadline, isFinal } = params
     const parsedInstructions = this.parseProposalInstructions(instructions)
     const parsedFees = this.parseTokenFees(fees)
 
     const ix = await this.program.methods
-      .createProposal(parsedInstructions, parsedFees, new BN(deadline), isFinal)
+      .createProposal(parsedInstructions, parsedFees, new BN(deadline), isFinal ?? false)
       .accountsPartial({
         solver: this.getSignerKey(),
         solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),

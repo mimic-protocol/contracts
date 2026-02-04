@@ -4,12 +4,12 @@ import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 
 import SettlerSDK from '../../sdks/settler/Settler'
-import { ProposalInstruction, TokenFee } from '../../sdks/settler/types'
+import { CreateProposalParams, ProposalInstruction } from '../../sdks/settler/types'
 import * as SettlerIDL from '../../target/idl/settler.json'
 import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
 import { PROPOSAL_DEADLINE_OFFSET, TEST_DATA_HEX_3 } from './constants'
-import { createValidatedIntent, IntentAccount, mapIntentFeesToTokenFees } from './intents'
+import { createValidatedIntent, mapIntentFeesToTokenFees } from './intents'
 import { getCurrentTimestamp, randomPubkey } from './misc'
 
 export type InstructionAccount = {
@@ -39,20 +39,8 @@ export type CreateProposalIntentOptions = Partial<{
 export type CreateProposalOptions = Partial<{
   intentHash: string
   intentOptions: CreateProposalIntentOptions
-  deadline: number
-  deadlineOffset: number
-  instructions: ProposalInstruction[]
-  fees: TokenFee[]
-  customFees: boolean
+  proposalParams: Partial<CreateProposalParams>
 }>
-
-export type ProposalWithIntent = {
-  intentHash: string
-  intent: IntentAccount
-  deadline: number
-  instructions: ProposalInstruction[]
-  fees: TokenFee[]
-}
 
 /**
  * Create proposal params (intent, deadline, instructions, fees) for testing
@@ -62,27 +50,30 @@ export async function createProposalParams(
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
   options: CreateProposalOptions = {}
-): Promise<ProposalWithIntent> {
+): Promise<{ intentHash: string } & CreateProposalParams> {
   const intentHash =
     options?.intentHash ||
     (await createValidatedIntent(solverSdk, solverProvider, client, { ...options.intentOptions }))
 
   const program = new Program<Settler>(SettlerIDL, solverProvider)
-
-  const intent = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
-
-  const deadline = options?.deadline ?? getCurrentTimestamp(client, options?.deadlineOffset ?? PROPOSAL_DEADLINE_OFFSET)
-
-  const instructions = options?.instructions ?? [createTestProposalInstruction()]
-
-  const fees = options?.fees ?? (options?.customFees ? [] : mapIntentFeesToTokenFees(intent))
+  const intentKey = solverSdk.getIntentKey(intentHash)
+  const intent = await program.account.intent.fetch(intentKey)
+  const fees = mapIntentFeesToTokenFees(intent)
 
   return {
     intentHash,
-    intent,
-    deadline,
-    instructions,
+    ...(await getDefaultCreateProposalParams(client)),
     fees,
+    ...options.proposalParams,
+  }
+}
+
+async function getDefaultCreateProposalParams(client: LiteSVM): Promise<CreateProposalParams> {
+  return {
+    instructions: [createTestProposalInstruction()],
+    deadline: getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET),
+    fees: [],
+    isFinal: true,
   }
 }
 
@@ -93,16 +84,11 @@ export async function createFinalizedProposal(
   solverSdk: SettlerSDK,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
-  options: Partial<ProposalWithIntent> = {}
+  options: CreateProposalOptions = {}
 ): Promise<{ intentHash: string; proposalKey: PublicKey }> {
-  const { intentHash, deadline, instructions, fees } = await createProposalParams(
-    solverSdk,
-    solverProvider,
-    client,
-    options
-  )
+  const { intentHash, ...params } = await createProposalParams(solverSdk, solverProvider, client, options)
 
-  const ix = await solverSdk.createProposalIx(intentHash, instructions, fees, deadline, true)
+  const ix = await solverSdk.createProposalIx(intentHash, { ...params, isFinal: true })
   const res = await makeTxSignAndSend(solverProvider, ix)
   if (res instanceof FailedTransactionMetadata) {
     throw new Error(`Failed to create proposal: ${res.toString()}`)
