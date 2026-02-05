@@ -33,7 +33,6 @@ import {
   generateIntentHash,
   generateNonce,
   getCurrentTimestamp,
-  mapIntentFeesToTokenFees,
   randomKeypair,
   randomPubkey,
   toLamports,
@@ -42,8 +41,6 @@ import {
   ACCOUNT_CLOSE_FEE,
   DEFAULT_DATA_HEX,
   DEFAULT_MAX_FEE,
-  DOUBLE_CLAIM_DELAY,
-  DOUBLE_CLAIM_DELAY_PLUS_ONE,
   EMPTY_DATA_HEX,
   EXPIRATION_TEST_DELAY,
   EXPIRATION_TEST_DELAY_PLUS_ONE,
@@ -1458,112 +1455,109 @@ describe('Settler', () => {
   })
 
   describe('claim_stale_proposal', () => {
-    const createTestProposalWithDeadline = async (deadline: number): Promise<string> => {
-      const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-      const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-
-      const instructions = [
-        createTestProposalInstruction({
-          accounts: [createWritableInstructionAccount()],
-          data: DEFAULT_DATA_HEX,
-        }),
-      ]
-
-      const fees = mapIntentFeesToTokenFees(intent)
-
-      const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal: false })
+    const createTestProposal = async (options?: CreateProposalOptions): Promise<string> => {
+      const params = await createProposalParams(solverSdk, solverProvider, client, options)
+      const ix = await solverSdk.createProposalIx(params.intentHash, params)
       await makeTxSignAndSend(solverProvider, ix)
-      return intentHash
+      return params.intentHash
     }
 
-    context('when proposal is stale', () => {
-      let intentHash: string
-      let proposalBefore: any
-      let proposalBalanceBefore: number
-      let proposalCreatorBalanceBefore: number
-
-      beforeEach('create proposal with short deadline, warp time, and get balances', async () => {
-        const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
-        intentHash = await createTestProposalWithDeadline(deadline)
-
-        proposalBefore = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-        expect(proposalBefore).to.not.be.null
-
-        warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
-
-        proposalBalanceBefore =
-          Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
-        proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.creator)) || 0
-      })
-
-      it('claims the stale proposal', async () => {
+    const itThrowsAnError = (error: string) => {
+      it('throws an error', async () => {
         const ix = await solverSdk.claimStaleProposalIx(intentHash)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        const proposalBalanceAfter =
-          Number(provider.client.getBalance(sdk.getProposalKey(intentHash, solver.publicKey))) || 0
-        const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.creator)) || 0
-
-        try {
-          await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-          expect.fail('Proposal account should be closed')
-        } catch (error: any) {
-          expect(error.message).to.include(`Account does not exist`)
-        }
-
-        expect(proposalCreatorBalanceAfter).to.be.eq(
-          proposalCreatorBalanceBefore + proposalBalanceBefore - ACCOUNT_CLOSE_FEE
-        )
-        expect(proposalBalanceAfter).to.be.eq(0)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expectTransactionError(res, error)
       })
-    })
+    }
 
-    context('when deadline has not passed', () => {
-      context('when deadline has not passed', () => {
-        let intentHash: string
+    let intentHash: string
 
-        beforeEach('create proposal and warp time', async () => {
-          const deadline = getCurrentTimestamp(client, LONG_DEADLINE)
-          intentHash = await createTestProposalWithDeadline(deadline)
+    context('when caller is proposal creator', () => {
+      context('when proposal exists', () => {
+        context('when proposal is stale', () => {
+          let proposalKey: PublicKey
 
-          warpSeconds(provider, WARP_TIME_SHORT)
+          before('create proposal with short deadline and warp time', async () => {
+            intentHash = await createTestProposal({
+              proposalParams: { deadline: getCurrentTimestamp(client, STALE_CLAIM_DELAY) },
+            })
+            proposalKey = solverSdk.getProposalKey(intentHash)
+            warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
+          })
+
+          it('claims the stale proposal', async () => {
+            const proposalBefore = await program.account.proposal.fetch(proposalKey)
+            const proposalBalanceBefore = Number(provider.client.getBalance(proposalKey)) || 0
+            const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.creator)) || 0
+
+            const ix = await solverSdk.claimStaleProposalIx(intentHash)
+            await makeTxSignAndSend(solverProvider, ix)
+
+            const proposalBalanceAfter = Number(provider.client.getBalance(proposalKey)) || 0
+            const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.creator)) || 0
+
+            try {
+              await program.account.proposal.fetch(proposalKey)
+              expect.fail('Proposal account should be closed')
+            } catch (error: any) {
+              expect(error.message).to.include(`Account does not exist`)
+            }
+
+            expect(proposalCreatorBalanceAfter).to.be.eq(
+              proposalCreatorBalanceBefore + proposalBalanceBefore - ACCOUNT_CLOSE_FEE
+            )
+            expect(proposalBalanceAfter).to.be.eq(0)
+          })
+
+          it('cannot claim the stale proposal again', async () => {
+            client.expireBlockhash()
+            const ix = await solverSdk.claimStaleProposalIx(intentHash)
+            const res = await makeTxSignAndSend(solverProvider, ix)
+
+            expectTransactionError(res, 'AnchorError caused by account: proposal. Error Code: AccountNotInitialized')
+          })
         })
 
-        it('throws an error', async () => {
-          const ix = await solverSdk.claimStaleProposalIx(intentHash)
-          const res = await makeTxSignAndSend(solverProvider, ix)
+        context('when proposal is not stale', () => {
+          context('when deadline has not passed', () => {
+            beforeEach('create proposal and warp time', async () => {
+              intentHash = await createTestProposal({
+                proposalParams: { deadline: getCurrentTimestamp(client, LONG_DEADLINE) },
+              })
+              warpSeconds(provider, WARP_TIME_SHORT)
+            })
 
-          expectTransactionError(res, `Proposal not yet expired`)
+            itThrowsAnError('Proposal not yet expired')
+          })
+
+          context('when deadline equals now', () => {
+            beforeEach('create proposal and warp time', async () => {
+              intentHash = await createTestProposal({
+                proposalParams: { deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
+              })
+              warpSeconds(provider, WARP_TIME_SHORT)
+            })
+
+            itThrowsAnError('Proposal not yet expired')
+          })
         })
       })
 
-      context('when deadline equals now', () => {
-        let intentHash: string
-
-        beforeEach('create proposal and warp time', async () => {
-          const deadline = getCurrentTimestamp(client, MEDIUM_DEADLINE)
-          intentHash = await createTestProposalWithDeadline(deadline)
-
-          warpSeconds(provider, MEDIUM_DEADLINE)
+      context('when proposal does not exist', () => {
+        beforeEach('generate non-existent intent hash', () => {
+          intentHash = generateIntentHash()
         })
 
-        it('throws an error', async () => {
-          const ix = await solverSdk.claimStaleProposalIx(intentHash)
-          const res = await makeTxSignAndSend(solverProvider, ix)
-
-          expectTransactionError(res, `Proposal not yet expired`)
-        })
+        itThrowsAnError('AnchorError caused by account: proposal. Error Code: AccountNotInitialized')
       })
     })
 
     context('when caller is not proposal creator', () => {
-      let intentHash: string
-
       beforeEach('create proposal and warp time', async () => {
-        const deadline = getCurrentTimestamp(client, EXPIRATION_TEST_DELAY)
-        intentHash = await createTestProposalWithDeadline(deadline)
-
-        warpSeconds(provider, EXPIRATION_TEST_DELAY_PLUS_ONE)
+        intentHash = await createTestProposal({
+          proposalParams: { deadline: getCurrentTimestamp(client, STALE_CLAIM_DELAY) },
+        })
+        warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
       })
 
       it('throws an error', async () => {
@@ -1571,45 +1565,6 @@ describe('Settler', () => {
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
-      })
-    })
-
-    context('when proposal does not exist', () => {
-      let intentHash: string
-
-      beforeEach('generate non-existent intent hash', () => {
-        intentHash = generateIntentHash()
-      })
-
-      it('throws an error', async () => {
-        const ix = await solverSdk.claimStaleProposalIx(intentHash)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-
-        expectTransactionError(res, `AccountNotInitialized`)
-      })
-    })
-
-    context('when claiming twice', () => {
-      let intentHash: string
-
-      beforeEach('create proposal, warp time, and claim once', async () => {
-        const deadline = getCurrentTimestamp(client, DOUBLE_CLAIM_DELAY)
-        intentHash = await createTestProposalWithDeadline(deadline)
-
-        warpSeconds(provider, DOUBLE_CLAIM_DELAY_PLUS_ONE)
-
-        const ix = await solverSdk.claimStaleProposalIx(intentHash)
-        await makeTxSignAndSend(solverProvider, ix)
-
-        client.expireBlockhash()
-      })
-
-      it('throws an error', async () => {
-        const ix2 = await solverSdk.claimStaleProposalIx(intentHash)
-        const res = await makeTxSignAndSend(solverProvider, ix2)
-
-        const errorMsg = res.toString()
-        expect(errorMsg.includes(`AccountNotInitialized`)).to.be.true
       })
     })
   })
