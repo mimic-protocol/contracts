@@ -22,6 +22,7 @@ import {
   addValidatorsToIntent,
   CreateIntentOptions,
   createIntentParams,
+  CreateProposalOptions,
   createProposalParams,
   createSignerInstructionAccount,
   createTestIntent,
@@ -1214,211 +1215,232 @@ describe('Settler', () => {
   })
 
   describe('add_instructions_to_proposal', () => {
-    const createTestProposal = async (isFinal = false): Promise<string> => {
-      const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-      const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-      const deadline = getCurrentTimestamp(client, PROPOSAL_DEADLINE_OFFSET)
-
-      const instructions = [
-        createTestProposalInstruction({
-          accounts: [createWritableInstructionAccount()],
-          data: DEFAULT_DATA_HEX,
-        }),
-      ]
-
-      const fees = mapIntentFeesToTokenFees(intent)
-
-      const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal })
+    const createTestProposal = async (options?: CreateProposalOptions): Promise<string> => {
+      const params = await createProposalParams(solverSdk, solverProvider, client, options)
+      const ix = await solverSdk.createProposalIx(params.intentHash, params)
       await makeTxSignAndSend(solverProvider, ix)
-      return intentHash
+      return params.intentHash
     }
 
-    context('when adding valid instructions', () => {
-      context('when adding a single instruction', () => {
-        let intentHash: string
-        let moreInstructions: ProposalInstruction[]
+    const itThrowsAnError = (error: string) => {
+      it('throws an error', async () => {
+        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expectTransactionError(res, error)
+      })
+    }
 
-        beforeEach('create proposal and instruction params', async () => {
-          intentHash = await createTestProposal(false)
+    let intentHash: string
+    let moreInstructions: ProposalInstruction[]
 
-          moreInstructions = [
-            createTestProposalInstruction({
-              accounts: [createWritableInstructionAccount()],
-              data: '040506',
-            }),
-          ]
+    context('when caller is proposal creator', () => {
+      context('when proposal exists', () => {
+        context('when proposal data is valid', () => {
+          context('when not finalizing the proposal', () => {
+            context('when calling once', () => {
+              context('when adding a single instruction', () => {
+                beforeEach('create proposal and instruction params', async () => {
+                  intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
+
+                  moreInstructions = [
+                    createTestProposalInstruction({
+                      programId: randomPubkey(),
+                      accounts: [createWritableInstructionAccount()],
+                      data: TEST_DATA_HEX_1,
+                    }),
+                  ]
+                })
+
+                it('adds the instruction to the proposal', async () => {
+                  const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const proposal = await program.account.proposal.fetch(
+                    sdk.getProposalKey(intentHash, solver.publicKey)
+                  )
+                  expect(proposal.instructions.length).to.be.eq(2)
+                  expect(Buffer.from(proposal.instructions[0].data).toString('hex')).to.be.eq(TEST_DATA_HEX_3)
+                  expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq(TEST_DATA_HEX_1)
+                  expect(proposal.isFinal).to.be.false
+                  expect(proposal.instructions[1].programId.toString()).to.be.eq(
+                    moreInstructions[0].programId.toString()
+                  )
+                  expect(proposal.instructions[1].accounts.length).to.be.eq(1)
+                  expect(proposal.instructions[1].accounts[0].pubkey.toString()).to.be.eq(
+                    moreInstructions[0].accounts[0].pubkey.toString()
+                  )
+                  expect(proposal.instructions[1].accounts[0].isSigner).to.be.eq(false)
+                  expect(proposal.instructions[1].accounts[0].isWritable).to.be.eq(true)
+                })
+              })
+
+              context('when adding multiple instructions', () => {
+                beforeEach('create proposal and instruction params', async () => {
+                  intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
+
+                  moreInstructions = [
+                    createTestProposalInstruction({ data: TEST_DATA_HEX_1 }),
+                    createTestProposalInstruction({ data: TEST_DATA_HEX_2 }),
+                  ]
+                })
+
+                it('adds multiple instructions to the proposal', async () => {
+                  const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const proposal = await program.account.proposal.fetch(
+                    sdk.getProposalKey(intentHash, solver.publicKey)
+                  )
+                  expect(proposal.instructions.length).to.be.eq(3)
+                  expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq(TEST_DATA_HEX_1)
+                  expect(Buffer.from(proposal.instructions[2].data).toString('hex')).to.be.eq(TEST_DATA_HEX_2)
+                  expect(proposal.isFinal).to.be.false
+                })
+              })
+
+              context('when passing finalize=false', () => {
+                beforeEach('create proposal and instruction params', async () => {
+                  intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
+
+                  moreInstructions = [createTestProposalInstruction()]
+                })
+
+                it('does not finalize the proposal', async () => {
+                  const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const proposal = await program.account.proposal.fetch(
+                    sdk.getProposalKey(intentHash, solver.publicKey)
+                  )
+                  expect(proposal.isFinal).to.be.false
+                  expect(proposal.instructions.length).to.be.eq(2)
+                })
+              })
+            })
+
+            context('when calling more than once', () => {
+              context('when adding instructions multiple times', () => {
+                let moreInstructions1: ProposalInstruction[]
+                let moreInstructions2: ProposalInstruction[]
+
+                beforeEach('create proposal and instruction params', async () => {
+                  intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
+
+                  moreInstructions1 = [createTestProposalInstruction({ data: TEST_DATA_HEX_1 })]
+                  moreInstructions2 = [createTestProposalInstruction({ data: TEST_DATA_HEX_2 })]
+                })
+
+                it('adds instructions to the proposal multiple times', async () => {
+                  const ix1 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions1, false)
+                  await makeTxSignAndSend(solverProvider, ix1)
+
+                  const ix2 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions2, false)
+                  await makeTxSignAndSend(solverProvider, ix2)
+
+                  const proposal = await program.account.proposal.fetch(
+                    sdk.getProposalKey(intentHash, solver.publicKey)
+                  )
+                  expect(proposal.instructions.length).to.be.eq(3)
+                  expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq(TEST_DATA_HEX_1)
+                  expect(Buffer.from(proposal.instructions[2].data).toString('hex')).to.be.eq(TEST_DATA_HEX_2)
+                  expect(proposal.isFinal).to.be.false
+                })
+              })
+            })
+          })
+
+          context('when finalizing the proposal', () => {
+            context('when passing finalize=true', () => {
+              beforeEach('create proposal and instruction params', async () => {
+                intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
+                moreInstructions = [createTestProposalInstruction()]
+              })
+
+              it('finalizes the proposal', async () => {
+                const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, true)
+                await makeTxSignAndSend(solverProvider, ix)
+
+                const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+                expect(proposal.isFinal).to.be.true
+                expect(proposal.instructions.length).to.be.eq(2)
+              })
+            })
+
+            context('when not passing any value to the "finalize" parameter', () => {
+              beforeEach('create proposal and instruction params', async () => {
+                intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
+                moreInstructions = [createTestProposalInstruction()]
+              })
+
+              it('finalizes the proposal by default', async () => {
+                const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
+                await makeTxSignAndSend(solverProvider, ix)
+
+                const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+                expect(proposal.isFinal).to.be.true
+                expect(proposal.instructions.length).to.be.eq(2)
+              })
+            })
+          })
         })
 
-        it('adds the instruction to the proposal', async () => {
-          const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
-          await makeTxSignAndSend(solverProvider, ix)
+        context('when proposal data is not valid', () => {
+          context('when proposal is not final', () => {
+            context('when proposal has expired', () => {
+              context('when proposal deadline has passed', () => {
+                beforeEach('create proposal with short deadline and warp time', async () => {
+                  intentHash = await createTestProposal({
+                    proposalParams: { deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
+                  })
+                  warpSeconds(solverProvider, WARP_TIME_LONG)
+                  moreInstructions = []
+                })
 
-          const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-          expect(proposal.instructions.length).to.be.eq(2)
-          expect(Buffer.from(proposal.instructions[0].data).toString('hex')).to.be.eq('010203')
-          expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq('040506')
-          expect(proposal.isFinal).to.be.false
-          expect(proposal.instructions[1].accounts.length).to.be.eq(1)
-          expect(proposal.instructions[1].accounts[0].pubkey.toString()).to.be.eq(
-            moreInstructions[0].accounts[0].pubkey.toString()
-          )
-          expect(proposal.instructions[1].accounts[0].isSigner).to.be.eq(false)
-          expect(proposal.instructions[1].accounts[0].isWritable).to.be.eq(true)
+                itThrowsAnError('Proposal has already expired')
+              })
+
+              context('when proposal deadline equals now', () => {
+                beforeEach('create proposal with short deadline and warp time', async () => {
+                  intentHash = await createTestProposal({
+                    proposalParams: { deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
+                  })
+                  warpSeconds(solverProvider, SHORT_DEADLINE)
+                  moreInstructions = []
+                })
+
+                itThrowsAnError('Proposal has already expired')
+              })
+            })
+          })
+
+          context('when proposal is final', () => {
+            beforeEach('create finalized proposal and instruction params', async () => {
+              intentHash = await createTestProposal({ proposalParams: { isFinal: true } })
+              moreInstructions = []
+            })
+
+            itThrowsAnError('Proposal is already final')
+          })
         })
       })
 
-      context('when adding multiple instructions', () => {
-        let intentHash: string
-        let moreInstructions: ProposalInstruction[]
-
-        beforeEach('create proposal and instruction params', async () => {
-          intentHash = await createTestProposal(false)
-
-          moreInstructions = [
-            createTestProposalInstruction({
-              data: '070809',
-            }),
-            createTestProposalInstruction({
-              data: '0a0b0c',
-            }),
-          ]
+      context('when proposal does not exist', () => {
+        beforeEach('generate non-existent intent hash and instruction params', () => {
+          intentHash = generateIntentHash()
+          moreInstructions = []
         })
 
-        it('adds multiple instructions to the proposal', async () => {
-          const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-          expect(proposal.instructions.length).to.be.eq(3)
-          expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq('070809')
-          expect(Buffer.from(proposal.instructions[2].data).toString('hex')).to.be.eq('0a0b0c')
-          expect(proposal.isFinal).to.be.false
-        })
-      })
-
-      context('when adding instructions multiple times', () => {
-        let intentHash: string
-        let moreInstructions1: ProposalInstruction[]
-        let moreInstructions2: ProposalInstruction[]
-
-        beforeEach('create proposal and instruction params', async () => {
-          intentHash = await createTestProposal(false)
-
-          moreInstructions1 = [
-            createTestProposalInstruction({
-              data: '0d0e0f',
-            }),
-          ]
-
-          moreInstructions2 = [
-            createTestProposalInstruction({
-              data: '101112',
-            }),
-          ]
-        })
-
-        it('adds instructions to the proposal multiple times', async () => {
-          const ix1 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions1, false)
-          await makeTxSignAndSend(solverProvider, ix1)
-
-          const ix2 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions2, false)
-          await makeTxSignAndSend(solverProvider, ix2)
-
-          const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-          expect(proposal.instructions.length).to.be.eq(3)
-          expect(Buffer.from(proposal.instructions[1].data).toString('hex')).to.be.eq('0d0e0f')
-          expect(Buffer.from(proposal.instructions[2].data).toString('hex')).to.be.eq('101112')
-          expect(proposal.isFinal).to.be.false
-        })
-      })
-
-      context('when finalizing with finalize=true', () => {
-        let intentHash: string
-        let moreInstructions: ProposalInstruction[]
-
-        beforeEach('create proposal and instruction params', async () => {
-          intentHash = await createTestProposal(false)
-
-          moreInstructions = [
-            createTestProposalInstruction({
-              data: '212223',
-            }),
-          ]
-        })
-
-        it('finalizes the proposal', async () => {
-          const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, true)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-          expect(proposal.isFinal).to.be.true
-          expect(proposal.instructions.length).to.be.eq(2)
-        })
-      })
-
-      context('when not finalizing with finalize=false', () => {
-        let intentHash: string
-        let moreInstructions: ProposalInstruction[]
-
-        beforeEach('create proposal and instruction params', async () => {
-          intentHash = await createTestProposal(false)
-
-          moreInstructions = [
-            createTestProposalInstruction({
-              data: '242526',
-            }),
-          ]
-        })
-
-        it('does not finalize the proposal', async () => {
-          const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-          expect(proposal.isFinal).to.be.false
-          expect(proposal.instructions.length).to.be.eq(2)
-        })
-      })
-
-      context('when finalizing by default', () => {
-        let intentHash: string
-        let moreInstructions: ProposalInstruction[]
-
-        beforeEach('create proposal and instruction params', async () => {
-          intentHash = await createTestProposal(false)
-
-          moreInstructions = [
-            createTestProposalInstruction({
-              data: '272829',
-            }),
-          ]
-        })
-
-        it('finalizes the proposal by default', async () => {
-          const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
-          await makeTxSignAndSend(solverProvider, ix)
-
-          const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-          expect(proposal.isFinal).to.be.true
-          expect(proposal.instructions.length).to.be.eq(2)
-        })
+        itThrowsAnError('AccountNotInitialized')
       })
     })
 
     context('when caller is not proposal creator', () => {
-      let intentHash: string
       let proposalCreator: PublicKey
-      let moreInstructions: ProposalInstruction[]
 
       beforeEach('create proposal and instruction params', async () => {
-        intentHash = await createTestProposal(false)
+        intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
         proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
-
-        moreInstructions = [
-          createTestProposalInstruction({
-            data: '131415',
-          }),
-        ]
+        moreInstructions = []
       })
 
       it('throws an error', async () => {
@@ -1431,126 +1453,6 @@ describe('Settler', () => {
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
-      })
-    })
-
-    context('when proposal does not exist', () => {
-      let intentHash: string
-      let moreInstructions: ProposalInstruction[]
-
-      beforeEach('generate non-existent intent hash and instruction params', () => {
-        intentHash = generateIntentHash()
-
-        moreInstructions = [
-          createTestProposalInstruction({
-            data: '161718',
-          }),
-        ]
-      })
-
-      it('throws an error', async () => {
-        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-
-        expectTransactionError(res, `AccountNotInitialized`)
-      })
-    })
-
-    context('when proposal has expired', () => {
-      context('when proposal deadline has passed', () => {
-        let intentHash: string
-        let moreInstructions: ProposalInstruction[]
-
-        beforeEach('create proposal with short deadline, warp time, and instruction params', async () => {
-          intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
-
-          const instructions = [
-            createTestProposalInstruction({
-              data: '010203',
-            }),
-          ]
-
-          const fees = mapIntentFeesToTokenFees(intent)
-
-          const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal: false })
-          await makeTxSignAndSend(solverProvider, ix)
-
-          warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
-
-          moreInstructions = [
-            createTestProposalInstruction({
-              data: '19202a',
-            }),
-          ]
-        })
-
-        it('throws an error', async () => {
-          const addIx = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
-          const res = await makeTxSignAndSend(solverProvider, addIx)
-
-          expectTransactionError(res, 'Proposal has already expired')
-        })
-      })
-
-      context('when proposal deadline equals now', () => {
-        let intentHash: string
-        let moreInstructions: ProposalInstruction[]
-
-        beforeEach('create proposal with short deadline, warp time, and instruction params', async () => {
-          intentHash = await createValidatedIntent(solverSdk, solverProvider, client, { isFinal: true })
-          const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-          const deadline = getCurrentTimestamp(client, SHORT_DEADLINE)
-
-          const instructions = [
-            createTestProposalInstruction({
-              data: '010203',
-            }),
-          ]
-
-          const fees = mapIntentFeesToTokenFees(intent)
-
-          const ix = await solverSdk.createProposalIx(intentHash, { instructions, fees, deadline, isFinal: false })
-          await makeTxSignAndSend(solverProvider, ix)
-
-          warpSeconds(provider, WARP_TIME_SHORT)
-
-          moreInstructions = [
-            createTestProposalInstruction({
-              data: '1b1c1d',
-            }),
-          ]
-        })
-
-        it('throws an error', async () => {
-          const addIx = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
-          const res = await makeTxSignAndSend(solverProvider, addIx)
-
-          expectTransactionError(res, 'Proposal has already expired')
-        })
-      })
-    })
-
-    context('when proposal is already final', () => {
-      let intentHash: string
-      let moreInstructions: ProposalInstruction[]
-
-      beforeEach('create finalized proposal and instruction params', async () => {
-        intentHash = await createTestProposal(true)
-
-        moreInstructions = [
-          createTestProposalInstruction({
-            data: '1e1f20',
-          }),
-        ]
-      })
-
-      it('throws an error', async () => {
-        const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
-        const res = await makeTxSignAndSend(solverProvider, ix)
-
-        expectTransactionError(res, `Proposal is already final`)
       })
     })
   })
