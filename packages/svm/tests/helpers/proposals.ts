@@ -52,8 +52,7 @@ export async function createProposalParams(
   options: CreateProposalOptions = {}
 ): Promise<{ intentHash: string } & CreateProposalParams> {
   const intentHash =
-    options?.intentHash ||
-    (await createValidatedIntent(solverSdk, solverProvider, client, { ...options.intentOptions }))
+    options?.intentHash || (await createValidatedIntent(solverSdk, solverProvider, client, options.intentOptions))
 
   const program = new Program<Settler>(SettlerIDL, solverProvider)
   const intentKey = solverSdk.getIntentKey(intentHash)

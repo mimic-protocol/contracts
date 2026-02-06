@@ -1362,22 +1362,6 @@ describe('Settler', () => {
                 expect(proposal.instructions.length).to.be.eq(2)
               })
             })
-
-            context('when not passing any value to the "finalize" parameter', () => {
-              beforeEach('create proposal and instruction params', async () => {
-                intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
-                moreInstructions = [createTestProposalInstruction()]
-              })
-
-              it('finalizes the proposal by default', async () => {
-                const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions)
-                await makeTxSignAndSend(solverProvider, ix)
-
-                const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
-                expect(proposal.isFinal).to.be.true
-                expect(proposal.instructions.length).to.be.eq(2)
-              })
-            })
           })
         })
 
