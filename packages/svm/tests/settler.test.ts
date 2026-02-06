@@ -2325,4 +2325,76 @@ describe('Settler', () => {
       itThrowsAnError('Program log: AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
     })
   })
+
+  // describe('add_axia_sig', () => {
+  //   before(async () => {})
+
+  //   context('when adding valid signatures', () => {
+  //     context('when adding one signature', () => {
+  //       it('should sign proposal', async () => {})
+  //     })
+
+  //     context('when adding multiple signatures', () => {
+  //       it('should sign proposal once', async () => {})
+  //     })
+
+  //     context('when adding the same signature again', () => {
+  //       it('should sign proposal once', async () => {})
+  //     })
+  //   })
+
+  //   context('when proposal conditions are not met', () => {
+  //     context('when the proposal is not final', () => {
+  //       it('should not sign the proposal', async () => {})
+  //     })
+
+  //     context('when the proposal has expired', () => {
+  //       it('should not sign the proposal', async () => {})
+  //     })
+
+  //     context('when the proposal deadline equals now', () => {
+  //       it('should not sign the proposal', async () => {})
+  //     })
+  //   })
+
+  //   context('when axia is not whitelisted', () => {
+  //     it('should not sign the proposal', async () => {})
+  //   })
+
+  //   context('when solver is not whitelisted', () => {
+  //     it('should not sign the proposal', async () => {})
+  //   })
+
+  //   context('when proposal does not exist', () => {
+  //     it('should fail with AccountNotInitialized', async () => {})
+  //   })
+
+  //   context('when signature is invalid', () => {
+  //     context('when signature verifies', () => {
+  //       context('when signing for another proposal', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when axia is not allowlisted', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when signing with another allowlisted axia key', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when signing with an allowlisted validator key', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when signing another message', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+  //     })
+
+  //     context('when signature fails to verify', () => {
+  //       it('should fail with SignatureVerificationError', async () => {})
+  //     })
+  //   })
+  // })
 })
