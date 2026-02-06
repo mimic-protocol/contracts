@@ -12,7 +12,7 @@ import path from 'path'
 import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import * as ControllerIDL from '../target/idl/controller.json'
 import { Controller } from '../target/types/controller'
-import { expectTransactionError, randomKeypair, randomPubkey, toLamports } from './helpers/helpers'
+import { expectTransactionError, randomKeypair, randomPubkey, toLamports } from './helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Controller', () => {

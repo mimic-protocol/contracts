@@ -4,9 +4,9 @@ import * as ControllerIDL from '../../target/idl/controller.json'
 import { Controller } from '../../target/types/controller'
 
 export const EntityType = {
-  Validator: 1,
-  Axia: 2,
-  Solver: 3,
+  Validator: 0,
+  Axia: 1,
+  Solver: 2,
 } as const
 
 export type EntityType = (typeof EntityType)[keyof typeof EntityType]

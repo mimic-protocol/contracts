@@ -16,14 +16,14 @@ pub struct AddAxiaSig<'info> {
     pub solver: Signer<'info>,
 
     #[account(
-        seeds = [b"entity-registry", &[EntityType::Solver as u8 + 1], solver.key().as_ref()],
+        seeds = [b"entity-registry", &[EntityType::Solver as u8], solver.key().as_ref()],
         bump = solver_registry.bump,
         seeds::program = controller::ID,
     )]
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
     #[account(
-        seeds = [b"entity-registry", &[EntityType::Axia as u8 + 1], axia_registry.entity_pubkey.as_ref()],
+        seeds = [b"entity-registry", &[EntityType::Axia as u8], axia_registry.entity_pubkey.as_ref()],
         bump = axia_registry.bump,
         seeds::program = controller::ID,
     )]

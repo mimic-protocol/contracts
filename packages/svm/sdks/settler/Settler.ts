@@ -6,6 +6,7 @@ import { Settler } from '../../target/types/settler'
 import { EntityType } from '../controller/Controller'
 import {
   CreateIntentParams,
+  CreateProposalParams,
   ExtendIntentParams,
   IntentEvent,
   OpType,
@@ -111,18 +112,13 @@ export default class SettlerSDK {
     return ix
   }
 
-  async createProposalIx(
-    intentHashHex: string,
-    instructions: ProposalInstruction[],
-    fees: TokenFee[],
-    deadline: number,
-    isFinal = true
-  ): Promise<web3.TransactionInstruction> {
+  async createProposalIx(intentHashHex: string, params: CreateProposalParams): Promise<web3.TransactionInstruction> {
+    const { instructions, fees, deadline, isFinal } = params
     const parsedInstructions = this.parseProposalInstructions(instructions)
     const parsedFees = this.parseTokenFees(fees)
 
     const ix = await this.program.methods
-      .createProposal(parsedInstructions, parsedFees, new BN(deadline), isFinal)
+      .createProposal(parsedInstructions, parsedFees, new BN(deadline), isFinal ?? false)
       .accountsPartial({
         solver: this.getSignerKey(),
         solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
@@ -225,15 +221,13 @@ export default class SettlerSDK {
   }
 
   getIntentKey(intentHashHex: string): web3.PublicKey {
-    const intentHash = Buffer.from(intentHashHex, 'hex')
-    if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
+    const intentHash = Buffer.from(this.parseIntentHashHex(intentHashHex))
 
     return web3.PublicKey.findProgramAddressSync([Buffer.from('intent'), intentHash], this.program.programId)[0]
   }
 
   getFulfilledIntentKey(intentHashHex: string): web3.PublicKey {
-    const intentHash = Buffer.from(intentHashHex, 'hex')
-    if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
+    const intentHash = Buffer.from(this.parseIntentHashHex(intentHashHex))
 
     return web3.PublicKey.findProgramAddressSync(
       [Buffer.from('fulfilled-intent'), intentHash],
@@ -242,8 +236,7 @@ export default class SettlerSDK {
   }
 
   getProposalKey(intentHashHex: string, solverPubkey?: web3.PublicKey): web3.PublicKey {
-    const intentHash = Buffer.from(intentHashHex, 'hex')
-    if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
+    this.parseIntentHashHex(intentHashHex)
 
     const intentKey = this.getIntentKey(intentHashHex)
     const solver = solverPubkey || this.getSignerKey()
@@ -275,13 +268,13 @@ export default class SettlerSDK {
   }
 
   private parseIntentHashHex(intentHashHex: string): number[] {
-    const intentHash = Buffer.from(intentHashHex, 'hex')
+    const intentHash = Buffer.from(intentHashHex.slice(2), 'hex')
     if (intentHash.length != 32) throw new Error(`Intent hash must be 32 bytes: ${intentHashHex}`)
     return Array.from(intentHash)
   }
 
   private parseIntentNonceHex(nonceHex: string): number[] {
-    const nonce = Buffer.from(nonceHex, 'hex')
+    const nonce = Buffer.from(nonceHex.slice(2), 'hex')
     if (nonce.length != 32) throw new Error(`Nonce must be 32 bytes: ${nonceHex}`)
     return Array.from(nonce)
   }
