@@ -68,13 +68,13 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     let expected_message = create_ethereum_prefixed_message(&intent.hash);
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),
-        SettlerError::SigVerificationFailed
+        SettlerError::SigVerificationFailedIncorrectMessage
     );
 
     // Verify address is a whitelisted Validator
     require!(
         ctx.accounts.validator_registry.entity_address == secp256k1_ix_args.eth_address,
-        SettlerError::ValidatorNotAllowlisted,
+        SettlerError::SigVerificationFailedIncorrectValidator,
     );
 
     // Updates intent PDA if signature not present and min_validations not met

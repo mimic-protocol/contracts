@@ -7,7 +7,7 @@ const ED25519_ID: Pubkey = pubkey!("Ed25519SigVerify111111111111111111111111111"
 
 pub fn check_secp256k1_ix(ix: &Instruction) -> Result<()> {
     if ix.program_id != SECP256K1_ID || ix.accounts.len() != 0 {
-        return err!(SettlerError::SigVerificationFailed);
+        return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
     }
 
     Ok(())
@@ -15,7 +15,7 @@ pub fn check_secp256k1_ix(ix: &Instruction) -> Result<()> {
 
 pub fn check_ed25519_ix(ix: &Instruction) -> Result<()> {
     if ix.program_id != ED25519_ID || ix.accounts.len() != 0 {
-        return err!(SettlerError::SigVerificationFailed);
+        return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
     }
 
     Ok(())
@@ -38,7 +38,7 @@ const DATA_START: u16 = 1 + SIGNATURE_OFFSETS_SERIALIZED_SIZE;
 
 pub fn get_args_from_secp256k1_ix_data(data: &[u8]) -> Result<Secp256k1Args<'_>> {
     if data.len() < 97 {
-        return err!(SettlerError::SigVerificationFailed);
+        return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
     }
 
     // Header
@@ -81,25 +81,25 @@ pub fn get_args_from_secp256k1_ix_data(data: &[u8]) -> Result<Secp256k1Args<'_>>
         || message_data_size != &msg_len.to_le_bytes()
         || message_instruction_index != &[0]
     {
-        return err!(SettlerError::SigVerificationFailed);
+        return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
     }
 
     Ok(Secp256k1Args {
         eth_address: eth_address
             .try_into()
-            .map_err(|_| SettlerError::SigVerificationFailed)?,
+            .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
         msg: msg
             .try_into()
-            .map_err(|_| SettlerError::SigVerificationFailed)?,
+            .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
         sig: sig
             .try_into()
-            .map_err(|_| SettlerError::SigVerificationFailed)?,
+            .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
     })
 }
 
 pub fn get_args_from_ed25519_ix_data(data: &[u8]) -> Result<Ed25519Args<'_>> {
     if data.len() < 112 {
-        return err!(SettlerError::SigVerificationFailed);
+        return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
     }
 
     // Header
@@ -126,7 +126,7 @@ pub fn get_args_from_ed25519_ix_data(data: &[u8]) -> Result<Ed25519Args<'_>> {
     let exp_message_data_size: u16 = msg
         .len()
         .try_into()
-        .map_err(|_| SettlerError::SigVerificationFailed)?;
+        .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?;
 
     // Header check
     if num_signatures != &exp_num_signatures.to_le_bytes()
@@ -139,16 +139,16 @@ pub fn get_args_from_ed25519_ix_data(data: &[u8]) -> Result<Ed25519Args<'_>> {
         || message_data_size != &exp_message_data_size.to_le_bytes()
         || message_instruction_index != &u16::MAX.to_le_bytes()
     {
-        return err!(SettlerError::SigVerificationFailed);
+        return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
     }
 
     Ok(Ed25519Args {
         pubkey: pubkey
             .try_into()
-            .map_err(|_| SettlerError::SigVerificationFailed)?,
+            .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
         sig: sig
             .try_into()
-            .map_err(|_| SettlerError::SigVerificationFailed)?,
+            .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
         msg,
     })
 }

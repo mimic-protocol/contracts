@@ -66,13 +66,13 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     let expected_message = create_ethereum_prefixed_message(&proposal.key().as_array());
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),
-        SettlerError::SigVerificationFailed
+        SettlerError::SigVerificationFailedIncorrectMessage
     );
 
     // Verify address is whitelisted Axia
     require!(
         ctx.accounts.axia_registry.entity_address == secp256k1_ix_args.eth_address,
-        SettlerError::AxiaNotAllowlisted
+        SettlerError::SigVerificationFailedIncorrectAxia
     );
 
     // Updates proposal as signed
