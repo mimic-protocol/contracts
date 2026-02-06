@@ -3,7 +3,14 @@
 
 import { Program, Wallet } from '@coral-xyz/anchor'
 import { signAsync } from '@noble/ed25519'
-import { Ed25519Program, Keypair, PublicKey, SYSVAR_INSTRUCTIONS_PUBKEY, TransactionInstruction } from '@solana/web3.js'
+import {
+  Ed25519Program,
+  Keypair,
+  PublicKey,
+  Secp256k1Program,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+  TransactionInstruction,
+} from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { BN } from 'bn.js'
 import { expect } from 'chai'
@@ -37,6 +44,7 @@ import {
   getProposalDeadline,
   mapIntentFeesToTokenFees,
   randomPubkey,
+  removeEntityFromAllowlist,
   toLamports,
 } from './helpers'
 import {
@@ -2236,34 +2244,197 @@ describe('Settler', () => {
       let validator: ethers.HDNodeWallet
       let ixs: TransactionInstruction[]
 
-      before(async () => {
+      before('create test intent and de-whitelist solver', async () => {
         intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
         validator = ethers.Wallet.createRandom()
         ixs = await createSigAndGetIxs(validator)
+
+        await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      after('re-whitelist solver', async () => {
+        await createAllowlistedEntity(controllerSdk, provider, EntityType.Solver, solver.publicKey)
       })
 
       it('should not add the validator signature', async () => {
-        
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+        expectTransactionError(
+          res,
+          'Program log: AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized'
+        )
       })
     })
 
     context('when intent does not exist', () => {
-      it('should fail with AccountNotInitialized', async () => {})
+      let validator: ethers.HDNodeWallet
+      let ixs: TransactionInstruction[]
+
+      before('generate random intent hash and ixs without sdk', async () => {
+        intentHash = generateIntentHash()
+        validator = ethers.Wallet.createRandom()
+
+        const { signature, recoveryId } = await createValidatorSignature(intentHash, validator)
+
+        const validatorEthAddress = Buffer.from(validator.address.slice(2), 'hex')
+        const prefixedMessage = solverSdk.getEthPrefixedMessage(Buffer.from(intentHash, 'hex'))
+
+        const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+          message: prefixedMessage,
+          ethAddress: validatorEthAddress,
+          signature: Buffer.from(signature),
+          recoveryId,
+        })
+
+        const ix = await program.methods
+          .addValidatorSig()
+          .accountsPartial({
+            solver: solverSdk.getSignerKey(),
+            solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+            intent: solverSdk.getIntentKey(intentHash),
+            fulfilledIntent: solverSdk.getFulfilledIntentKey(intentHash),
+            validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
+            ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+          })
+          .instruction()
+
+        ixs = [secp256k1Ix, ix]
+      })
+
+      it('should fail with AccountNotInitialized', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+        expectTransactionError(res, 'AnchorError caused by account: intent. Error Code: AccountNotInitialized')
+      })
     })
 
     context('when signature is invalid', () => {
       context('when signature verifies but is invalid', () => {
         context('when signing with another address', () => {
-          it('should fail with SignatureVerificationError', async () => {})
+          let validator1: ethers.HDNodeWallet
+          let validator2: ethers.HDNodeWallet
+          let ixs: TransactionInstruction[]
+
+          before('create valid signature but from another validator', async () => {
+            intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+            validator1 = await createAllowlistedValidator()
+            validator2 = await createAllowlistedValidator()
+
+            const { signature, recoveryId } = await createValidatorSignature(intentHash, validator1)
+
+            const validator1EthAddress = Buffer.from(validator1.address.slice(2), 'hex')
+            const validator2EthAddress = Buffer.from(validator2.address.slice(2), 'hex')
+
+            const prefixedMessage = solverSdk.getEthPrefixedMessage(Buffer.from(intentHash, 'hex'))
+
+            const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+              message: prefixedMessage,
+              ethAddress: validator1EthAddress,
+              signature: Buffer.from(signature),
+              recoveryId,
+            })
+
+            const ix = await program.methods
+              .addValidatorSig()
+              .accountsPartial({
+                solver: solverSdk.getSignerKey(),
+                solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+                intent: solverSdk.getIntentKey(intentHash),
+                fulfilledIntent: solverSdk.getFulfilledIntentKey(intentHash),
+                validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, validator2EthAddress),
+                ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+              })
+              .instruction()
+
+            ixs = [secp256k1Ix, ix]
+          })
+
+          it('should fail with SignatureVerificationError', async () => {
+            const res = await makeTxSignAndSend(solverProvider, ...ixs)
+            expectTransactionError(res, 'SigVerificationFailedIncorrectValidator')
+          })
         })
 
         context('when signing for another intent', () => {
-          it('should fail with SignatureVerificationError', async () => {})
+          let validator: ethers.HDNodeWallet
+          let ixs: TransactionInstruction[]
+
+          before(async () => {
+            const otherHash = generateIntentHash()
+            intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+            validator = await createAllowlistedValidator()
+
+            const { signature, recoveryId } = await createValidatorSignature(otherHash, validator)
+
+            const validatorEthAddress = Buffer.from(validator.address.slice(2), 'hex')
+
+            const prefixedMessage = solverSdk.getEthPrefixedMessage(Buffer.from(otherHash, 'hex'))
+
+            const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+              message: prefixedMessage,
+              ethAddress: validatorEthAddress,
+              signature: Buffer.from(signature),
+              recoveryId,
+            })
+
+            const ix = await program.methods
+              .addValidatorSig()
+              .accountsPartial({
+                solver: solverSdk.getSignerKey(),
+                solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+                intent: solverSdk.getIntentKey(intentHash),
+                fulfilledIntent: solverSdk.getFulfilledIntentKey(intentHash),
+                validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
+                ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+              })
+              .instruction()
+
+            ixs = [secp256k1Ix, ix]
+          })
+
+          it('should fail with SignatureVerificationError', async () => {
+            const res = await makeTxSignAndSend(solverProvider, ...ixs)
+            expectTransactionError(res, 'SigVerificationFailedIncorrectMessage')
+          })
         })
       })
 
       context('when signature fails to verify', () => {
-        it('should fail with SignatureVerificationError', async () => {})
+        let validator: ethers.HDNodeWallet
+        let ixs: TransactionInstruction[]
+
+        before(async () => {
+          intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+          validator = await createAllowlistedValidator()
+
+          const validatorEthAddress = Buffer.from(validator.address.slice(2), 'hex')
+
+          const prefixedMessage = solverSdk.getEthPrefixedMessage(Buffer.from(intentHash, 'hex'))
+
+          const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+            message: prefixedMessage,
+            ethAddress: validatorEthAddress,
+            signature: Buffer.from(new Uint8Array(64).fill(0xff)),
+            recoveryId: 1,
+          })
+
+          const ix = await program.methods
+            .addValidatorSig()
+            .accountsPartial({
+              solver: solverSdk.getSignerKey(),
+              solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+              intent: solverSdk.getIntentKey(intentHash),
+              fulfilledIntent: solverSdk.getFulfilledIntentKey(intentHash),
+              validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
+              ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+            })
+            .instruction()
+
+          ixs = [secp256k1Ix, ix]
+        })
+
+        it('should fail with SignatureVerificationError', async () => {
+          const res = await makeTxSignAndSend(solverProvider, ...ixs)
+          expectTransactionError(res, 'err: InstructionError(0, Custom(2))')
+        })
       })
     })
   })

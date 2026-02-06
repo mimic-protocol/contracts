@@ -1,5 +1,6 @@
 import { PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
+import { FailedTransactionMetadata, TransactionMetadata } from 'litesvm'
 
 import ControllerSDK, { EntityType } from '../../sdks/controller/Controller'
 import { makeTxSignAndSend } from '../utils'
@@ -15,7 +16,21 @@ export async function createAllowlistedEntity(
   entityType: EntityType,
   entityAddress: PublicKey | Buffer
 ): Promise<PublicKey | Buffer> {
-  const allowlistIx = await controllerSdk.setAllowedEntityIx(entityType, entityAddress)
-  await makeTxSignAndSend(provider, allowlistIx)
+  const ix = await controllerSdk.setAllowedEntityIx(entityType, entityAddress)
+  await makeTxSignAndSend(provider, ix)
   return entityAddress
+}
+
+/**
+ * Closes EntityRegistry for a given entity address and type
+ * @returns Successful or failed transaction metadata
+ */
+export async function removeEntityFromAllowlist(
+  controllerSdk: ControllerSDK,
+  provider: LiteSVMProvider,
+  entityType: EntityType,
+  entityAddress: PublicKey | Buffer
+): Promise<TransactionMetadata | FailedTransactionMetadata> {
+  const ix = await controllerSdk.closeEntityRegistryIx(entityType, entityAddress)
+  return await makeTxSignAndSend(provider, ix)
 }
