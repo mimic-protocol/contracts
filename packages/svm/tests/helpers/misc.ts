@@ -3,7 +3,7 @@ import { randomHex } from '@mimicprotocol/sdk'
 import { expect } from 'chai'
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
 
-import { INTENT_DEADLINE_OFFSET, NONCE_LENGTH } from './constants'
+import { NONCE_LENGTH } from './constants'
 
 export const LAMPORTS_PER_SOL = 1_000_000_000
 
@@ -11,13 +11,13 @@ export const LAMPORTS_PER_SOL = 1_000_000_000
  * Generate a random 32-byte hex string for nonce
  */
 export function generateNonce(): string {
-  return randomHex(NONCE_LENGTH).slice(2)
+  return randomHex(NONCE_LENGTH)
 }
 
 /**
  * Get current timestamp with optional offset
  */
-export function getCurrentDeadline(client: LiteSVM, offset: number = INTENT_DEADLINE_OFFSET): number {
+export function getCurrentTimestamp(client: LiteSVM, offset = 0): number {
   const now = Number(client.getClock().unixTimestamp)
   return now + offset
 }
@@ -30,12 +30,7 @@ export function expectTransactionError(
   expectedMessage: string
 ): void {
   expect(typeof res).to.not.be.eq('TransactionMetadata')
-
-  if (typeof res === 'string') {
-    expect(res).to.include(expectedMessage)
-  } else {
-    expect(res.toString()).to.include(expectedMessage)
-  }
+  expect(res.toString()).to.include(expectedMessage)
 }
 
 export function toLamports(sol: number): bigint {

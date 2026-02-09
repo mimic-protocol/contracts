@@ -35,6 +35,13 @@ export type ExtendIntentParams = {
   moreEventsHex?: IntentEvent[]
 }
 
+export type CreateProposalParams = {
+  instructions: ProposalInstruction[]
+  fees: TokenFee[]
+  deadline: number
+  isFinal?: boolean
+}
+
 export type ProposalInstructionAccountMeta = {
   pubkey: web3.PublicKey
   isSigner: boolean

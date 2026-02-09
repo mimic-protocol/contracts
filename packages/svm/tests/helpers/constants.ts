@@ -25,7 +25,7 @@ export const ACCOUNT_CLOSE_FEE = 5000 // Fee for closing accounts
 
 // Test constants for data
 export const DEFAULT_DATA_HEX = '010203'
-export const DEFAULT_TOPIC_HEX = Buffer.from(Array(32).fill(1)).toString('hex')
+export const DEFAULT_TOPIC_HEX = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 export const DEFAULT_EVENT_DATA_HEX = '040506'
 export const EMPTY_DATA_HEX = ''
 export const TEST_DATA_HEX_1 = '070809'
