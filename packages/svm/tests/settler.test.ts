@@ -14,7 +14,7 @@ import {
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { BN } from 'bn.js'
 import { expect } from 'chai'
-import { ethers, HDNodeWallet } from 'ethers'
+import { ethers } from 'ethers'
 import fs from 'fs'
 import { LiteSVM } from 'litesvm'
 import os from 'os'
@@ -1887,7 +1887,7 @@ describe('Settler', () => {
         axiaRegistry: Address
       }> = {}
     ): Promise<TransactionInstruction[]> => {
-      const {signature, recoveryId} = await createAxiaSignature(proposalKeyOverride, ethAxia)
+      const { signature, recoveryId } = await createAxiaSignature(proposalKeyOverride, ethAxia)
 
       const prefixedMessage = solverSdk.getEthPrefixedMessage(proposalKeyOverride.toBuffer())
 
@@ -1896,7 +1896,7 @@ describe('Settler', () => {
         ethAddress: ethAxia.address,
         signature: Buffer.from(signature),
         recoveryId,
-        ...secp256k1IxOptions
+        ...secp256k1IxOptions,
       })
 
       const ix = await program.methods
@@ -1975,7 +1975,7 @@ describe('Settler', () => {
                   before(async () => {
                     proposalKey = await createTestProposal()
                     ixs = await createSigAndIxs(undefined, undefined, undefined, {
-                      proposal: await createTestProposal()
+                      proposal: await createTestProposal(),
                     })
                   })
 
@@ -1987,7 +1987,10 @@ describe('Settler', () => {
                     const otherAxia = await createAllowlistedAxia()
                     proposalKey = await createTestProposal()
                     ixs = await createSigAndIxs(undefined, undefined, undefined, {
-                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(EntityType.Axia, hexToBytes(otherAxia.address))
+                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(
+                        EntityType.Axia,
+                        hexToBytes(otherAxia.address)
+                      ),
                     })
                   })
 
@@ -1997,13 +2000,19 @@ describe('Settler', () => {
                 context('when signing with an allowlisted validator key', () => {
                   before(async () => {
                     const validator = ethers.Wallet.createRandom()
-                    await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator,
+                    await createAllowlistedEntity(
+                      controllerSdk,
+                      provider,
+                      EntityType.Validator,
                       hexToBytes(validator.address)
                     )
 
                     proposalKey = await createTestProposal()
                     ixs = await createSigAndIxs(undefined, validator, undefined, {
-                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(EntityType.Axia, hexToBytes(validator.address))
+                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(
+                        EntityType.Axia,
+                        hexToBytes(validator.address)
+                      ),
                     })
                   })
 
@@ -2022,7 +2031,9 @@ describe('Settler', () => {
                     const recoveryId = fullSigBytes[64] - 27
 
                     ixs = await createSigAndIxs(undefined, undefined, {
-                      message: solverSdk.getEthPrefixedMessage(message), signature, recoveryId
+                      message: solverSdk.getEthPrefixedMessage(message),
+                      signature,
+                      recoveryId,
                     })
                   })
 
@@ -2035,7 +2046,7 @@ describe('Settler', () => {
               before(async () => {
                 proposalKey = await createTestProposal()
                 ixs = await createSigAndIxs(undefined, undefined, {
-                  signature: Buffer.from(new Uint8Array(64).fill(0xff))
+                  signature: Buffer.from(new Uint8Array(64).fill(0xff)),
                 })
               })
 
@@ -2046,32 +2057,76 @@ describe('Settler', () => {
           context('when proposal conditions are not met', () => {
             context('when the proposal is final', () => {
               context('when the proposal deadline is in the past', () => {
-                it('should not sign the proposal', async () => {})
+                before('create proposal and warp until it has expired', async () => {
+                  proposalKey = await createTestProposal({
+                    proposalParams: { isFinal: true, deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
+                  })
+                  ixs = await createSigAndIxs()
+                  warpSeconds(provider, WARP_TIME_LONG)
+                })
+
+                itThrowsAnError('ProposalIsExpired')
               })
 
               context('when the proposal deadline equals now', () => {
-                it('should not sign the proposal', async () => {})
+                before('create proposal and warp until it has expired', async () => {
+                  proposalKey = await createTestProposal({
+                    proposalParams: { isFinal: true, deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
+                  })
+                  ixs = await createSigAndIxs()
+                  warpSeconds(provider, WARP_TIME_SHORT)
+                })
+
+                itThrowsAnError('ProposalIsExpired')
               })
             })
 
             context('when the proposal is not final', () => {
-              it('should not sign the proposal', async () => {})
+              before('create proposal and warp until it has expired', async () => {
+                proposalKey = await createTestProposal({
+                  proposalParams: { isFinal: false },
+                })
+                ixs = await createSigAndIxs()
+              })
+
+              itThrowsAnError('ProposalIsNotFinal')
             })
           })
         })
 
         context('when proposal does not exist', () => {
-          it('should fail with AccountNotInitialized', async () => {})
+          before(async () => {
+            proposalKey = randomPubkey()
+            ixs = await createSigAndIxs()
+          })
+
+          itThrowsAnError('AnchorError caused by account: proposal. Error Code: AccountNotInitialized')
         })
       })
 
       context('when signer is not whitelisted axia', () => {
-        it('should not sign the proposal', async () => {})
+        before('create objects and de-whitelist axia', async () => {
+          proposalKey = await createTestProposal()
+          ixs = await createSigAndIxs()
+          await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
+        })
+
+        itThrowsAnError('AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized')
       })
     })
 
     context('when caller is not whitelisted solver', () => {
-        it('should not sign the proposal', async () => {})
+      before('create objects and de-whitelist solver', async () => {
+        proposalKey = await createTestProposal()
+        ixs = await createSigAndIxs()
+        await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      after('re-whitelist solver', async () => {
+        await createAllowlistedEntity(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      itThrowsAnError('AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
     })
   })
 })
