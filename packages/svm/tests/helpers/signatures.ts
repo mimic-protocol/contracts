@@ -1,3 +1,4 @@
+import { hexToBytes } from '@mimicprotocol/sdk'
 import { PublicKey } from '@solana/web3.js'
 import { ethers } from 'ethers'
 
@@ -9,7 +10,7 @@ export async function createValidatorSignature(
   intentHash: string,
   validator: ethers.HDNodeWallet | ethers.Wallet
 ): Promise<{ signature: number[]; recoveryId: number }> {
-  const messageHash = Buffer.from(intentHash, 'hex')
+  const messageHash = hexToBytes(intentHash)
   if (messageHash.length !== 32) {
     throw new Error(`Intent hash must be 32 bytes, got ${messageHash.length}`)
   }

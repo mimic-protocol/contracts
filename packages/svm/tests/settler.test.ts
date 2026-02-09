@@ -1,12 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import { Program, Wallet } from '@coral-xyz/anchor'
-import { randomHex } from '@mimicprotocol/sdk'
-import { Keypair, PublicKey, TransactionInstruction } from '@solana/web3.js'
+import { Address, Program, Wallet } from '@coral-xyz/anchor'
+import { hexToBytes, randomHex } from '@mimicprotocol/sdk'
+import {
+  CreateSecp256k1InstructionWithEthAddressParams,
+  Keypair,
+  PublicKey,
+  Secp256k1Program,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+  TransactionInstruction,
+} from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { BN } from 'bn.js'
 import { expect } from 'chai'
+import { ethers } from 'ethers'
 import fs from 'fs'
 import { LiteSVM } from 'litesvm'
 import os from 'os'
@@ -20,6 +28,7 @@ import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
 import {
   addValidatorsToIntent,
+  createAllowlistedEntity,
   CreateIntentOptions,
   createIntentParams,
   CreateProposalOptions,
@@ -28,13 +37,16 @@ import {
   createTestIntent,
   createTestProposalInstruction,
   createValidatedIntent,
+  createValidatorSignature,
   createWritableInstructionAccount,
+  ethAddressToByteArray,
   expectTransactionError,
   generateIntentHash,
   generateNonce,
   getCurrentTimestamp,
   randomKeypair,
   randomPubkey,
+  removeEntityFromAllowlist,
   toLamports,
 } from './helpers'
 import {
@@ -296,26 +308,26 @@ describe('Settler', () => {
           let ix: TransactionInstruction
 
           before('create intent params and ix with invalid hash', async () => {
-            intentHash = '123456' // invalid - not 32 bytes
+            intentHash = '0x123456' // invalid - not 32 bytes
             intentOptions = {}
 
             // Build ix with invalid hash
             const params = createIntentParams(client, intentOptions)
             const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
 
-            const intentHashParam = Array.from(Buffer.from(intentHash, 'hex'))
-            const nonce = Array.from(Buffer.from(nonceHex, 'hex'))
-            const data = Buffer.from(dataHex, 'hex')
+            const intentHashParam = Array.from(hexToBytes(intentHash))
+            const nonce = Array.from(hexToBytes(nonceHex))
+            const data = hexToBytes(dataHex)
             const maxFeesBn = maxFees.map((tokenFee) => ({
               ...tokenFee,
               amount: new BN(tokenFee.amount),
             }))
             const events = eventsHex.map((eventHex) => ({
-              topic: Array.from(Uint8Array.from(Buffer.from(eventHex.topicHex, 'hex'))),
-              data: Buffer.from(eventHex.dataHex, 'hex'),
+              topic: Array.from(Uint8Array.from(hexToBytes(eventHex.topicHex))),
+              data: hexToBytes(eventHex.dataHex),
             }))
             const intentKey = PublicKey.findProgramAddressSync(
-              [Buffer.from('intent'), Buffer.from(intentHash, 'hex')],
+              [Buffer.from('intent'), hexToBytes(intentHash)],
               program.programId
             )[0]
 
@@ -1552,4 +1564,377 @@ describe('Settler', () => {
       })
     })
   })
+
+  describe('add_validator_sigs', () => {
+    const createAllowlistedValidator = async () => {
+      const validator = ethers.Wallet.createRandom()
+      await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator, hexToBytes(validator.address))
+      return validator
+    }
+
+    const createSigAndIxs = async (
+      hash: string = intentHash,
+      ethValidator: ethers.HDNodeWallet = validator,
+      secp256k1IxOptions: Partial<CreateSecp256k1InstructionWithEthAddressParams> = {},
+      accountsPartial: Partial<{
+        fulfilledIntent: Address
+        intent: Address
+        solver: Address
+        solverRegistry: Address
+        validatorRegistry: Address
+        ixSysvar: Address
+      }> = {}
+    ) => {
+      const { signature, recoveryId } = await createValidatorSignature(hash, ethValidator)
+
+      const validatorEthAddress = hexToBytes(ethValidator.address)
+      const prefixedMessage = solverSdk.getEthPrefixedMessage(hexToBytes(hash))
+
+      const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+        message: prefixedMessage,
+        ethAddress: validatorEthAddress,
+        signature: Buffer.from(signature),
+        recoveryId,
+        ...secp256k1IxOptions,
+      })
+
+      const ix = await program.methods
+        .addValidatorSig()
+        .accountsPartial({
+          solver: solverSdk.getSignerKey(),
+          solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+          intent: solverSdk.getIntentKey(hash),
+          fulfilledIntent: solverSdk.getFulfilledIntentKey(hash),
+          validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
+          ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+          ...accountsPartial,
+        })
+        .instruction()
+
+      return [secp256k1Ix, ix]
+    }
+
+    const itThrowsAnError = async (error: string) => {
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+        expectTransactionError(res, error)
+      })
+    }
+
+    let intentHash: string
+    let validator: ethers.HDNodeWallet
+    let ixs: TransactionInstruction[]
+
+    context('when caller is whitelisted solver', () => {
+      context('when intent was created', () => {
+        context('when intent conditions are met', () => {
+          context('when signature is cryptographically valid', () => {
+            context('when signature is logically valid', () => {
+              context('when adding valid signatures', () => {
+                context('when adding one signature', () => {
+                  before(async () => {
+                    intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+                    validator = await createAllowlistedValidator()
+                    ixs = await createSigAndIxs()
+                  })
+
+                  it('should add validator to intent validators array', async () => {
+                    const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    await makeTxSignAndSend(solverProvider, ...ixs)
+                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                    expect(intentBefore.validators.length).to.be.eq(0)
+                    expect(intentAfter.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators[0]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+                  })
+
+                  it('should not add the validator twice (idempotent ix)', async () => {
+                    client.expireBlockhash()
+                    ixs = await createSigAndIxs()
+                    const res = await makeTxSignAndSend(solverProvider, ...ixs)
+
+                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                    expect(res.toString()).to.not.include('FailedTransactionMetadata')
+                    expect(intentAfter.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators[0]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+                  })
+                })
+
+                context('when adding multiple signatures', () => {
+                  const validators: ethers.HDNodeWallet[] = []
+                  const sigIxs: TransactionInstruction[][] = []
+
+                  before('creates multiple allowlisted validators and signatures', async () => {
+                    intentHash = await createTestIntent(solverSdk, solverProvider, { minValidations: 3, isFinal: true })
+                    for (let i = 0; i < 3; i++) {
+                      const validator = await createAllowlistedValidator()
+                      const ixs = await createSigAndIxs(undefined, validator)
+                      validators.push(validator)
+                      sigIxs.push(ixs)
+                    }
+                  })
+
+                  it('should add validators to intent validators array', async () => {
+                    for (let i = 0; i < 3; i++) {
+                      const validator = validators[i]
+                      const ixs = sigIxs[i]
+
+                      const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                      await makeTxSignAndSend(solverProvider, ...ixs)
+                      const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                      expect(intentBefore.validators.length).to.be.eq(i)
+                      expect(intentAfter.validators.length).to.be.eq(i + 1)
+                      expect(intentAfter.validators[i]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+                    }
+                  })
+                })
+              })
+            })
+
+            context('when signature is logically invalid', () => {
+              context('when validator is not whitelisted', () => {
+                before(async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                  validator = ethers.Wallet.createRandom()
+                  ixs = await createSigAndIxs()
+                })
+
+                itThrowsAnError(
+                  'Program log: AnchorError caused by account: validator_registry. Error Code: AccountNotInitialized'
+                )
+              })
+
+              context('when signing with another address', () => {
+                before('create valid signature but from another validator', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+                  const validator1 = await createAllowlistedValidator()
+                  const validator2 = await createAllowlistedValidator()
+                  ixs = await createSigAndIxs(
+                    intentHash,
+                    validator1,
+                    {},
+                    {
+                      validatorRegistry: solverSdk.getEntityRegistryPubkey(
+                        EntityType.Validator,
+                        hexToBytes(validator2.address)
+                      ),
+                    }
+                  )
+                })
+
+                itThrowsAnError('SigVerificationFailedIncorrectValidator')
+              })
+
+              context('when signing for another intent', () => {
+                before(async () => {
+                  const otherHash = generateIntentHash()
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+                  validator = await createAllowlistedValidator()
+                  ixs = await createSigAndIxs(
+                    otherHash,
+                    validator,
+                    {},
+                    {
+                      intent: solverSdk.getIntentKey(intentHash),
+                      fulfilledIntent: solverSdk.getFulfilledIntentKey(intentHash),
+                    }
+                  )
+                })
+
+                itThrowsAnError('SigVerificationFailedIncorrectMessage')
+              })
+            })
+          })
+
+          context('when signature is cryptographically invalid', () => {
+            before(async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+              validator = await createAllowlistedValidator()
+              ixs = await createSigAndIxs(intentHash, validator, {
+                signature: Buffer.from(new Uint8Array(64).fill(0xff)),
+              })
+            })
+
+            itThrowsAnError('err: InstructionError(0, Custom(2))')
+          })
+        })
+
+        context('when intent conditions are not met', () => {
+          context('when the intent was not executed', () => {
+            context('when the intent is final', () => {
+              context('when the intent has not expired yet', () => {
+                context('when min_validations is already met', async () => {
+                  before(async () => {
+                    intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
+                      isFinal: true,
+                      minValidations: 1,
+                    })
+                    validator = await createAllowlistedValidator()
+                    ixs = await createSigAndIxs()
+                  })
+
+                  it('should not add the validator', async () => {
+                    const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    const res = await makeTxSignAndSend(solverProvider, ...ixs)
+                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                    expect(res.toString()).to.not.include('FailedTransactionMetadata')
+                    expect(intentBefore.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators[0]).to.not.be.deep.eq(ethAddressToByteArray(validator.address))
+                  })
+                })
+              })
+
+              context('when the intent has expired', () => {
+                before(async () => {
+                  const deadline = getCurrentTimestamp(client, SHORT_DEADLINE)
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true, deadline })
+                  validator = await createAllowlistedValidator()
+                  ixs = await createSigAndIxs()
+                  warpSeconds(solverProvider, WARP_TIME_LONG)
+                })
+
+                itThrowsAnError('IntentIsExpired')
+              })
+            })
+
+            context('when the intent is not final', () => {
+              before(async () => {
+                intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                validator = await createAllowlistedValidator()
+                ixs = await createSigAndIxs()
+              })
+
+              itThrowsAnError('IntentIsNotFinal')
+            })
+          })
+
+          context('when the intent was already executed', () => {
+            context('when fulfilledIntent exists', () => {
+              before(async () => {
+                intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+
+                // Mock FulfilledIntent
+                const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
+                client.setAccount(fulfilledIntent, {
+                  executable: false,
+                  lamports: 1002240,
+                  owner: program.programId,
+                  data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
+                })
+
+                validator = await createAllowlistedValidator()
+                ixs = await createSigAndIxs()
+              })
+
+              itThrowsAnError(
+                'Program log: AnchorError caused by account: fulfilled_intent. Error Code: AccountNotSystemOwned'
+              )
+            })
+          })
+        })
+      })
+
+      context('when intent was never created', () => {
+        before('generate random intent hash and ixs without sdk', async () => {
+          intentHash = generateIntentHash()
+          validator = ethers.Wallet.createRandom()
+          ixs = await createSigAndIxs(intentHash, validator)
+        })
+
+        itThrowsAnError('AnchorError caused by account: intent. Error Code: AccountNotInitialized')
+      })
+    })
+
+    context('when caller is not whitelisted solver', () => {
+      before('create test intent and de-whitelist solver', async () => {
+        intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+        validator = ethers.Wallet.createRandom()
+        ixs = await createSigAndIxs()
+
+        await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      after('re-whitelist solver', async () => {
+        await createAllowlistedEntity(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      itThrowsAnError('Program log: AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
+    })
+  })
+
+  // describe('add_axia_sig', () => {
+  //   before(async () => {})
+
+  //   context('when adding valid signatures', () => {
+  //     context('when adding one signature', () => {
+  //       it('should sign proposal', async () => {})
+  //     })
+
+  //     context('when adding multiple signatures', () => {
+  //       it('should sign proposal once', async () => {})
+  //     })
+
+  //     context('when adding the same signature again', () => {
+  //       it('should sign proposal once', async () => {})
+  //     })
+  //   })
+
+  //   context('when proposal conditions are not met', () => {
+  //     context('when the proposal is not final', () => {
+  //       it('should not sign the proposal', async () => {})
+  //     })
+
+  //     context('when the proposal has expired', () => {
+  //       it('should not sign the proposal', async () => {})
+  //     })
+
+  //     context('when the proposal deadline equals now', () => {
+  //       it('should not sign the proposal', async () => {})
+  //     })
+  //   })
+
+  //   context('when axia is not whitelisted', () => {
+  //     it('should not sign the proposal', async () => {})
+  //   })
+
+  //   context('when solver is not whitelisted', () => {
+  //     it('should not sign the proposal', async () => {})
+  //   })
+
+  //   context('when proposal does not exist', () => {
+  //     it('should fail with AccountNotInitialized', async () => {})
+  //   })
+
+  //   context('when signature is invalid', () => {
+  //     context('when signature verifies', () => {
+  //       context('when signing for another proposal', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when axia is not allowlisted', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when signing with another allowlisted axia key', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when signing with an allowlisted validator key', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+
+  //       context('when signing another message', () => {
+  //         it('should fail with SignatureVerificationError', async () => {})
+  //       })
+  //     })
+
+  //     context('when signature fails to verify', () => {
+  //       it('should fail with SignatureVerificationError', async () => {})
+  //     })
+  //   })
+  // })
 })
