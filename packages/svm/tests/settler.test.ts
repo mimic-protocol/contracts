@@ -14,7 +14,7 @@ import {
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { BN } from 'bn.js'
 import { expect } from 'chai'
-import { ethers } from 'ethers'
+import { ethers, HDNodeWallet } from 'ethers'
 import fs from 'fs'
 import { LiteSVM } from 'litesvm'
 import os from 'os'
@@ -29,6 +29,7 @@ import { Settler } from '../target/types/settler'
 import {
   addValidatorsToIntent,
   createAllowlistedEntity,
+  createAxiaSignature,
   CreateIntentOptions,
   createIntentParams,
   CreateProposalOptions,
@@ -1579,10 +1580,7 @@ describe('Settler', () => {
       accountsPartial: Partial<{
         fulfilledIntent: Address
         intent: Address
-        solver: Address
-        solverRegistry: Address
         validatorRegistry: Address
-        ixSysvar: Address
       }> = {}
     ) => {
       const { signature, recoveryId } = await createValidatorSignature(hash, ethValidator)
@@ -1867,6 +1865,66 @@ describe('Settler', () => {
   })
 
   describe('add_axia_sig', () => {
+    const createAllowlistedAxia = async () => {
+      const axia = ethers.Wallet.createRandom()
+      await createAllowlistedEntity(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
+      return axia
+    }
+
+    const createTestProposal = async (options?: CreateProposalOptions): Promise<PublicKey> => {
+      const params = await createProposalParams(solverSdk, solverProvider, client, options)
+      const ix = await solverSdk.createProposalIx(params.intentHash, params)
+      await makeTxSignAndSend(solverProvider, ix)
+      return solverSdk.getProposalKey(params.intentHash)
+    }
+
+    const createSigAndIxs = async (
+      proposalKeyOverride: PublicKey = proposalKey,
+      ethAxia: ethers.HDNodeWallet = axia,
+      secp256k1IxOptions: Partial<CreateSecp256k1InstructionWithEthAddressParams> = {},
+      accountsPartial: Partial<{
+        proposal: Address
+        axiaRegistry: Address
+      }> = {}
+    ): Promise<TransactionInstruction[]> => {
+      const {signature, recoveryId} = await createAxiaSignature(proposalKeyOverride, ethAxia)
+
+      const prefixedMessage = solverSdk.getEthPrefixedMessage(proposalKeyOverride.toBuffer())
+
+      const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+        message: prefixedMessage,
+        ethAddress: ethAxia.address,
+        signature: Buffer.from(signature),
+        recoveryId,
+        ...secp256k1IxOptions
+      })
+
+      const ix = await program.methods
+        .addAxiaSig()
+        .accountsPartial({
+          solver: solverSdk.getSignerKey(),
+          solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+          proposal: proposalKeyOverride,
+          axiaRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Axia, hexToBytes(ethAxia.address)),
+          ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+          ...accountsPartial,
+        })
+        .instruction()
+
+      return [secp256k1Ix, ix]
+    }
+
+    const itThrowsAnError = async (error: string) => {
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+        expectTransactionError(res.toString(), error)
+      })
+    }
+
+    let ixs: TransactionInstruction[] = []
+    let proposalKey: PublicKey = PublicKey.default
+    let axia: ethers.HDNodeWallet
+
     context('when caller is whitelisted solver', () => {
       context('when signer is whitelisted axia', () => {
         context('when proposal exists', () => {
@@ -1874,35 +1932,114 @@ describe('Settler', () => {
             context('when signature is cryptographically valid', () => {
               context('when signature is logically valid', () => {
                 context('when proposal is unsigned', () => {
-                  it('should sign the proposal', async () => {})
+                  before(async () => {
+                    axia = await createAllowlistedAxia()
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs()
+                  })
+
+                  it('should sign the proposal', async () => {
+                    let proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.false
+
+                    await makeTxSignAndSend(solverProvider, ...ixs)
+
+                    proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.true
+                  })
                 })
 
                 context('when proposal is already signed', () => {
-                  it('should not sign the proposal twice (idempotent ix)')
+                  before(async () => {
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs()
+                    await makeTxSignAndSend(solverProvider, ...ixs)
+                    client.expireBlockhash()
+                  })
+
+                  it('should not sign the proposal twice (idempotent ix)', async () => {
+                    let proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.true
+
+                    const res = await makeTxSignAndSend(solverProvider, ...ixs)
+
+                    proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.true
+                    expect(res.toString()).to.not.include('FailedTransactionMetadata')
+                  })
                 })
               })
 
               context('when signature is logically invalid', () => {
                 context('when signing for another proposal', () => {
-                  it('should fail with SignatureVerificationErrorIncorrectMessage', async () => {})
+                  before(async () => {
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, undefined, undefined, {
+                      proposal: await createTestProposal()
+                    })
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectMessage')
                 })
 
                 context('when signing with another allowlisted axia key', () => {
-                  it('should fail with SignatureVerificationErrorIncorrectAxia', async () => {})
+                  before(async () => {
+                    const otherAxia = await createAllowlistedAxia()
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, undefined, undefined, {
+                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(EntityType.Axia, hexToBytes(otherAxia.address))
+                    })
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectAxia')
                 })
 
                 context('when signing with an allowlisted validator key', () => {
-                  it('should fail with SignatureVerificationErrorIncorrectAxia', async () => {})
+                  before(async () => {
+                    const validator = ethers.Wallet.createRandom()
+                    await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator,
+                      hexToBytes(validator.address)
+                    )
+
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, validator, undefined, {
+                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(EntityType.Axia, hexToBytes(validator.address))
+                    })
+                  })
+
+                  itThrowsAnError('AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized')
                 })
 
                 context('when signing another message', () => {
-                  it('should fail with SignatureVerificationErrorIncorrectMessage', async () => {})
+                  before(async () => {
+                    proposalKey = await createTestProposal()
+
+                    const message = hexToBytes(ethers.keccak256(hexToBytes('0xdeadbeef')))
+                    const fullSignature = await axia.signMessage(message)
+                    const fullSigBytes = ethers.getBytes(fullSignature)
+
+                    const signature = Array.from(fullSigBytes.slice(0, 64))
+                    const recoveryId = fullSigBytes[64] - 27
+
+                    ixs = await createSigAndIxs(undefined, undefined, {
+                      message: solverSdk.getEthPrefixedMessage(message), signature, recoveryId
+                    })
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectMessage')
                 })
               })
             })
 
             context('when signature is not cryptographically valid', () => {
-              it('should fail with Custom(2) (preprocess error)', async () => {})
+              before(async () => {
+                proposalKey = await createTestProposal()
+                ixs = await createSigAndIxs(undefined, undefined, {
+                  signature: Buffer.from(new Uint8Array(64).fill(0xff))
+                })
+              })
+
+              itThrowsAnError('err: InstructionError(0, Custom(2))')
             })
           })
 
