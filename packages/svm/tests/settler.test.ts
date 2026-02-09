@@ -1866,75 +1866,75 @@ describe('Settler', () => {
     })
   })
 
-  // describe('add_axia_sig', () => {
-  //   before(async () => {})
+  describe('add_axia_sig', () => {
+    context('when caller is whitelisted solver', () => {
+      context('when signer is whitelisted axia', () => {
+        context('when proposal exists', () => {
+          context('when proposal conditions are met', () => {
+            context('when signature is cryptographically valid', () => {
+              context('when signature is logically valid', () => {
+                context('when proposal is unsigned', () => {
+                  it('should sign the proposal', async () => {})
+                })
 
-  //   context('when adding valid signatures', () => {
-  //     context('when adding one signature', () => {
-  //       it('should sign proposal', async () => {})
-  //     })
+                context('when proposal is already signed', () => {
+                  it('should not sign the proposal twice (idempotent ix)')
+                })
+              })
 
-  //     context('when adding multiple signatures', () => {
-  //       it('should sign proposal once', async () => {})
-  //     })
+              context('when signature is logically invalid', () => {
+                context('when signing for another proposal', () => {
+                  it('should fail with SignatureVerificationErrorIncorrectMessage', async () => {})
+                })
 
-  //     context('when adding the same signature again', () => {
-  //       it('should sign proposal once', async () => {})
-  //     })
-  //   })
+                context('when signing with another allowlisted axia key', () => {
+                  it('should fail with SignatureVerificationErrorIncorrectAxia', async () => {})
+                })
 
-  //   context('when proposal conditions are not met', () => {
-  //     context('when the proposal is not final', () => {
-  //       it('should not sign the proposal', async () => {})
-  //     })
+                context('when signing with an allowlisted validator key', () => {
+                  it('should fail with SignatureVerificationErrorIncorrectAxia', async () => {})
+                })
 
-  //     context('when the proposal has expired', () => {
-  //       it('should not sign the proposal', async () => {})
-  //     })
+                context('when signing another message', () => {
+                  it('should fail with SignatureVerificationErrorIncorrectMessage', async () => {})
+                })
+              })
+            })
 
-  //     context('when the proposal deadline equals now', () => {
-  //       it('should not sign the proposal', async () => {})
-  //     })
-  //   })
+            context('when signature is not cryptographically valid', () => {
+              it('should fail with Custom(2) (preprocess error)', async () => {})
+            })
+          })
 
-  //   context('when axia is not whitelisted', () => {
-  //     it('should not sign the proposal', async () => {})
-  //   })
+          context('when proposal conditions are not met', () => {
+            context('when the proposal is final', () => {
+              context('when the proposal deadline is in the past', () => {
+                it('should not sign the proposal', async () => {})
+              })
 
-  //   context('when solver is not whitelisted', () => {
-  //     it('should not sign the proposal', async () => {})
-  //   })
+              context('when the proposal deadline equals now', () => {
+                it('should not sign the proposal', async () => {})
+              })
+            })
 
-  //   context('when proposal does not exist', () => {
-  //     it('should fail with AccountNotInitialized', async () => {})
-  //   })
+            context('when the proposal is not final', () => {
+              it('should not sign the proposal', async () => {})
+            })
+          })
+        })
 
-  //   context('when signature is invalid', () => {
-  //     context('when signature verifies', () => {
-  //       context('when signing for another proposal', () => {
-  //         it('should fail with SignatureVerificationError', async () => {})
-  //       })
+        context('when proposal does not exist', () => {
+          it('should fail with AccountNotInitialized', async () => {})
+        })
+      })
 
-  //       context('when axia is not allowlisted', () => {
-  //         it('should fail with SignatureVerificationError', async () => {})
-  //       })
+      context('when signer is not whitelisted axia', () => {
+        it('should not sign the proposal', async () => {})
+      })
+    })
 
-  //       context('when signing with another allowlisted axia key', () => {
-  //         it('should fail with SignatureVerificationError', async () => {})
-  //       })
-
-  //       context('when signing with an allowlisted validator key', () => {
-  //         it('should fail with SignatureVerificationError', async () => {})
-  //       })
-
-  //       context('when signing another message', () => {
-  //         it('should fail with SignatureVerificationError', async () => {})
-  //       })
-  //     })
-
-  //     context('when signature fails to verify', () => {
-  //       it('should fail with SignatureVerificationError', async () => {})
-  //     })
-  //   })
-  // })
+    context('when caller is not whitelisted solver', () => {
+        it('should not sign the proposal', async () => {})
+    })
+  })
 })
