@@ -22,7 +22,7 @@ async function main(): Promise<void> {
   const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
   const settler = await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x18')
   await deployCreate3(SmartAccount7702, [settler.target], '0x19')
-  await deployCreate3(MimicHelperArtifact, [], '0x41')
+  await deployCreate3(MimicHelperArtifact, [], '0x42')
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
