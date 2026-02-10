@@ -36,6 +36,14 @@ contract MimicHelper {
     }
 
     /**
+     * @dev Tells the code of an address
+     * @param target Address to get code
+     */
+    function getCode(address target) external view returns (bytes memory) {
+        return target.code;
+    }
+
+    /**
      * @dev Tells the data set for the user and the key
      * @param user Address of the user being queried
      * @param key String of the key being queried
