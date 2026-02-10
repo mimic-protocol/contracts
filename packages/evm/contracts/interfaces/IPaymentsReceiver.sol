@@ -7,12 +7,12 @@ pragma solidity ^0.8.20;
  */
 interface IPaymentsReceiver {
     /**
-     * @dev The token is zero
+     * @dev The token address is zero
      */
     error PaymentsReceiverTokenZero();
 
     /**
-     * @dev The recipient is zero
+     * @dev The recipient address is zero
      */
     error PaymentsReceiverRecipientZero();
 
@@ -22,9 +22,19 @@ interface IPaymentsReceiver {
     error PaymentsReceiverAmountZero();
 
     /**
-     * @dev The user is zero
+     * @dev The user address is zero
      */
     error PaymentsReceiverUserZero();
+
+    /**
+     * @dev The input arrays are not of equal length
+     */
+    error PaymentsReceiverInputInvalidLength();
+
+    /**
+     * @dev The token is not allowed
+     */
+    error PaymentsReceiverTokenNotAllowed(address token);
 
     /**
      * @dev Emitted every time a deposit is made
@@ -35,6 +45,24 @@ interface IPaymentsReceiver {
      * @dev Emitted every time a withdrawal is made
      */
     event Withdrawn(address indexed token, address indexed recipient, uint256 amount);
+
+    /**
+     * @dev Emitted every time a token permission is set
+     */
+    event TokenAllowedSet(address indexed token, bool allowed);
+
+    /**
+     * @dev Tells whether a token is allowed
+     * @param token Address of the token being queried
+     */
+    function isTokenAllowed(address token) external view returns (bool);
+
+    /**
+     * @dev Sets permissions for multiple tokens
+     * @param tokens List of token addresses
+     * @param alloweds List of permission statuses
+     */
+    function setAllowedTokens(address[] memory tokens, bool[] memory alloweds) external;
 
     /**
      * @dev Deposits ERC20 tokens into the contract
