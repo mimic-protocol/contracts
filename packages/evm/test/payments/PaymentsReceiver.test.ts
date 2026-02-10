@@ -33,7 +33,7 @@ describe('PaymentsReceiver', () => {
       paymentsReceiver = paymentsReceiver.connect(payer)
     })
 
-    context('when the token is not zero', () => {
+    context('when the token address is not zero', () => {
       let token: TokenMock
 
       beforeEach('set token', async () => {
@@ -80,7 +80,7 @@ describe('PaymentsReceiver', () => {
       })
     })
 
-    context('when the token is zero', () => {
+    context('when the token address is zero', () => {
       const token = ZERO_ADDRESS
 
       it('reverts', async () => {
@@ -97,10 +97,10 @@ describe('PaymentsReceiver', () => {
       paymentsReceiver = paymentsReceiver.connect(payer)
     })
 
-    context('when the user is not zero', () => {
+    context('when the user address is not zero', () => {
       const user = randomEvmAddress()
 
-      context('when the token is not zero', () => {
+      context('when the token address is not zero', () => {
         let token: TokenMock
 
         beforeEach('set token', async () => {
@@ -147,7 +147,7 @@ describe('PaymentsReceiver', () => {
         })
       })
 
-      context('when the token is zero', () => {
+      context('when the token address is zero', () => {
         const token = ZERO_ADDRESS
 
         it('reverts', async () => {
@@ -159,7 +159,7 @@ describe('PaymentsReceiver', () => {
       })
     })
 
-    context('when the user is zero', () => {
+    context('when the user address is zero', () => {
       const user = ZERO_ADDRESS
 
       it('reverts', async () => {
@@ -177,7 +177,7 @@ describe('PaymentsReceiver', () => {
         paymentsReceiver = paymentsReceiver.connect(owner)
       })
 
-      context('when the token is not zero', () => {
+      context('when the token address is not zero', () => {
         let token: TokenMock
 
         beforeEach('set token', async () => {
@@ -185,7 +185,7 @@ describe('PaymentsReceiver', () => {
           await token.mint(paymentsReceiver.target, fp(1000))
         })
 
-        context('when the recipient is not zero', () => {
+        context('when the recipient address is not zero', () => {
           const recipient = randomEvmAddress()
 
           context('when the amount is not zero', () => {
@@ -221,7 +221,7 @@ describe('PaymentsReceiver', () => {
           })
         })
 
-        context('when the recipient is zero', () => {
+        context('when the recipient address is zero', () => {
           const recipient = ZERO_ADDRESS
 
           it('reverts', async () => {
@@ -233,7 +233,7 @@ describe('PaymentsReceiver', () => {
         })
       })
 
-      context('when the token is zero', () => {
+      context('when the token address is zero', () => {
         const token = ZERO_ADDRESS
 
         it('reverts', async () => {
