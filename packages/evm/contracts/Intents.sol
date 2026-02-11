@@ -15,18 +15,6 @@ enum OpType {
 }
 
 /**
- * @dev Execution structure.
- * @param intent Intent to be fulfilled.
- * @param proposal Proposal to be executed.
- * @param signature Proposal signature.
- */
-struct Execution {
-    Intent intent;
-    Proposal proposal;
-    bytes signature;
-}
-
-/**
  * @dev EIP-712 typed data struct representing a validator's approval of an intent.
  * @param intent The hash of the intent being validated.
  */
