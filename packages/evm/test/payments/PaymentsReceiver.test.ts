@@ -132,9 +132,10 @@ describe('PaymentsReceiver', () => {
 
     context('when the token address is not zero', () => {
       let token: TokenMock
+      const decimals = 18
 
       beforeEach('set token', async () => {
-        token = await ethers.deployContract('TokenMock', ['TKN', 18])
+        token = await ethers.deployContract('TokenMock', ['TKN', decimals])
         await token.mint(payer.address, fp(1000))
       })
 
@@ -166,7 +167,7 @@ describe('PaymentsReceiver', () => {
           it('emits an event', async () => {
             await expect(paymentsReceiver.deposit(token.target, amount))
               .to.emit(paymentsReceiver, 'Deposited')
-              .withArgs(token.target, payer.address, payer.address, amount)
+              .withArgs(token.target, payer.address, payer.address, amount, decimals)
           })
         })
 
@@ -218,14 +219,15 @@ describe('PaymentsReceiver', () => {
 
       context('when the token address is not zero', () => {
         let token: TokenMock
+        const decimals = 6
 
         beforeEach('set token', async () => {
-          token = await ethers.deployContract('TokenMock', ['TKN', 18])
-          await token.mint(payer.address, fp(1000))
+          token = await ethers.deployContract('TokenMock', ['TKN', decimals])
+          await token.mint(payer.address, fp(1000, decimals))
         })
 
         context('when the amount is not zero', () => {
-          const amount = fp(10)
+          const amount = fp(10, decimals)
 
           beforeEach('approve', async () => {
             await token.connect(payer).approve(paymentsReceiver.target, amount)
@@ -252,7 +254,7 @@ describe('PaymentsReceiver', () => {
             it('emits an event', async () => {
               await expect(paymentsReceiver.depositOnBehalf(token.target, user, amount))
                 .to.emit(paymentsReceiver, 'Deposited')
-                .withArgs(token.target, payer.address, getAddress(user), amount)
+                .withArgs(token.target, payer.address, getAddress(user), amount, decimals)
             })
           })
 

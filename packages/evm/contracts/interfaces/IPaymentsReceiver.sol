@@ -39,7 +39,13 @@ interface IPaymentsReceiver {
     /**
      * @dev Emitted every time a deposit is made
      */
-    event Deposited(address indexed token, address indexed depositor, address indexed user, uint256 amount);
+    event Deposited(
+        address indexed token,
+        address indexed depositor,
+        address indexed user,
+        uint256 amount,
+        uint8 decimals
+    );
 
     /**
      * @dev Emitted every time a withdrawal is made
