@@ -33,6 +33,20 @@ type ProposalInstructionAnchor = {
   data: Buffer
 }
 
+type ProposalAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['proposal']['fetch']>>>
+type IntentAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['intent']['fetch']>>>
+
+// TODO: change in sdk
+export const PROPOSAL_712_TYPE = {
+  Proposal: [
+    { name: 'intent', type: 'bytes32' },
+    { name: 'solver', type: 'string' },
+    { name: 'deadline', type: 'uint256' },
+    { name: 'data', type: 'bytes' },
+    { name: 'fees', type: 'uint256[]' },
+  ],
+}
+
 export default class SettlerSDK {
   protected program: Program<Settler>
 
@@ -203,10 +217,16 @@ export default class SettlerSDK {
     signature: number[],
     recoveryId: number
   ): Promise<web3.TransactionInstruction[]> {
-    const prefixedMessage = Buffer.from('0x00', 'hex') // TODO this.getEthPrefixedMessage(proposal.toBuffer())
+    const proposalAccount: ProposalAccount | null = await this.program.account.proposal.fetchNullable(proposal)
+    if (!proposalAccount) throw new Error(`Couldn't fetch Proposal at address ${proposal}`)
+
+    const intentAccount: IntentAccount | null = await this.program.account.intent.fetchNullable(proposalAccount.intent)
+    if (!intentAccount) throw new Error(`Couldn't fetch Intent at address ${proposalAccount.intent}`)
+
+    const eip712Preimage = this.getProposalEip712Preimage(intentAccount.hash, proposalAccount)
 
     const secp256k1Ix = web3.Secp256k1Program.createInstructionWithEthAddress({
-      message: prefixedMessage,
+      message: hexToBytes(eip712Preimage),
       ethAddress: axiaEthAddress,
       signature: Buffer.from(signature),
       recoveryId,
@@ -218,6 +238,7 @@ export default class SettlerSDK {
         solver: this.getSignerKey(),
         solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
         proposal,
+        intent: proposalAccount.intent,
         axiaRegistry: this.getEntityRegistryPubkey(EntityType.Axia, axiaEthAddress),
         ixSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
@@ -278,15 +299,19 @@ export default class SettlerSDK {
     throw new Error(`Unsupported op ${op}`)
   }
 
-  getEip712Preimage(
-    types: Record<string, Array<ethers.TypedDataField>>,
-    value: Record<string, any>,
-  ): string {
-    return ethers.TypedDataEncoder.encode(
-      { ...SETTLER_EIP712_DOMAIN, chainId: Chains.Solana },
-      INTENT_HASH_VALIDATION_712_TYPES,
-      value,
-    )
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getEip712Preimage(types: Record<string, Array<ethers.TypedDataField>>, value: Record<string, any>): string {
+    return ethers.TypedDataEncoder.encode({ ...SETTLER_EIP712_DOMAIN, chainId: Chains.Solana }, types, value)
+  }
+
+  getProposalEip712Preimage(intentHash: number[], proposal: ProposalAccount): string {
+    return this.getEip712Preimage(PROPOSAL_712_TYPE, {
+      intent: Buffer.from(intentHash),
+      solver: proposal.creator.toString(),
+      deadline: proposal.deadline.toString(),
+      data: '0x', // TODO
+      fees: proposal.fees.map((fee) => fee.amount.toString()),
+    })
   }
 
   private parseIntentHashHex(intentHashHex: string): number[] {

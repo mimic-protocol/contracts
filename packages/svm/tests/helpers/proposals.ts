@@ -42,6 +42,8 @@ export type CreateProposalOptions = Partial<{
   proposalParams: Partial<CreateProposalParams>
 }>
 
+export type ProposalAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['proposal']['fetch']>>>
+
 /**
  * Create proposal params (intent, deadline, instructions, fees) for testing
  */

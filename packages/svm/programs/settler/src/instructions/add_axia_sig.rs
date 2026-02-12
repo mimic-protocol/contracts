@@ -6,9 +6,10 @@ use anchor_lang::{
 use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
-    state::Proposal,
+    state::{Intent, Proposal},
     utils::{
-        Secp256k1Args, check_secp256k1_ix, create_intent_hash_eip712_preimage, get_args_from_secp256k1_ix_data
+        check_secp256k1_ix, create_proposal_eip712_preimage, get_args_from_secp256k1_ix_data,
+        Secp256k1Args,
     },
 };
 
@@ -36,8 +37,12 @@ pub struct AddAxiaSig<'info> {
         mut,
         constraint = proposal.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::ProposalIsExpired,
         constraint = proposal.is_final @ SettlerError::ProposalIsNotFinal,
+        has_one = intent @ SettlerError::IncorrectIntentForProposal,
     )]
     pub proposal: Box<Account<'info, Proposal>>,
+
+    /// CHECK: Proposal's intent checked through has_one
+    pub intent: Box<Account<'info, Intent>>,
 
     /// CHECK: The address check is needed because otherwise
     /// the supplied Sysvar could be anything else.
@@ -60,8 +65,10 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     // Verify correct program and accounts
     check_secp256k1_ix(&secp256k1_ix)?;
 
-    // Verify correct message was signed (TODO)
-    let expected_message = create_intent_hash_eip712_preimage(&proposal.key().as_array());
+    // Verify correct message was signed
+    let expected_message =
+        create_proposal_eip712_preimage(proposal.to_eip712_struct(ctx.accounts.intent.hash));
+
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),
         SettlerError::SigVerificationFailedIncorrectMessage

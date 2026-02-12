@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Address, Program, Wallet } from '@coral-xyz/anchor'
-import { Chains, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, randomHex, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
+import { hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, randomHex } from '@mimicprotocol/sdk'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
@@ -1586,7 +1586,7 @@ describe('Settler', () => {
       const { signature, recoveryId } = await createValidatorSignature(hash, ethValidator)
 
       const validatorEthAddress = hexToBytes(ethValidator.address)
-      const eip712Preimage = solverSdk.getEip712Preimage(INTENT_HASH_VALIDATION_712_TYPES, {intent: hash})
+      const eip712Preimage = solverSdk.getEip712Preimage(INTENT_HASH_VALIDATION_712_TYPES, { intent: hash })
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
         message: hexToBytes(eip712Preimage),
@@ -1864,7 +1864,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('add_axia_sig', () => {
+  describe('add_axia_sig', () => {
     const createAllowlistedAxia = async () => {
       const axia = ethers.Wallet.createRandom()
       await createAllowlistedEntity(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
@@ -1884,16 +1884,19 @@ describe('Settler', () => {
       secp256k1IxOptions: Partial<CreateSecp256k1InstructionWithEthAddressParams> = {},
       accountsPartial: Partial<{
         proposal: Address
+        intent: Address
         axiaRegistry: Address
       }> = {}
     ): Promise<TransactionInstruction[]> => {
-      const { signature, recoveryId } = await createAxiaSignature(proposalKeyOverride, ethAxia)
+      const proposal = await program.account.proposal.fetch(proposalKeyOverride)
+      const intent = await program.account.intent.fetch(proposal.intent)
 
-      // TODO
-      const prefixedMessage = Buffer.from([]) //solverSdk.getEthPrefixedMessage(proposalKeyOverride.toBuffer())
+      const { signature, recoveryId } = await createAxiaSignature(intent.hash, proposal, ethAxia)
+
+      const eip712Preimage = solverSdk.getProposalEip712Preimage(intent.hash, proposal)
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
-        message: prefixedMessage,
+        message: hexToBytes(eip712Preimage),
         ethAddress: ethAxia.address,
         signature: Buffer.from(signature),
         recoveryId,
@@ -2021,7 +2024,7 @@ describe('Settler', () => {
                 })
 
                 context('when signing another message', () => {
-                  before(async () => {
+                  before('create personal signature', async () => {
                     proposalKey = await createTestProposal()
 
                     const message = hexToBytes(ethers.keccak256(hexToBytes('0xdeadbeef')))
@@ -2031,8 +2034,11 @@ describe('Settler', () => {
                     const signature = Array.from(fullSigBytes.slice(0, 64))
                     const recoveryId = fullSigBytes[64] - 27
 
+                    const prefix = Buffer.from('\x19Ethereum Signed Message:\n32', 'utf8')
+                    const prefixedMessage = Buffer.concat([prefix, message])
+
                     ixs = await createSigAndIxs(undefined, undefined, {
-                      message: Buffer.from([]), // TODO solverSdk.getEthPrefixedMessage(message),
+                      message: prefixedMessage,
                       signature,
                       recoveryId,
                     })
@@ -2097,8 +2103,10 @@ describe('Settler', () => {
 
         context('when proposal does not exist', () => {
           before(async () => {
-            proposalKey = randomPubkey()
-            ixs = await createSigAndIxs()
+            ixs = await createSigAndIxs(undefined, undefined, undefined, {
+              proposal: randomPubkey(),
+              intent: randomPubkey(),
+            })
           })
 
           itThrowsAnError('AnchorError caused by account: proposal. Error Code: AccountNotInitialized')

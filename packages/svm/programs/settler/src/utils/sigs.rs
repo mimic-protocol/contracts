@@ -1,4 +1,4 @@
-use alloy_sol_types::{SolStruct, sol as solidity};
+use alloy_sol_types::{sol as solidity, SolStruct};
 use anchor_lang::prelude::{instruction::Instruction, *};
 
 use crate::errors::SettlerError;
@@ -93,25 +93,42 @@ pub const EIP712_PREFIX: &[u8] = &[0x19, 0x01];
 //   chainId: 507424,
 // }
 pub const EIP712_DOMAIN_HASH: &[u8] = &[
-   94, 113, 51, 155, 190,  38, 182,  35,
-   45, 206, 52,  29,   7, 169, 126,  45,
-   55,  43, 61, 106,  14, 109, 229, 114,
-  223, 204, 54, 250, 184,  63, 204,  77
+    94, 113, 51, 155, 190, 38, 182, 35, 45, 206, 52, 29, 7, 169, 126, 45, 55, 43, 61, 106, 14, 109,
+    229, 114, 223, 204, 54, 250, 184, 63, 204, 77,
 ];
 
 solidity! {
     struct Validation {
         bytes32 intent;
     }
+
+    struct Proposal {
+        bytes32 intent;
+        string solver;
+        uint256 deadline;
+        bytes data;
+        uint256[] fees;
+    }
 }
 
 pub fn create_intent_hash_eip712_preimage(intent_hash: &[u8; 32]) -> Vec<u8> {
-    let validation = Validation { intent: intent_hash.into() };
+    let validation = Validation {
+        intent: intent_hash.into(),
+    };
 
     let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
     out.extend_from_slice(EIP712_PREFIX);
     out.extend_from_slice(EIP712_DOMAIN_HASH);
     out.extend_from_slice(validation.eip712_hash_struct().as_ref());
+
+    out
+}
+
+pub fn create_proposal_eip712_preimage(proposal: Proposal) -> Vec<u8> {
+    let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
+    out.extend_from_slice(EIP712_PREFIX);
+    out.extend_from_slice(EIP712_DOMAIN_HASH);
+    out.extend_from_slice(proposal.eip712_hash_struct().as_ref());
 
     out
 }
