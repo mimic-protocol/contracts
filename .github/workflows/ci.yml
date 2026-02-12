@@ -90,10 +90,6 @@ jobs:
           rm -rf ~/.cargo/registry ~/.cargo/git ~/.cache || true
       - name: Install
         run: yarn workspace @mimicprotocol/contracts-svm install
-      - name: Debug versions
-        run: |
-          solana --version
-          anchor --version
       - name: Build Anchor Program
         run: |
           rustup default stable
