@@ -1,3 +1,4 @@
+use alloy_sol_types::{SolStruct, sol as solidity};
 use anchor_lang::prelude::{instruction::Instruction, *};
 
 use crate::errors::SettlerError;
@@ -82,13 +83,35 @@ pub fn get_args_from_secp256k1_ix_data(data: &[u8]) -> Result<Secp256k1Args<'_>>
     })
 }
 
-/// Constructs the Ethereum message prefix for a 32-byte message.
-/// Format: "\x19Ethereum Signed Message:\n32" + message
-/// This is the standard format used by Ethereum's signMessage function.
-pub fn create_ethereum_prefixed_message(message: &[u8; 32]) -> Vec<u8> {
-    let prefix = b"\x19Ethereum Signed Message:\n32";
-    let mut prefixed = Vec::with_capacity(prefix.len() + message.len());
-    prefixed.extend_from_slice(prefix);
-    prefixed.extend_from_slice(message);
-    prefixed
+pub const EIP712_PREIMAGE_LEN: usize = 66;
+
+pub const EIP712_PREFIX: &[u8] = &[0x19, 0x01];
+
+// {
+//   name: 'Mimic Protocol Settler',
+//   version: '1',
+//   chainId: 507424,
+// }
+pub const EIP712_DOMAIN_HASH: &[u8] = &[
+   94, 113, 51, 155, 190,  38, 182,  35,
+   45, 206, 52,  29,   7, 169, 126,  45,
+   55,  43, 61, 106,  14, 109, 229, 114,
+  223, 204, 54, 250, 184,  63, 204,  77
+];
+
+solidity! {
+    struct Validation {
+        bytes32 intent;
+    }
+}
+
+pub fn create_intent_hash_eip712_preimage(intent_hash: &[u8; 32]) -> Vec<u8> {
+    let validation = Validation { intent: intent_hash.into() };
+
+    let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
+    out.extend_from_slice(EIP712_PREFIX);
+    out.extend_from_slice(EIP712_DOMAIN_HASH);
+    out.extend_from_slice(validation.eip712_hash_struct().as_ref());
+
+    out
 }

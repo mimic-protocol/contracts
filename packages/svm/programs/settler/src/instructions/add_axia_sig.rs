@@ -8,8 +8,7 @@ use crate::{
     errors::SettlerError,
     state::Proposal,
     utils::{
-        check_secp256k1_ix, create_ethereum_prefixed_message, get_args_from_secp256k1_ix_data,
-        Secp256k1Args,
+        Secp256k1Args, check_secp256k1_ix, create_intent_hash_eip712_preimage, get_args_from_secp256k1_ix_data
     },
 };
 
@@ -61,9 +60,8 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     // Verify correct program and accounts
     check_secp256k1_ix(&secp256k1_ix)?;
 
-    // Verify correct message was signed
-    // Ethereum's signMessage adds a prefix: "\x19Ethereum Signed Message:\n32" + message
-    let expected_message = create_ethereum_prefixed_message(&proposal.key().as_array());
+    // Verify correct message was signed (TODO)
+    let expected_message = create_intent_hash_eip712_preimage(&proposal.key().as_array());
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),
         SettlerError::SigVerificationFailedIncorrectMessage

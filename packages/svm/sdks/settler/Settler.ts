@@ -1,4 +1,6 @@
 import { BN, IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
+import { Chains, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
+import { ethers } from 'ethers'
 
 import * as ControllerIDL from '../../target/idl/controller.json'
 import * as SettlerIDL from '../../target/idl/settler.json'
@@ -172,10 +174,10 @@ export default class SettlerSDK {
     signature: number[],
     recoveryId: number
   ): Promise<web3.TransactionInstruction[]> {
-    const prefixedMessage = this.getEthPrefixedMessage(intentHash)
+    const eip712Preimage = this.getEip712Preimage(INTENT_HASH_VALIDATION_712_TYPES, { intent: intentHash })
 
     const secp256k1Ix = web3.Secp256k1Program.createInstructionWithEthAddress({
-      message: prefixedMessage,
+      message: hexToBytes(eip712Preimage),
       ethAddress: validatorEthAddress,
       signature: Buffer.from(signature),
       recoveryId,
@@ -201,7 +203,7 @@ export default class SettlerSDK {
     signature: number[],
     recoveryId: number
   ): Promise<web3.TransactionInstruction[]> {
-    const prefixedMessage = this.getEthPrefixedMessage(proposal.toBuffer())
+    const prefixedMessage = Buffer.from('0x00', 'hex') // TODO this.getEthPrefixedMessage(proposal.toBuffer())
 
     const secp256k1Ix = web3.Secp256k1Program.createInstructionWithEthAddress({
       message: prefixedMessage,
@@ -276,9 +278,15 @@ export default class SettlerSDK {
     throw new Error(`Unsupported op ${op}`)
   }
 
-  getEthPrefixedMessage(message: Buffer): Buffer {
-    const prefix = Buffer.from('\x19Ethereum Signed Message:\n32', 'utf8')
-    return Buffer.concat([prefix, message])
+  getEip712Preimage(
+    types: Record<string, Array<ethers.TypedDataField>>,
+    value: Record<string, any>,
+  ): string {
+    return ethers.TypedDataEncoder.encode(
+      { ...SETTLER_EIP712_DOMAIN, chainId: Chains.Solana },
+      INTENT_HASH_VALIDATION_712_TYPES,
+      value,
+    )
   }
 
   private parseIntentHashHex(intentHashHex: string): number[] {

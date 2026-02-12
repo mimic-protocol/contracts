@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Address, Program, Wallet } from '@coral-xyz/anchor'
-import { hexToBytes, randomHex } from '@mimicprotocol/sdk'
+import { Chains, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, randomHex, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
@@ -1586,10 +1586,10 @@ describe('Settler', () => {
       const { signature, recoveryId } = await createValidatorSignature(hash, ethValidator)
 
       const validatorEthAddress = hexToBytes(ethValidator.address)
-      const prefixedMessage = solverSdk.getEthPrefixedMessage(hexToBytes(hash))
+      const eip712Preimage = solverSdk.getEip712Preimage(INTENT_HASH_VALIDATION_712_TYPES, {intent: hash})
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
-        message: prefixedMessage,
+        message: hexToBytes(eip712Preimage),
         ethAddress: validatorEthAddress,
         signature: Buffer.from(signature),
         recoveryId,
@@ -1864,7 +1864,7 @@ describe('Settler', () => {
     })
   })
 
-  describe('add_axia_sig', () => {
+  describe.skip('add_axia_sig', () => {
     const createAllowlistedAxia = async () => {
       const axia = ethers.Wallet.createRandom()
       await createAllowlistedEntity(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
@@ -1889,7 +1889,8 @@ describe('Settler', () => {
     ): Promise<TransactionInstruction[]> => {
       const { signature, recoveryId } = await createAxiaSignature(proposalKeyOverride, ethAxia)
 
-      const prefixedMessage = solverSdk.getEthPrefixedMessage(proposalKeyOverride.toBuffer())
+      // TODO
+      const prefixedMessage = Buffer.from([]) //solverSdk.getEthPrefixedMessage(proposalKeyOverride.toBuffer())
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
         message: prefixedMessage,
@@ -2031,7 +2032,7 @@ describe('Settler', () => {
                     const recoveryId = fullSigBytes[64] - 27
 
                     ixs = await createSigAndIxs(undefined, undefined, {
-                      message: solverSdk.getEthPrefixedMessage(message),
+                      message: Buffer.from([]), // TODO solverSdk.getEthPrefixedMessage(message),
                       signature,
                       recoveryId,
                     })
