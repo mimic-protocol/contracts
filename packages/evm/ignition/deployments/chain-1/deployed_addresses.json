@@ -4,5 +4,7 @@
   "Create3Settler#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
   "Create3Settler#Settler": "0x609d831C0068844e11eF85a273c7F356212Fd6D1",
   "Create3MimicHelper#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
-  "Create3MimicHelper#MimicHelper": "0x5cf82cBED1110fc2f75B3413d53abac492931804"
+  "Create3MimicHelper#MimicHelper": "0x5cf82cBED1110fc2f75B3413d53abac492931804",
+  "Create3PaymentsReceiver#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
+  "Create3PaymentsReceiver#PaymentsReceiver": "0x88438f46B65a391225d88A445C5551c229bbF85e"
 }
