@@ -81,6 +81,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22.15.1"
+      - name: Install latest Solana CLI
+        run: sh -c "$(curl -sSfL https://release.anza.xyz/v3.1.8/install)"
       - name: Set Up Solana Test Keypair
         run: solana-keygen new --no-bip39-passphrase --silent
       - name: Pre-clean caches
