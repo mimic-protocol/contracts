@@ -1,7 +1,6 @@
-import { Chains, INTENT_HASH_VALIDATION_712_TYPES, SETTLER_EIP712_DOMAIN, Signer, ValidatorSigner } from '@mimicprotocol/sdk'
+import { Chains, PROPOSAL_712_TYPE_SVM, SETTLER_EIP712_DOMAIN, Signer, ValidatorSigner } from '@mimicprotocol/sdk'
 import { ethers } from 'ethers'
 
-import { PROPOSAL_712_TYPE } from '../../sdks/settler/Settler'
 import { ProposalAccount } from './proposals'
 
 export type ParsedSignature = { signature: Uint8Array; recoveryId: number }
@@ -40,7 +39,7 @@ export async function createAxiaSignature(
     fees: proposal.fees.map((fee) => fee.amount.toString()),
   }
 
-  const signature = await axia.signTypedData(domain, PROPOSAL_712_TYPE, values)
+  const signature = await axia.signTypedData(domain, PROPOSAL_712_TYPE_SVM, values)
 
   return eip712SignatureToParsedSignature(signature)
 }

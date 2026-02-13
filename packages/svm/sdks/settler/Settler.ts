@@ -1,5 +1,5 @@
 import { BN, IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
-import { Chains, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
+import { Chains, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, PROPOSAL_712_TYPE_SVM, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
 import { ethers } from 'ethers'
 
 import * as ControllerIDL from '../../target/idl/controller.json'
@@ -35,17 +35,6 @@ type ProposalInstructionAnchor = {
 
 type ProposalAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['proposal']['fetch']>>>
 type IntentAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['intent']['fetch']>>>
-
-// TODO: change in sdk
-export const PROPOSAL_712_TYPE = {
-  Proposal: [
-    { name: 'intent', type: 'bytes32' },
-    { name: 'solver', type: 'string' },
-    { name: 'deadline', type: 'uint256' },
-    { name: 'data', type: 'bytes' },
-    { name: 'fees', type: 'uint256[]' },
-  ],
-}
 
 export default class SettlerSDK {
   protected program: Program<Settler>
@@ -305,7 +294,7 @@ export default class SettlerSDK {
   }
 
   getProposalEip712Preimage(intentHash: number[], proposal: ProposalAccount): string {
-    return this.getEip712Preimage(PROPOSAL_712_TYPE, {
+    return this.getEip712Preimage(PROPOSAL_712_TYPE_SVM, {
       intent: Buffer.from(intentHash),
       solver: proposal.creator.toString(),
       deadline: proposal.deadline.toString(),
