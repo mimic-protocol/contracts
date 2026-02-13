@@ -1,4 +1,4 @@
-import { Chains, INTENT_HASH_VALIDATION_712_TYPES, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
+import { Chains, INTENT_HASH_VALIDATION_712_TYPES, SETTLER_EIP712_DOMAIN, Signer, ValidatorSigner } from '@mimicprotocol/sdk'
 import { ethers } from 'ethers'
 
 import { PROPOSAL_712_TYPE } from '../../sdks/settler/Settler'
@@ -11,10 +11,13 @@ export type ParsedSignature = { signature: Uint8Array; recoveryId: number }
  */
 export async function createValidatorSignature(
   intentHash: string,
-  validator: ethers.HDNodeWallet
+  signer: Signer
 ): Promise<ParsedSignature> {
-  const domain = { ...SETTLER_EIP712_DOMAIN, chainId: Chains.Solana }
-  const signature = await validator.signTypedData(domain, INTENT_HASH_VALIDATION_712_TYPES, { intent: intentHash })
+  const validator = new ValidatorSigner(signer)
+  const signature = await validator.signIntentHash({
+    chainId: Chains.Solana,
+    hash: intentHash
+  })
 
   return eip712SignatureToParsedSignature(signature)
 }
