@@ -35,6 +35,22 @@ describe('MimicHelper', () => {
     })
   })
 
+  describe('getCode', () => {
+    context('when the target has code', () => {
+      it('returns the code', async () => {
+        const balance = await mimicHelper.getCode(mimicHelper.target)
+        expect(balance).to.not.be.equal('0x')
+      })
+    })
+
+    context('when the target has no code', () => {
+      it('returns 0x', async () => {
+        const balance = await mimicHelper.getCode(randomEvmAddress())
+        expect(balance).to.be.equal('0x')
+      })
+    })
+  })
+
   describe('setStorage', () => {
     const key = 'test-key'
     const data = randomHex(64)
