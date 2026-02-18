@@ -7,11 +7,13 @@ pragma solidity ^0.8.20;
  * - Swap: Swap tokens between chains or tokens.
  * - Transfer: Transfer tokens to one or more recipients.
  * - Call: Execute arbitrary contract calls.
+ * - Multi: Aggregation of multiple intents.
  */
 enum OpType {
     Swap,
     Transfer,
-    Call
+    Call,
+    Multi
 }
 
 /**
@@ -151,6 +153,14 @@ struct CallData {
 }
 
 /**
+ * @dev Represents a multi intent containing multiple intents.
+ * @param intents List of intents to be executed.
+ */
+struct MultiIntent {
+    Intent[] intents;
+}
+
+/**
  * @dev Generic proposal structure representing a solver’s response to an intent.
  * @param deadline Timestamp until when the proposal is valid.
  * @param data ABI-encoded proposal-specific data (e.g. SwapProposal).
@@ -172,6 +182,14 @@ struct SwapProposal {
     address executor;
     bytes data;
     uint256[] amountsOut;
+}
+
+/**
+ * @dev Multi proposal representation for a multi intent.
+ * @param proposals List of proposals for each intent on the multi intent.
+ */
+struct MultiProposal {
+    Proposal[] proposals;
 }
 
 library IntentsHelpers {

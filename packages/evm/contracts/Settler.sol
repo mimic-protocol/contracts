@@ -199,12 +199,22 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateIntent(intent, proposal, signature, simulated);
         getNonceBlock[intent.user][intent.nonce] = block.number;
 
+        _executeIntent(intent, proposal);
+        _payFees(intent, proposal);
+        emit ProposalExecuted(proposal.hash(intent, _msgSender()));
+    }
+
+    /**
+     * @dev Routes intent and proposal to correct execution function based on intent type
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     */
+    function _executeIntent(Intent memory intent, Proposal memory proposal) internal {
         if (intent.op == uint8(OpType.Swap)) _executeSwap(intent, proposal);
         else if (intent.op == uint8(OpType.Transfer)) _executeTransfer(intent, proposal);
         else if (intent.op == uint8(OpType.Call)) _executeCall(intent, proposal);
+        else if (intent.op == uint8(OpType.Multi)) _executeMulti(intent, proposal);
         else revert SettlerUnknownIntentType(uint8(intent.op));
-
-        emit ProposalExecuted(proposal.hash(intent, _msgSender()));
     }
 
     /**
@@ -244,7 +254,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             }
 
             _emitIntentEvents(intent, proposal, abi.encode(outputs));
-            _payFees(intent, proposal, isSmartAccount);
         }
     }
 
@@ -264,7 +273,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         _emitIntentEvents(intent, proposal, new bytes(0));
-        _payFees(intent, proposal, isSmartAccount);
     }
 
     /**
@@ -284,7 +292,24 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         _emitIntentEvents(intent, proposal, abi.encode(outputs));
-        _payFees(intent, proposal, true);
+    }
+
+    /**
+     * @dev Validates and executes a proposal to fulfill a multi intent
+     * @param intent Multi intent to be fulfilled
+     * @param proposal Multi proposal to be executed
+     */
+    function _executeMulti(Intent memory intent, Proposal memory proposal) internal {
+        MultiIntent memory multiIntent = abi.decode(intent.data, (MultiIntent));
+        MultiProposal memory multiProposal = abi.decode(proposal.data, (MultiProposal));
+        _validateMultiIntent(multiIntent, multiProposal);
+
+        for (uint256 i = 0; i < multiIntent.intents.length; i++) {
+            Intent memory subIntent = multiIntent.intents[i];
+            Proposal memory subProposal = multiProposal.proposals[i];
+            _executeIntent(subIntent, subProposal);
+        }
+        _emitIntentEvents(intent, proposal, new bytes(0));
     }
 
     /**
@@ -400,6 +425,16 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
+     * @dev Validates a multi intent and its corresponding proposal
+     * @param intent Multi intent to be fulfilled
+     * @param proposal Proposal to be executed
+     */
+    function _validateMultiIntent(MultiIntent memory intent, MultiProposal memory proposal) internal pure {
+        if (intent.intents.length == 0) revert SettlerInvalidEmptyMultiIntent();
+        if (intent.intents.length != proposal.proposals.length) revert SettlerInvalidMultiIntent();
+    }
+
+    /**
      * @dev Tells the contract balance for each token out of a swap intent
      * @param intent Swap intent containing the list of tokens out
      */
@@ -448,11 +483,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Pays fees
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed
-     * @param isSmartAccount Whether the intent user is a smart account
      */
-    function _payFees(Intent memory intent, Proposal memory proposal, bool isSmartAccount) internal {
+    function _payFees(Intent memory intent, Proposal memory proposal) internal {
         address from = intent.user;
         address to = _msgSender();
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(intent.user);
         for (uint256 i = 0; i < intent.maxFees.length; i++) {
             address token = intent.maxFees[i].token;
             if (!Denominations.isUSD(token)) _transferFrom(token, from, to, proposal.fees[i], isSmartAccount);

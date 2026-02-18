@@ -95,6 +95,16 @@ interface ISettler {
     error SettlerInvalidProposedAmounts();
 
     /**
+     * @dev The intents array and the proposals array are not of equal length
+     */
+    error SettlerInvalidMultiIntent();
+
+    /**
+     * @dev The intents array is empty
+     */
+    error SettlerInvalidEmptyMultiIntent();
+
+    /**
      * @dev The balance after the proposal execution is lower than the balance before
      */
     error SettlerPostBalanceOutLtPre(uint256 index, uint256 post, uint256 pre);

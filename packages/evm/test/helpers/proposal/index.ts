@@ -1,4 +1,5 @@
 export * from './base'
 export * from './call'
+export * from './multi'
 export * from './swap'
 export * from './transfer'

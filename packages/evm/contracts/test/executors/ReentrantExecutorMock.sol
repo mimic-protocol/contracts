@@ -14,6 +14,6 @@ contract ReentrantExecutorMock is IExecutor {
     }
 
     function execute(Intent memory intent, Proposal memory proposal) external override {
-        ISettler(settler).execute(intent, proposal, hex'');
+        ISettler(settler).execute(intent, proposal, new bytes(0));
     }
 }
