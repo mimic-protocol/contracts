@@ -2454,175 +2454,350 @@ describe('Settler', () => {
 
       context('multi', () => {
         context('when multi has intents', () => {
-          context('when multi has one call', () => {
-            let target: Account, data: string
-            let smartAccount: SmartAccount
-            let feeToken: TokenMock | string
+          context('when multi intent is valid', () => {
+            context('when multi has one call', () => {
+              let target: Account, data: string
+              let smartAccount: SmartAccount
+              let feeToken: TokenMock | string
 
-            const feeAmount = fp(0.01)
+              const feeAmount = fp(0.01)
 
-            beforeEach('deploy smart account', async () => {
-              smartAccount = await ethers.deployContract('SmartAccountContract', [settler, owner])
-            })
-
-            beforeEach('set target', async () => {
-              target = await ethers.deployContract('CallMock')
-            })
-
-            context('when the call succeeds', () => {
-              beforeEach('set data', async () => {
-                data = target.interface.encodeFunctionData('call')
+              beforeEach('deploy smart account', async () => {
+                smartAccount = await ethers.deployContract('SmartAccountContract', [settler, owner])
               })
 
-              const itExecutesTheIntentWithValue = (value: BigNumberish) => {
-                const subIntenteventTopic = randomHex(32)
-                const subIntenteventData = randomHex(120)
+              beforeEach('set target', async () => {
+                target = await ethers.deployContract('CallMock')
+              })
 
-                const eventTopic = randomHex(32)
-                const eventData = randomHex(120)
+              context('when the call succeeds', () => {
+                beforeEach('set data', async () => {
+                  data = target.interface.encodeFunctionData('call')
+                })
+
+                const itExecutesTheIntentWithValue = (value: BigNumberish) => {
+                  const subIntenteventTopic = randomHex(32)
+                  const subIntenteventData = randomHex(120)
+
+                  const eventTopic = randomHex(32)
+                  const eventData = randomHex(120)
+
+                  beforeEach('create intent', async () => {
+                    const subIntent = createCallIntent({
+                      settler,
+                      user: smartAccount,
+                      maxFees: [],
+                      calls: [{ target: target, data, value }],
+                      events: [{ topic: subIntenteventTopic, data: subIntenteventData }],
+                    })
+                    intent = createMultiIntent({
+                      settler,
+                      user,
+                      maxFees: [{ token: feeToken, amount: feeAmount }],
+                      intents: [subIntent],
+                      events: [{ topic: eventTopic, data: eventData }],
+                    })
+                  })
+
+                  it('executes the intent', async () => {
+                    const preUserBalance = await balanceOf(feeToken, user)
+                    const preSolverBalance = await balanceOf(feeToken, solver)
+                    const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
+
+                    const subProposal = createCallProposal()
+                    const proposal = createMultiProposal({ proposals: [subProposal], fees: [feeAmount] })
+                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+                    const tx = await settler.execute(intent, proposal, signature)
+
+                    const postUserBalance = await balanceOf(feeToken, user)
+                    const postSolverBalance = await balanceOf(feeToken, solver)
+                    if (feeToken == NATIVE_TOKEN_ADDRESS) {
+                      const txReceipt = await (await tx.getTransaction())?.wait()
+                      const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : 0n
+                      expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + value)
+                      expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
+                    } else if (feeToken !== USD_ADDRESS) {
+                      expect(preUserBalance - postUserBalance).to.be.eq(feeAmount)
+                      expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+                    }
+
+                    const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
+                    expect(postTargetBalance - preTargetBalance).to.be.eq(value)
+                  })
+
+                  it('logs the intent events correctly', async () => {
+                    const subProposal = createCallProposal()
+                    const proposal = createMultiProposal({ fees: [feeAmount], proposals: [subProposal] })
+                    const signature = await signProposal(settler, intent, solver, proposal, admin)
+                    const tx = await settler.execute(intent, proposal, signature)
+
+                    const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+                    expect(events).to.have.lengthOf(2)
+
+                    // first all sub intents events
+                    expect(events[0].args.user).to.be.equal(smartAccount)
+                    expect(events[0].args.topic).to.be.equal(subIntenteventTopic)
+                    expect(events[0].args.op).to.be.equal(OpType.EvmCall)
+                    expect(events[0].args.intent).to.not.be.undefined
+                    expect(events[0].args.proposal).to.not.be.undefined
+                    expect(events[0].args.output).to.not.be.undefined
+                    expect(events[0].args.data).to.be.equal(subIntenteventData)
+
+                    // finally the multi intent events
+                    expect(events[1].args.user).to.be.equal(intent.user)
+                    expect(events[1].args.topic).to.be.equal(eventTopic)
+                    expect(events[1].args.op).to.be.equal(OpType.Multi)
+                    expect(events[1].args.intent).to.not.be.undefined
+                    expect(events[1].args.proposal).to.not.be.undefined
+                    expect(events[1].args.output).to.not.be.undefined
+                    expect(events[1].args.data).to.be.equal(eventData)
+                  })
+                }
+
+                const itExecutesTheIntent = () => {
+                  context('when the value is 0', () => {
+                    const value = 0n
+
+                    itExecutesTheIntentWithValue(value)
+                  })
+
+                  context('when the value is greater than 0', () => {
+                    const value = fp(0.00001)
+
+                    beforeEach('fund smart account', async () => {
+                      await owner.sendTransaction({ to: smartAccount, value })
+                    })
+
+                    itExecutesTheIntentWithValue(value)
+                  })
+                }
+
+                context('when the fee token is USD', () => {
+                  beforeEach('set fee token', async () => {
+                    feeToken = USD_ADDRESS
+                  })
+
+                  itExecutesTheIntent()
+                })
+
+                context('when the fee token is an ERC20', () => {
+                  beforeEach('deploy token', async () => {
+                    feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
+                  })
+
+                  beforeEach('mint and allow tokens', async () => {
+                    await feeToken.mint(user, feeAmount)
+                    await feeToken.connect(user).approve(settler, feeAmount)
+                  })
+
+                  itExecutesTheIntent()
+                })
+              })
+
+              context('when the call fails', () => {
+                beforeEach('set data', async () => {
+                  data = target.interface.encodeFunctionData('callError')
+                  feeToken = USD_ADDRESS
+                })
 
                 beforeEach('create intent', async () => {
                   const subIntent = createCallIntent({
                     settler,
                     user: smartAccount,
-                    maxFees: [],
-                    calls: [{ target: target, data, value }],
-                    events: [{ topic: subIntenteventTopic, data: subIntenteventData }],
+                    calls: [{ target: target, data, value: 0 }],
                   })
+
                   intent = createMultiIntent({
                     settler,
                     user,
                     maxFees: [{ token: feeToken, amount: feeAmount }],
                     intents: [subIntent],
-                    events: [{ topic: eventTopic, data: eventData }],
                   })
                 })
 
-                it('executes the intent', async () => {
-                  const preUserBalance = await balanceOf(feeToken, user)
-                  const preSolverBalance = await balanceOf(feeToken, solver)
-                  const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
-
-                  const subProposal = createCallProposal()
-                  const proposal = createMultiProposal({ proposals: [subProposal], fees: [feeAmount] })
+                it('reverts', async () => {
+                  const proposal = createMultiProposal({ fees: [feeAmount], proposals: [createCallProposal()] })
                   const signature = await signProposal(settler, intent, solver, proposal, admin)
-                  const tx = await settler.execute(intent, proposal, signature)
 
-                  const postUserBalance = await balanceOf(feeToken, user)
-                  const postSolverBalance = await balanceOf(feeToken, solver)
-                  if (feeToken == NATIVE_TOKEN_ADDRESS) {
-                    const txReceipt = await (await tx.getTransaction())?.wait()
-                    const txCost = txReceipt ? txReceipt.gasUsed * txReceipt.gasPrice : 0n
-                    expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + value)
-                    expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount - txCost)
-                  } else if (feeToken !== USD_ADDRESS) {
-                    expect(preUserBalance - postUserBalance).to.be.eq(feeAmount)
-                    expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
-                  }
-
-                  const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
-                  expect(postTargetBalance - preTargetBalance).to.be.eq(value)
+                  await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+                    target,
+                    'CallError'
+                  )
                 })
-
-                it('logs the intent events correctly', async () => {
-                  const subProposal = createCallProposal()
-                  const proposal = createMultiProposal({ fees: [feeAmount], proposals: [subProposal] })
-                  const signature = await signProposal(settler, intent, solver, proposal, admin)
-                  const tx = await settler.execute(intent, proposal, signature)
-
-                  const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
-                  expect(events).to.have.lengthOf(2)
-
-                  // first all sub intents events
-                  expect(events[0].args.user).to.be.equal(smartAccount)
-                  expect(events[0].args.topic).to.be.equal(subIntenteventTopic)
-                  expect(events[0].args.op).to.be.equal(OpType.EvmCall)
-                  expect(events[0].args.intent).to.not.be.undefined
-                  expect(events[0].args.proposal).to.not.be.undefined
-                  expect(events[0].args.output).to.not.be.undefined
-                  expect(events[0].args.data).to.be.equal(subIntenteventData)
-
-                  // finally the multi intent events
-                  expect(events[1].args.user).to.be.equal(intent.user)
-                  expect(events[1].args.topic).to.be.equal(eventTopic)
-                  expect(events[1].args.op).to.be.equal(OpType.Multi)
-                  expect(events[1].args.intent).to.not.be.undefined
-                  expect(events[1].args.proposal).to.not.be.undefined
-                  expect(events[1].args.output).to.not.be.undefined
-                  expect(events[1].args.data).to.be.equal(eventData)
-                })
-              }
-
-              const itExecutesTheIntent = () => {
-                context('when the value is 0', () => {
-                  const value = 0n
-
-                  itExecutesTheIntentWithValue(value)
-                })
-
-                context('when the value is greater than 0', () => {
-                  const value = fp(0.00001)
-
-                  beforeEach('fund smart account', async () => {
-                    await owner.sendTransaction({ to: smartAccount, value })
-                  })
-
-                  itExecutesTheIntentWithValue(value)
-                })
-              }
-
-              context('when the fee token is USD', () => {
-                beforeEach('set fee token', async () => {
-                  feeToken = USD_ADDRESS
-                })
-
-                itExecutesTheIntent()
-              })
-
-              context('when the fee token is an ERC20', () => {
-                beforeEach('deploy token', async () => {
-                  feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
-                })
-
-                beforeEach('mint and allow tokens', async () => {
-                  await feeToken.mint(user, feeAmount)
-                  await feeToken.connect(user).approve(settler, feeAmount)
-                })
-
-                itExecutesTheIntent()
               })
             })
 
-            context('when the call fails', () => {
-              beforeEach('set data', async () => {
-                data = target.interface.encodeFunctionData('callError')
-                feeToken = USD_ADDRESS
+            context('when multi intent has multiple intents', () => {
+              let target: Account, data: string
+              let smartAccount: SmartAccount
+              let feeToken: TokenMock
+              let proposals: Proposal[]
+              let executor: TransferExecutorMock
+              let tokenOut: TokenMock
+
+              const chainId = 31337
+
+              const callValue = fp(0.00001)
+              const feeAmount = fp(0.01)
+              const transferAmount = fp(0.5)
+              const swapAmountIn = fp(1) // WETH
+              const swapMinAmountOut = BigInt(2900 * 1e6) // USDC
+
+              const parentMultiEventTopic = randomHex(32)
+              const childMultiEventTopic = randomHex(32)
+
+              beforeEach('deploy and mint token', async () => {
+                feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
+                await feeToken.mint(user, feeAmount)
               })
 
+              beforeEach('prepare call intent', async () => {
+                smartAccount = await ethers.deployContract('SmartAccountContract', [settler, owner])
+                await owner.sendTransaction({ to: smartAccount, value: callValue })
+                target = await ethers.deployContract('CallMock')
+                data = target.interface.encodeFunctionData('call')
+              })
+
+              beforeEach('prepare swap intent', async () => {
+                executor = await ethers.deployContract('TransferExecutorMock')
+                tokenOut = await ethers.deployContract('TokenMock', ['USDC', 6])
+                await tokenOut.mint(executor, swapMinAmountOut)
+                await feeToken.mint(user, swapAmountIn)
+              })
+
+              beforeEach('approve token', async () => {
+                await feeToken.mint(user, transferAmount)
+                await feeToken.connect(user).approve(settler, feeAmount + transferAmount + swapAmountIn)
+              })
+
+              // Does Multi(Call, Transfer, Multi(Swap))
               beforeEach('create intent', async () => {
-                const subIntent = createCallIntent({
+                const callIntent = createCallIntent({
                   settler,
                   user: smartAccount,
-                  calls: [{ target: target, data, value: 0 }],
+                  calls: [{ target: target, data, value: callValue }],
+                  events: [{ topic: randomHex(32), data: randomHex(120) }],
+                })
+
+                const transferIntent = createTransferIntent({
+                  settler,
+                  user,
+                  chainId,
+                  transfers: [{ token: feeToken, amount: transferAmount, recipient: other }],
+                  events: [{ topic: randomHex(32), data: randomHex(120) }],
+                })
+
+                const swapIntent = createSwapIntent({
+                  settler,
+                  user,
+                  sourceChain: chainId,
+                  destinationChain: chainId,
+                  tokensIn: { token: feeToken, amount: swapAmountIn },
+                  tokensOut: { token: tokenOut, minAmount: swapMinAmountOut, recipient: other },
+                  events: [{ topic: randomHex(32), data: randomHex(120) }],
+                })
+
+                const multiIntent = createMultiIntent({
+                  settler,
+                  user,
+                  intents: [swapIntent],
+                  events: [{ topic: childMultiEventTopic, data: randomHex(120) }],
                 })
 
                 intent = createMultiIntent({
                   settler,
                   user,
                   maxFees: [{ token: feeToken, amount: feeAmount }],
-                  intents: [subIntent],
+                  intents: [callIntent, transferIntent, multiIntent],
+                  events: [{ topic: parentMultiEventTopic, data: randomHex(120) }],
                 })
               })
 
-              it('reverts', async () => {
-                const proposal = createMultiProposal({ fees: [feeAmount], proposals: [createCallProposal()] })
-                const signature = await signProposal(settler, intent, solver, proposal, admin)
+              beforeEach('create proposals', () => {
+                const callProposal = createCallProposal()
+                const transferProposal = createTransferProposal()
 
-                await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
-                  target,
-                  'CallError'
+                const executorData = AbiCoder.defaultAbiCoder().encode(
+                  ['address[]', 'uint256[]'],
+                  [[tokenOut.target], [swapMinAmountOut]]
                 )
+                const swapProposal = createSwapProposal({
+                  executor,
+                  executorData,
+                  amountsOut: [swapMinAmountOut],
+                })
+                const multiProposal = createMultiProposal({
+                  proposals: [swapProposal],
+                })
+                proposals = [callProposal, transferProposal, multiProposal]
               })
+
+              it('executes the intent', async () => {
+                const preUserBalance = await balanceOf(feeToken, user)
+                const preSolverBalance = await balanceOf(feeToken, solver)
+                const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
+                const preOtherBalance = await balanceOf(feeToken, other)
+                const preOtherUSDCBalance = await balanceOf(tokenOut, other)
+
+                const proposal = createMultiProposal({ proposals, fees: [feeAmount] })
+                const signature = await signProposal(settler, intent, solver, proposal, admin)
+                await settler.execute(intent, proposal, signature)
+
+                const postUserBalance = await balanceOf(feeToken, user)
+                const postSolverBalance = await balanceOf(feeToken, solver)
+                const postOtherBalance = await balanceOf(feeToken, other)
+                // multi intent fee
+                expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + transferAmount + swapAmountIn)
+                expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+                // transfer intent
+                expect(postOtherBalance - preOtherBalance).to.be.eq(transferAmount)
+                // call intent
+                const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
+                expect(postTargetBalance - preTargetBalance).to.be.equal(callValue)
+                // swap intent
+                const postOtherUSDCBalance = await balanceOf(tokenOut, other)
+                expect(postOtherUSDCBalance - preOtherUSDCBalance).to.be.equal(swapMinAmountOut)
+              })
+
+              it('logs the intent events correctly', async () => {
+                const proposal = createMultiProposal({ fees: [feeAmount], proposals })
+                const signature = await signProposal(settler, intent, solver, proposal, admin)
+                const tx = await settler.execute(intent, proposal, signature)
+
+                const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+                expect(events).to.have.lengthOf(5)
+                // checking correct order of events Evm->Transfer->Swap->ChildMulti->ParentMulti
+                expect(events[0].args.op).to.be.equal(OpType.EvmCall)
+                expect(events[1].args.op).to.be.equal(OpType.Transfer)
+                expect(events[2].args.op).to.be.equal(OpType.Swap)
+                expect(events[3].args.op).to.be.equal(OpType.Multi)
+                expect(events[3].args.topic).to.be.equal(childMultiEventTopic)
+                expect(events[4].args.op).to.be.equal(OpType.Multi)
+                expect(events[4].args.topic).to.be.equal(parentMultiEventTopic)
+              })
+            })
+          })
+
+          context('when multi intent is invalid', () => {
+            const feeAmount = fp(0.01)
+
+            beforeEach('create intent', async () => {
+              intent = createMultiIntent({
+                settler,
+                user,
+                maxFees: [{ token: USD_ADDRESS, amount: feeAmount }],
+                intents: [createCallIntent(), createSwapIntent()],
+              })
+            })
+
+            it('throws an error', async () => {
+              //two sub-intents, one sub-proposal
+              const proposal = createMultiProposal({ fees: [feeAmount], proposals: [createCallProposal()] })
+              const signature = await signProposal(settler, intent, solver, proposal, admin)
+              await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+                settler,
+                'SettlerInvalidMultiIntent'
+              )
             })
           })
         })
