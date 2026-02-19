@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Address, Program, Wallet } from '@coral-xyz/anchor'
-import { hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, randomHex } from '@mimicprotocol/sdk'
+import { EthersSigner, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, randomHex } from '@mimicprotocol/sdk'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
@@ -1583,7 +1583,10 @@ describe('Settler', () => {
         validatorRegistry: Address
       }> = {}
     ) => {
-      const { signature, recoveryId } = await createValidatorSignature(hash, ethValidator)
+      const { signature, recoveryId } = await createValidatorSignature(
+        hash,
+        EthersSigner.fromPrivateKey(ethValidator.privateKey)
+      )
 
       const validatorEthAddress = hexToBytes(ethValidator.address)
       const eip712Preimage = solverSdk.getEip712Preimage(INTENT_HASH_VALIDATION_712_TYPES, { intent: hash })

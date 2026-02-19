@@ -1,5 +1,11 @@
 import { BN, IdlTypes, Program, Provider, web3 } from '@coral-xyz/anchor'
-import { Chains, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, PROPOSAL_712_TYPE_SVM, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
+import {
+  Chains,
+  hexToBytes,
+  INTENT_HASH_VALIDATION_712_TYPES,
+  PROPOSAL_712_TYPE_SVM,
+  SETTLER_EIP712_DOMAIN,
+} from '@mimicprotocol/sdk'
 import { ethers } from 'ethers'
 
 import * as ControllerIDL from '../../target/idl/controller.json'

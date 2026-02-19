@@ -8,14 +8,12 @@ export type ParsedSignature = { signature: Uint8Array; recoveryId: number }
 /**
  * Create an EIP712 signature for a validator (signs intent hash)
  */
-export async function createValidatorSignature(
-  intentHash: string,
-  signer: Signer
-): Promise<ParsedSignature> {
+export async function createValidatorSignature(intentHash: string, signer: Signer): Promise<ParsedSignature> {
   const validator = new ValidatorSigner(signer)
   const signature = await validator.signIntentHash({
     chainId: Chains.Solana,
-    hash: intentHash
+    settler: '', // this is ignored for SVM
+    hash: intentHash,
   })
 
   return eip712SignatureToParsedSignature(signature)
