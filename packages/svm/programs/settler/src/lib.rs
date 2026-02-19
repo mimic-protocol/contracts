@@ -94,7 +94,7 @@ pub mod settler {
         instructions::extend_intent(ctx, more_data, more_max_fees, more_events, finalize)
     }
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        instructions::initialize(ctx)
+    pub fn initialize(ctx: Context<Initialize>, domain: Eip712Domain) -> Result<()> {
+        instructions::initialize(ctx, domain)
     }
 }

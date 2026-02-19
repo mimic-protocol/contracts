@@ -20,6 +20,7 @@ import {
   OpType,
   ProposalInstruction,
   ProposalInstructionAccountMeta,
+  SolanaEip712Domain,
   TokenFee,
 } from './types'
 
@@ -39,6 +40,7 @@ type ProposalInstructionAnchor = {
   data: Buffer
 }
 
+type AnchorEip712Domain = Parameters<Program<Settler>['methods']['initialize']>[0]
 type ProposalAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['proposal']['fetch']>>>
 type IntentAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['intent']['fetch']>>>
 
@@ -49,8 +51,8 @@ export default class SettlerSDK {
     this.program = new Program(SettlerIDL, provider)
   }
 
-  async initializeIx(): Promise<web3.TransactionInstruction> {
-    const ix = await this.program.methods.initialize().instruction()
+  async initializeIx(domain: SolanaEip712Domain): Promise<web3.TransactionInstruction> {
+    const ix = await this.program.methods.initialize(this.parseSolanaEip712Domain(domain)).instruction()
     return ix
   }
 
@@ -307,6 +309,18 @@ export default class SettlerSDK {
       data: '0x', // TODO
       fees: proposal.fees.map((fee) => fee.amount.toString()),
     })
+  }
+
+  private parseSolanaEip712Domain(domain: SolanaEip712Domain): AnchorEip712Domain {
+    if (domain.salt && domain.salt.length != 32) throw new Error(`EIP712 domain salt must be 32 bytes`)
+
+    return {
+      name: null,
+      version: null,
+      ...domain,
+      salt: domain.salt ? Array.from(domain.salt) : null,
+      chainId: domain.chainId ? new BN(domain.chainId) : null,
+    }
   }
 
   private parseIntentHashHex(intentHashHex: string): number[] {

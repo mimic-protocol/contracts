@@ -53,3 +53,10 @@ export type ProposalInstruction = {
   accounts: ProposalInstructionAccountMeta[]
   data: Buffer | string
 }
+
+export type SolanaEip712Domain = {
+  name?: string
+  version?: string
+  chainId?: number
+  salt?: Uint8Array
+}

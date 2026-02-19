@@ -126,7 +126,7 @@ describe('Settler', () => {
   describe('initialize', () => {
     context('when caller is not deployer', () => {
       it('cannot initialize if not deployer', async () => {
-        const ix = await maliciousSdk.initializeIx()
+        const ix = await maliciousSdk.initializeIx({})
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only Deployer can call this instruction.')
@@ -134,16 +134,25 @@ describe('Settler', () => {
     })
 
     context('when caller is deployer', () => {
+      const domain = {
+        name: 'Test',
+        version: '1.0.0',
+        chainId: 507424,
+      }
+
       it('should call initialize', async () => {
-        const ix = await sdk.initializeIx()
+        const ix = await sdk.initializeIx(domain)
         await makeTxSignAndSend(provider, ix)
 
         const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
+        expect('0x' + Buffer.from(settings.eip712Domain).toString('hex')).to.be.eq(
+          ethers.TypedDataEncoder.hashDomain(domain)
+        )
       })
 
       it('cannot call initialize again', async () => {
-        const ix = await sdk.initializeIx()
+        const ix = await sdk.initializeIx({})
         const res = await makeTxSignAndSend(provider, ix)
 
         expectTransactionError(res, 'already in use')
