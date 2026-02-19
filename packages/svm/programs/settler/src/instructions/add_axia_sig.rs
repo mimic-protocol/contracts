@@ -8,8 +8,7 @@ use crate::{
     errors::SettlerError,
     state::{Intent, Proposal},
     utils::{
-        check_secp256k1_ix, create_proposal_eip712_preimage, get_args_from_secp256k1_ix_data,
-        Secp256k1Args,
+        check_secp256k1_ix, create_axia_message, get_args_from_secp256k1_ix_data, Secp256k1Args,
     },
 };
 
@@ -66,8 +65,7 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
-    let expected_message =
-        create_proposal_eip712_preimage(proposal.to_eip712_struct(ctx.accounts.intent.hash));
+    let expected_message = create_axia_message(proposal.to_eip712_struct(ctx.accounts.intent.hash));
 
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),

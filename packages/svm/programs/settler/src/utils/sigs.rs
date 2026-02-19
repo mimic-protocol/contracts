@@ -111,7 +111,8 @@ solidity! {
     }
 }
 
-pub fn create_intent_hash_eip712_preimage(intent_hash: &[u8; 32]) -> Vec<u8> {
+/// Constructs the typed struct EIP712 hash preimage for Validation
+pub fn create_validator_message(intent_hash: &[u8; 32]) -> Vec<u8> {
     let validation = Validation {
         intent: intent_hash.into(),
     };
@@ -124,7 +125,8 @@ pub fn create_intent_hash_eip712_preimage(intent_hash: &[u8; 32]) -> Vec<u8> {
     out
 }
 
-pub fn create_proposal_eip712_preimage(proposal: Proposal) -> Vec<u8> {
+/// Constructs the typed struct EIP712 hash preimage for Proposal
+pub fn create_axia_message(proposal: Proposal) -> Vec<u8> {
     let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
     out.extend_from_slice(EIP712_PREFIX);
     out.extend_from_slice(EIP712_DOMAIN_HASH);

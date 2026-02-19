@@ -8,7 +8,7 @@ use crate::{
     errors::SettlerError,
     state::Intent,
     utils::{
-        check_secp256k1_ix, create_intent_hash_eip712_preimage, get_args_from_secp256k1_ix_data,
+        check_secp256k1_ix, create_validator_message, get_args_from_secp256k1_ix_data,
         Secp256k1Args,
     },
 };
@@ -64,7 +64,7 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
-    let expected_message = create_intent_hash_eip712_preimage(&intent.hash);
+    let expected_message = create_validator_message(&intent.hash);
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),
         SettlerError::SigVerificationFailedIncorrectMessage
