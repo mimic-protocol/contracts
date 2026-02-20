@@ -493,6 +493,17 @@
     ethers "^6.13.5"
     zod "^3.23.8"
 
+"@mimicprotocol/sdk@0.0.1-rc.35":
+  version "0.0.1-rc.35"
+  resolved "https://registry.yarnpkg.com/@mimicprotocol/sdk/-/sdk-0.0.1-rc.35.tgz#e2ee55087aae85bef7f963cbe757e1f91387eb38"
+  integrity sha512-DDTs6LbEs5fcxG262CEHbWJFEWZ5DVvFBSGS9gANs6nc6NYflLZYBiV+N24VsYjJ5EWEw6KW1mIdx9akQbHPEw==
+  dependencies:
+    "@solana/web3.js" "^1.98.4"
+    borsh "^2.0.0"
+    cron-parser "^5.3.1"
+    ethers "^6.13.5"
+    zod "^3.23.8"
+
 "@noble/ciphers@1.2.1":
   version "1.2.1"
   resolved "https://registry.yarnpkg.com/@noble/ciphers/-/ciphers-1.2.1.tgz#3812b72c057a28b44ff0ad4aff5ca846e5b9cdc9"
