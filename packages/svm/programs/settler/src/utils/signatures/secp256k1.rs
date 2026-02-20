@@ -1,4 +1,3 @@
-use alloy_sol_types::{sol as solidity, SolStruct};
 use anchor_lang::prelude::{instruction::Instruction, *};
 
 use crate::errors::SettlerError;
@@ -81,46 +80,4 @@ pub fn get_args_from_secp256k1_ix_data(data: &[u8]) -> Result<Secp256k1Args<'_>>
             .try_into()
             .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
     })
-}
-
-pub const EIP712_PREIMAGE_LEN: usize = 66;
-
-pub const EIP712_PREFIX: &[u8] = &[0x19, 0x01];
-
-solidity! {
-    struct Validation {
-        bytes32 intent;
-    }
-
-    struct Proposal {
-        bytes32 intent;
-        string solver;
-        uint256 deadline;
-        bytes data;
-        uint256[] fees;
-    }
-}
-
-/// Constructs the typed struct EIP712 hash preimage for Validation
-pub fn create_validator_message(domain_hash: &[u8; 32], intent_hash: &[u8; 32]) -> Vec<u8> {
-    let validation = Validation {
-        intent: intent_hash.into(),
-    };
-
-    let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
-    out.extend_from_slice(EIP712_PREFIX);
-    out.extend_from_slice(domain_hash);
-    out.extend_from_slice(validation.eip712_hash_struct().as_ref());
-
-    out
-}
-
-/// Constructs the typed struct EIP712 hash preimage for Proposal
-pub fn create_axia_message(domain_hash: &[u8; 32], proposal: Proposal) -> Vec<u8> {
-    let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
-    out.extend_from_slice(EIP712_PREFIX);
-    out.extend_from_slice(domain_hash);
-    out.extend_from_slice(proposal.eip712_hash_struct().as_ref());
-
-    out
 }

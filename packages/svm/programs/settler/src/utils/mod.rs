@@ -1,5 +1,5 @@
 pub mod math;
-pub mod sigs;
+pub mod signatures;
 
 pub use math::*;
-pub use sigs::*;
+pub use signatures::*;
