@@ -5,11 +5,20 @@ import { Address, Program, Wallet } from '@coral-xyz/anchor'
 import {
   bytesToHex,
   Chains,
+  ControllerSDK,
+  CreateProposalParams,
+  EntityType,
   EthersSigner,
+  ExtendIntentParams,
   hexToBytes,
   INTENT_HASH_VALIDATION_712_TYPES,
+  OpType,
+  ProposalInstruction,
   randomHex,
   SETTLER_EIP712_DOMAIN,
+  SettlerSDK,
+  SolanaEip712Domain,
+  SvmTokenFee,
 } from '@mimicprotocol/sdk'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
@@ -28,16 +37,6 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
-import SettlerSDK from '../sdks/settler/Settler'
-import {
-  CreateProposalParams,
-  ExtendIntentParams,
-  OpType,
-  ProposalInstruction,
-  SolanaEip712Domain,
-  TokenFee,
-} from '../sdks/settler/types'
 import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
@@ -268,8 +267,8 @@ describe('Settler', () => {
               ],
               eventsHex: [
                 {
-                  topicHex: randomHex(32).slice(2),
-                  dataHex: randomHex(100).slice(2),
+                  topic: randomHex(32).slice(2),
+                  data: randomHex(100).slice(2),
                 },
               ],
               isFinal: true,
@@ -291,7 +290,7 @@ describe('Settler', () => {
               expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
               expect(intent.events.length).to.be.eq(1)
               expect(intent.validators.length).to.be.eq(0)
-              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].dataHex)
+              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].data)
             })
           })
 
@@ -409,8 +408,8 @@ describe('Settler', () => {
               amount: new BN(tokenFee.amount),
             }))
             const events = eventsHex.map((eventHex) => ({
-              topic: Array.from(Uint8Array.from(hexToBytes(eventHex.topicHex))),
-              data: hexToBytes(eventHex.dataHex),
+              topic: Array.from(Uint8Array.from(hexToBytes(eventHex.topic))),
+              data: hexToBytes(eventHex.data),
             }))
             const intentKey = PublicKey.findProgramAddressSync(
               [Buffer.from('intent'), hexToBytes(intentHash)],
@@ -545,8 +544,8 @@ describe('Settler', () => {
                   extendParams = {
                     moreEventsHex: [
                       {
-                        topicHex: randomHex(32).slice(2),
-                        dataHex: TEST_DATA_HEX_2,
+                        topic: randomHex(32).slice(2),
+                        data: TEST_DATA_HEX_2,
                       },
                     ],
                   }
@@ -559,10 +558,10 @@ describe('Settler', () => {
                   const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].topicHex
+                    extendParams.moreEventsHex![0].topic
                   )
                   expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].dataHex
+                    extendParams.moreEventsHex![0].data
                   )
                 })
               })
@@ -583,8 +582,8 @@ describe('Settler', () => {
                     ],
                     moreEventsHex: [
                       {
-                        topicHex: randomHex(32).slice(2),
-                        dataHex: TEST_DATA_HEX_3,
+                        topic: randomHex(32).slice(2),
+                        data: TEST_DATA_HEX_3,
                       },
                     ],
                   }
@@ -600,7 +599,7 @@ describe('Settler', () => {
                   expect(intent.maxFees[1].amount.toNumber()).to.be.eq(extendParams.moreMaxFees![0].amount)
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].topicHex
+                    extendParams.moreEventsHex![0].topic
                   )
                   expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(TEST_DATA_HEX_3)
                 })
@@ -616,8 +615,8 @@ describe('Settler', () => {
                 extendParams = {
                   moreDataHex: randomHex(50).slice(2),
                   moreEventsHex: [
-                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
-                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
+                    { topic: randomHex(32).slice(2), data: randomHex(400).slice(2) },
+                    { topic: randomHex(32).slice(2), data: randomHex(400).slice(2) },
                   ],
                   moreMaxFees: [
                     { mint: randomPubkey(), amount: 1 },
@@ -1278,7 +1277,7 @@ describe('Settler', () => {
         let intentHash: string
         let deadline: number
         let instructions: ProposalInstruction[]
-        let fees: TokenFee[]
+        let fees: SvmTokenFee[]
 
         beforeEach('generate non-existent intent hash and proposal params', async () => {
           intentHash = generateIntentHash()

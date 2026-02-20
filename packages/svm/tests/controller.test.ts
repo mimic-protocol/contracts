@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Program, Wallet, web3 } from '@coral-xyz/anchor'
+import { ControllerSDK, EntityType } from '@mimicprotocol/sdk'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import fs from 'fs'
@@ -9,7 +10,6 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import * as ControllerIDL from '../target/idl/controller.json'
 import { Controller } from '../target/types/controller'
 import { expectTransactionError, randomKeypair, randomPubkey, toLamports } from './helpers'
