@@ -6,7 +6,7 @@ use anchor_lang::{
 use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
-    state::Intent,
+    state::{Intent, SettlerSettings},
     utils::{
         check_secp256k1_ix, create_validator_message, get_args_from_secp256k1_ix_data,
         Secp256k1Args,
@@ -47,6 +47,12 @@ pub struct AddValidatorSig<'info> {
     )]
     pub validator_registry: Box<Account<'info, EntityRegistry>>,
 
+    #[account(
+        seeds = [b"settler-settings"],
+        bump = settler_settings.bump,
+    )]
+    pub settler_settings: Box<Account<'info, SettlerSettings>>,
+
     /// CHECK: The address check is needed because otherwise
     /// the supplied Sysvar could be anything else.
     #[account(address = IX_ID)]
@@ -54,6 +60,7 @@ pub struct AddValidatorSig<'info> {
 }
 
 pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
+    let settings = &ctx.accounts.settler_settings;
     let intent = &mut ctx.accounts.intent;
 
     // Get Secp256k1 instruction
@@ -64,7 +71,7 @@ pub fn add_validator_sig(ctx: Context<AddValidatorSig>) -> Result<()> {
     check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
-    let expected_message = create_validator_message(&intent.hash);
+    let expected_message = create_validator_message(&settings.eip712_domain_hash, &intent.hash);
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),
         SettlerError::SigVerificationFailedIncorrectMessage

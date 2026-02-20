@@ -87,16 +87,6 @@ pub const EIP712_PREIMAGE_LEN: usize = 66;
 
 pub const EIP712_PREFIX: &[u8] = &[0x19, 0x01];
 
-// {
-//   name: 'Mimic Protocol Settler',
-//   version: '1',
-//   chainId: 507424,
-// }
-pub const EIP712_DOMAIN_HASH: &[u8] = &[
-    94, 113, 51, 155, 190, 38, 182, 35, 45, 206, 52, 29, 7, 169, 126, 45, 55, 43, 61, 106, 14, 109,
-    229, 114, 223, 204, 54, 250, 184, 63, 204, 77,
-];
-
 solidity! {
     struct Validation {
         bytes32 intent;
@@ -112,24 +102,24 @@ solidity! {
 }
 
 /// Constructs the typed struct EIP712 hash preimage for Validation
-pub fn create_validator_message(intent_hash: &[u8; 32]) -> Vec<u8> {
+pub fn create_validator_message(domain_hash: &[u8; 32], intent_hash: &[u8; 32]) -> Vec<u8> {
     let validation = Validation {
         intent: intent_hash.into(),
     };
 
     let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
     out.extend_from_slice(EIP712_PREFIX);
-    out.extend_from_slice(EIP712_DOMAIN_HASH);
+    out.extend_from_slice(domain_hash);
     out.extend_from_slice(validation.eip712_hash_struct().as_ref());
 
     out
 }
 
 /// Constructs the typed struct EIP712 hash preimage for Proposal
-pub fn create_axia_message(proposal: Proposal) -> Vec<u8> {
+pub fn create_axia_message(domain_hash: &[u8; 32], proposal: Proposal) -> Vec<u8> {
     let mut out = Vec::with_capacity(EIP712_PREIMAGE_LEN);
     out.extend_from_slice(EIP712_PREFIX);
-    out.extend_from_slice(EIP712_DOMAIN_HASH);
+    out.extend_from_slice(domain_hash);
     out.extend_from_slice(proposal.eip712_hash_struct().as_ref());
 
     out

@@ -97,4 +97,11 @@ pub mod settler {
     pub fn initialize(ctx: Context<Initialize>, domain: Eip712Domain) -> Result<()> {
         instructions::initialize(ctx, domain)
     }
+
+    pub fn update_eip712_domain(
+        ctx: Context<UpdateEip712Domain>,
+        domain: Eip712Domain,
+    ) -> Result<()> {
+        instructions::update_eip712_domain(ctx, domain)
+    }
 }

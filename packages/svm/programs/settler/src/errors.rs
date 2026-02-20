@@ -8,11 +8,14 @@ pub enum SettlerError {
     #[msg("Only an allowlisted solver can call this instruction")]
     OnlySolver,
 
-    #[msg("Provided Axia address is not allowlisted")]
-    AxiaNotAllowlisted,
-
     #[msg("Only a allowlisted validator can call this instruction")]
     OnlyValidator,
+
+    #[msg("Only Controller admin can call this instruction")]
+    OnlyControllerAdmin,
+
+    #[msg("Provided Axia address is not allowlisted")]
+    AxiaNotAllowlisted,
 
     #[msg("No max fees provided")]
     NoMaxFees,

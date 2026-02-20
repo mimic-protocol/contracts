@@ -2,7 +2,15 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Address, Program, Wallet } from '@coral-xyz/anchor'
-import { EthersSigner, hexToBytes, INTENT_HASH_VALIDATION_712_TYPES, randomHex } from '@mimicprotocol/sdk'
+import {
+  bytesToHex,
+  Chains,
+  EthersSigner,
+  hexToBytes,
+  INTENT_HASH_VALIDATION_712_TYPES,
+  randomHex,
+  SETTLER_EIP712_DOMAIN,
+} from '@mimicprotocol/sdk'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
@@ -22,7 +30,14 @@ import path from 'path'
 
 import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import SettlerSDK from '../sdks/settler/Settler'
-import { CreateProposalParams, ExtendIntentParams, OpType, ProposalInstruction, TokenFee } from '../sdks/settler/types'
+import {
+  CreateProposalParams,
+  ExtendIntentParams,
+  OpType,
+  ProposalInstruction,
+  SolanaEip712Domain,
+  TokenFee,
+} from '../sdks/settler/types'
 import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
@@ -87,6 +102,7 @@ describe('Settler', () => {
   let sdk: SettlerSDK
   let maliciousSdk: SettlerSDK
   let solverSdk: SettlerSDK
+  let adminSdk: SettlerSDK
 
   let controllerSdk: ControllerSDK
 
@@ -108,6 +124,7 @@ describe('Settler', () => {
     sdk = new SettlerSDK(provider)
     maliciousSdk = new SettlerSDK(maliciousProvider)
     solverSdk = new SettlerSDK(solverProvider)
+    adminSdk = new SettlerSDK(provider)
 
     provider.client.airdrop(admin.publicKey, toLamports(100))
     provider.client.airdrop(malicious.publicKey, toLamports(100))
@@ -146,9 +163,7 @@ describe('Settler', () => {
 
         const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
-        expect('0x' + Buffer.from(settings.eip712Domain).toString('hex')).to.be.eq(
-          ethers.TypedDataEncoder.hashDomain(domain)
-        )
+        expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(ethers.TypedDataEncoder.hashDomain(domain))
       })
 
       it('cannot call initialize again', async () => {
@@ -156,6 +171,67 @@ describe('Settler', () => {
         const res = await makeTxSignAndSend(provider, ix)
 
         expectTransactionError(res, 'already in use')
+      })
+    })
+  })
+
+  describe('update_eip712_domain', () => {
+    context('when caller is controller admin', () => {
+      context('when domain is valid', () => {
+        const itUpdatesDomainCorrectly = (testCase: string, domain: SolanaEip712Domain) => {
+          it(`updates domain correctly (${testCase})`, async () => {
+            const ix = await adminSdk.updateEip712DomainIx(domain)
+            const res = await makeTxSignAndSend(provider, ix)
+            const settings = await program.account.settlerSettings.fetch(adminSdk.getSettlerSettingsPubkey())
+            expect(res.toString()).to.not.include('FailedTransaction')
+            expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(
+              ethers.TypedDataEncoder.hashDomain(domain)
+            )
+          })
+        }
+
+        itUpdatesDomainCorrectly('only name', { name: 'Only Name' })
+        itUpdatesDomainCorrectly('only version', { version: '1.2.3' })
+        itUpdatesDomainCorrectly('name and version', { name: 'Name and Version', version: '1.2.3' })
+        itUpdatesDomainCorrectly('all fields', {
+          name: 'All Fields',
+          version: '2.2.2',
+          chainId: 14,
+          salt: Uint8Array.from(Array(32).fill(6)),
+        })
+        itUpdatesDomainCorrectly('all fields no salt', { name: 'All Fields no Salt', version: '0.1.0', chainId: 49 })
+        itUpdatesDomainCorrectly('empty domain', {})
+        itUpdatesDomainCorrectly('empty name', { name: '' })
+        itUpdatesDomainCorrectly('empty version', { version: '' })
+        itUpdatesDomainCorrectly('empty name and version', { name: '', version: '' })
+      })
+
+      context('when domain is invalid', () => {
+        const itThrowsAnError = (testCase: string, domain: SolanaEip712Domain, error: string) => {
+          it(`throws an error (${testCase})`, async () => {
+            const ix = await program.methods
+              .updateEip712Domain({
+                name: null,
+                version: null,
+                ...domain,
+                salt: domain.salt ? Array.from(domain.salt) : null,
+                chainId: domain.chainId ? new BN(domain.chainId) : null,
+              })
+              .instruction()
+            const res = await makeTxSignAndSend(provider, ix)
+            expectTransactionError(res, error)
+          })
+        }
+
+        itThrowsAnError('salt too short', { salt: Uint8Array.from([]) }, 'InstructionDidNotDeserialize.')
+      })
+    })
+
+    context('when caller is not controller admin', () => {
+      it('throws an error', async () => {
+        const ix = await solverSdk.updateEip712DomainIx({})
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expectTransactionError(res, 'OnlyControllerAdmin')
       })
     })
   })
@@ -206,7 +282,7 @@ describe('Settler', () => {
               expect(intent.op).to.deep.include({ transfer: {} })
               expect(intent.user.toString()).to.be.eq(intentOptions.user!.toString())
               expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
-              expect('0x' + Buffer.from(intent.nonce).toString('hex')).to.be.eq(intentOptions.nonceHex)
+              expect(bytesToHex(Buffer.from(intent.nonce))).to.be.eq(intentOptions.nonceHex)
               expect(intent.deadline.toNumber()).to.be.eq(intentOptions.deadline)
               expect(intent.minValidations).to.be.eq(intentOptions.minValidations)
               expect(intent.isFinal).to.be.true
@@ -1635,6 +1711,14 @@ describe('Settler', () => {
     let validator: ethers.HDNodeWallet
     let ixs: TransactionInstruction[]
 
+    before('set correct domain', async () => {
+      const ix = await adminSdk.updateEip712DomainIx({
+        ...SETTLER_EIP712_DOMAIN,
+        chainId: Chains.Solana,
+      })
+      await makeTxSignAndSend(provider, ix)
+    })
+
     context('when caller is whitelisted solver', () => {
       context('when intent was created', () => {
         context('when intent conditions are met', () => {
@@ -1704,6 +1788,27 @@ describe('Settler', () => {
             })
 
             context('when signature is logically invalid', () => {
+              context('when domain does not match', () => {
+                before(async () => {
+                  client.expireBlockhash()
+                  intentHash = await createTestIntent(solverSdk, solverProvider)
+                  ixs = await createSigAndIxs()
+                  const ix = await adminSdk.updateEip712DomainIx({ name: 'Other Domain' })
+                  await makeTxSignAndSend(provider, ix)
+                })
+
+                after(async () => {
+                  client.expireBlockhash()
+                  const ix = await adminSdk.updateEip712DomainIx({
+                    ...SETTLER_EIP712_DOMAIN,
+                    chainId: Chains.Solana,
+                  })
+                  await makeTxSignAndSend(provider, ix)
+                })
+
+                itThrowsAnError('SigVerificationFailedIncorrectMessage')
+              })
+
               context('when validator is not whitelisted', () => {
                 before(async () => {
                   intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
@@ -1941,6 +2046,15 @@ describe('Settler', () => {
     let proposalKey: PublicKey = PublicKey.default
     let axia: ethers.HDNodeWallet
 
+    before('set correct domain', async () => {
+      client.expireBlockhash()
+      const ix = await adminSdk.updateEip712DomainIx({
+        ...SETTLER_EIP712_DOMAIN,
+        chainId: Chains.Solana,
+      })
+      await makeTxSignAndSend(provider, ix)
+    })
+
     context('when caller is whitelisted solver', () => {
       context('when signer is whitelisted axia', () => {
         context('when proposal exists', () => {
@@ -1987,6 +2101,29 @@ describe('Settler', () => {
               })
 
               context('when signature is logically invalid', () => {
+                context('when domain does not match', () => {
+                  before(async () => {
+                    client.expireBlockhash()
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, undefined, undefined, {
+                      proposal: await createTestProposal(),
+                    })
+                    const ix = await adminSdk.updateEip712DomainIx({ name: 'Other Domain' })
+                    await makeTxSignAndSend(provider, ix)
+                  })
+
+                  after(async () => {
+                    client.expireBlockhash()
+                    const ix = await adminSdk.updateEip712DomainIx({
+                      ...SETTLER_EIP712_DOMAIN,
+                      chainId: Chains.Solana,
+                    })
+                    await makeTxSignAndSend(provider, ix)
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectMessage')
+                })
+
                 context('when signing for another proposal', () => {
                   before(async () => {
                     proposalKey = await createTestProposal()

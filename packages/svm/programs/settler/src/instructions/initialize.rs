@@ -34,7 +34,7 @@ pub fn initialize(ctx: Context<Initialize>, domain: Eip712Domain) -> Result<()> 
 
     settler_settings.controller_program = controller::ID;
     settler_settings.bump = ctx.bumps.settler_settings;
-    settler_settings.eip712_domain = domain.to_alloy_struct().hash_struct().into();
+    settler_settings.eip712_domain_hash = domain.to_alloy_struct().hash_struct().into();
 
     Ok(())
 }

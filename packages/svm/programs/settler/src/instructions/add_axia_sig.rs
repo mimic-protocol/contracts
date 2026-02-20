@@ -6,7 +6,7 @@ use anchor_lang::{
 use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
-    state::{Intent, Proposal},
+    state::{Intent, Proposal, SettlerSettings},
     utils::{
         check_secp256k1_ix, create_axia_message, get_args_from_secp256k1_ix_data, Secp256k1Args,
     },
@@ -43,6 +43,12 @@ pub struct AddAxiaSig<'info> {
     /// CHECK: Proposal's intent checked through has_one
     pub intent: Box<Account<'info, Intent>>,
 
+    #[account(
+        seeds = [b"settler-settings"],
+        bump = settler_settings.bump,
+    )]
+    pub settler_settings: Box<Account<'info, SettlerSettings>>,
+
     /// CHECK: The address check is needed because otherwise
     /// the supplied Sysvar could be anything else.
     #[account(address = IX_ID)]
@@ -50,6 +56,7 @@ pub struct AddAxiaSig<'info> {
 }
 
 pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
+    let settings = &ctx.accounts.settler_settings;
     let proposal = &mut ctx.accounts.proposal;
 
     // NOP if already signed
@@ -65,7 +72,10 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
     check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
-    let expected_message = create_axia_message(proposal.to_eip712_struct(ctx.accounts.intent.hash));
+    let expected_message = create_axia_message(
+        &settings.eip712_domain_hash,
+        proposal.to_eip712_struct(ctx.accounts.intent.hash),
+    );
 
     require!(
         secp256k1_ix_args.msg == expected_message.as_slice(),

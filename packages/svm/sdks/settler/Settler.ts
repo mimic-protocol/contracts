@@ -56,6 +56,11 @@ export default class SettlerSDK {
     return ix
   }
 
+  async updateEip712DomainIx(domain: SolanaEip712Domain): Promise<web3.TransactionInstruction> {
+    const ix = await this.program.methods.updateEip712Domain(this.parseSolanaEip712Domain(domain)).instruction()
+    return ix
+  }
+
   async createIntentIx(
     intentHashHex: string,
     params: CreateIntentParams,
@@ -201,6 +206,7 @@ export default class SettlerSDK {
         solverRegistry: this.getEntityRegistryPubkey(EntityType.Solver, this.getSignerKey()),
         intent,
         validatorRegistry: this.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
+        settlerSettings: this.getSettlerSettingsPubkey(),
         ixSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
       .instruction()
@@ -237,6 +243,7 @@ export default class SettlerSDK {
         proposal,
         intent: proposalAccount.intent,
         axiaRegistry: this.getEntityRegistryPubkey(EntityType.Axia, axiaEthAddress),
+        settlerSettings: this.getSettlerSettingsPubkey(),
         ixSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       })
       .instruction()

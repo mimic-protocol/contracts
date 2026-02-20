@@ -8,6 +8,7 @@ pub mod create_proposal;
 pub mod execute_proposal;
 pub mod extend_intent;
 pub mod initialize;
+pub mod update_eip712_domain;
 
 pub use add_axia_sig::*;
 pub use add_instructions_to_proposal::*;
@@ -19,3 +20,4 @@ pub use create_proposal::*;
 pub use execute_proposal::*;
 pub use extend_intent::*;
 pub use initialize::*;
+pub use update_eip712_domain::*;
