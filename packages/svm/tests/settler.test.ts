@@ -1513,21 +1513,19 @@ describe('Settler', () => {
     })
 
     context('when caller is not proposal creator', () => {
-      let proposalCreator: PublicKey
-
       beforeEach('create proposal and instruction params', async () => {
         intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
-        proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
         moreInstructions = []
       })
 
       it('throws an error', async () => {
-        const ix = await maliciousSdk.addInstructionsToProposalIx(
-          intentHash,
-          moreInstructions,
-          undefined,
-          proposalCreator
-        )
+        const ix = await program.methods
+          .addInstructionsToProposal([], true)
+          .accountsPartial({
+            creator: malicious.publicKey,
+            proposal: solverSdk.getProposalKey(intentHash),
+          })
+          .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
@@ -1642,7 +1640,13 @@ describe('Settler', () => {
       })
 
       it('throws an error', async () => {
-        const ix = await maliciousSdk.claimStaleProposalIx(intentHash, solver.publicKey)
+        const ix = await program.methods
+          .claimStaleProposal()
+          .accountsPartial({
+            creator: malicious.publicKey,
+            proposal: solverSdk.getProposalKey(intentHash),
+          })
+          .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
