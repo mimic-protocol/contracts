@@ -160,7 +160,7 @@ describe('Settler', () => {
         const ix = await sdk.initializeIx(domain)
         await makeTxSignAndSend(provider, ix)
 
-        const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
+        const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsKey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
         expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(ethers.TypedDataEncoder.hashDomain(domain))
       })
@@ -181,7 +181,7 @@ describe('Settler', () => {
           it(`updates domain correctly (${testCase})`, async () => {
             const ix = await adminSdk.updateEip712DomainIx(domain)
             const res = await makeTxSignAndSend(provider, ix)
-            const settings = await program.account.settlerSettings.fetch(adminSdk.getSettlerSettingsPubkey())
+            const settings = await program.account.settlerSettings.fetch(adminSdk.getSettlerSettingsKey())
             expect(res.toString()).to.not.include('FailedTransaction')
             expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(
               ethers.TypedDataEncoder.hashDomain(domain)
@@ -432,7 +432,7 @@ describe('Settler', () => {
               .accountsPartial({
                 intent: intentKey,
                 solver: solverSdk.getSignerKey(),
-                solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solver.publicKey),
+                solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solver.publicKey),
               })
               .instruction()
           })
@@ -1687,10 +1687,10 @@ describe('Settler', () => {
         .addValidatorSig()
         .accountsPartial({
           solver: solverSdk.getSignerKey(),
-          solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+          solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solverSdk.getSignerKey()),
           intent: solverSdk.getIntentKey(hash),
           fulfilledIntent: solverSdk.getFulfilledIntentKey(hash),
-          validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
+          validatorRegistry: solverSdk.getEntityRegistryKey(EntityType.Validator, validatorEthAddress),
           ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
           ...accountsPartial,
         })
@@ -1830,7 +1830,7 @@ describe('Settler', () => {
                     validator1,
                     {},
                     {
-                      validatorRegistry: solverSdk.getEntityRegistryPubkey(
+                      validatorRegistry: solverSdk.getEntityRegistryKey(
                         EntityType.Validator,
                         hexToBytes(validator2.address)
                       ),
@@ -2023,9 +2023,9 @@ describe('Settler', () => {
         .addAxiaSig()
         .accountsPartial({
           solver: solverSdk.getSignerKey(),
-          solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+          solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solverSdk.getSignerKey()),
           proposal: proposalKeyOverride,
-          axiaRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Axia, hexToBytes(ethAxia.address)),
+          axiaRegistry: solverSdk.getEntityRegistryKey(EntityType.Axia, hexToBytes(ethAxia.address)),
           ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
           ...accountsPartial,
         })
