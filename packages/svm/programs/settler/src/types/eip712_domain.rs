@@ -15,9 +15,9 @@ impl Eip712Domain {
         AlloyEip712Domain {
             name: self.name.clone().map(Into::into),
             version: self.version.clone().map(Into::into),
-            chain_id: self.chain_id.map(|n| U256::from(n)),
+            chain_id: self.chain_id.map(U256::from),
             verifying_contract: None,
-            salt: self.salt.map(|b| FixedBytes::from(b)),
+            salt: self.salt.map(FixedBytes::from),
         }
     }
 }
