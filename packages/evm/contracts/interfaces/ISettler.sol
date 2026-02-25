@@ -155,7 +155,7 @@ interface ISettler {
     /**
      * @dev Emitted every time an intent is fulfilled
      */
-    event ProposalExecuted(bytes32 indexed proposal, uint256 index);
+    event ProposalExecuted(bytes32 indexed proposal);
 
     /**
      * @dev Emitted every time tokens are withdrawn from the contract balance
@@ -250,14 +250,18 @@ interface ISettler {
 
     /**
      * @dev Executes a proposal to fulfill an intent
-     * @param executions List of executions, each including the intent, proposal, and proposal signature
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param signature Proposal signature
      */
-    function execute(Execution[] memory executions) external;
+    function execute(Intent memory intent, Proposal memory proposal, bytes memory signature) external;
 
     /**
      * @dev Simulates an execution. It will always revert. Successful executions are returned as
      * `SettlerSimulationSuccess` errors. Any other error should be treated as failure.
-     * @param executions List of executions, each including the intent, proposal, and proposal signature
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param signature Proposal signature
      */
-    function simulate(Execution[] memory executions) external;
+    function simulate(Intent memory intent, Proposal memory proposal, bytes memory signature) external;
 }

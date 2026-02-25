@@ -60,7 +60,7 @@ describe('SmartAccount7702', () => {
             const proposal = createTransferProposal()
             const signature = await signProposal(settler, intent, solver, proposal, admin)
             const options = { authorizationList: [authorization] }
-            const tx = await settler.connect(solver).execute([{ intent, proposal, signature }], options)
+            const tx = await settler.connect(solver).execute(intent, proposal, signature, options)
 
             const userSmartAccount = await ethers.getContractAt('ISmartAccount', user)
             const userEvents = await userSmartAccount.queryFilter(smartAccount.filters.Transferred(), tx.blockNumber)
@@ -144,7 +144,7 @@ describe('SmartAccount7702', () => {
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const options = { authorizationList: [authorization] }
 
-              const tx = await settler.connect(solver).execute([{ intent, proposal, signature }], options)
+              const tx = await settler.connect(solver).execute(intent, proposal, signature, options)
 
               const userSmartAccount = await ethers.getContractAt('ISmartAccount', user)
               const userEvents = await userSmartAccount.queryFilter(smartAccount.filters.Called(), tx.blockNumber)
@@ -175,7 +175,7 @@ describe('SmartAccount7702', () => {
               const options = { authorizationList: [authorization] }
 
               await expect(
-                settler.connect(solver).execute([{ intent, proposal, signature }], options)
+                settler.connect(solver).execute(intent, proposal, signature, options)
               ).to.be.revertedWithCustomError(target, 'CallError')
             })
           })
