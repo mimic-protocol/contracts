@@ -5,21 +5,25 @@ import { Address, Program, Wallet } from '@coral-xyz/anchor'
 import {
   bytesToHex,
   Chains,
-  ControllerSDK,
   CreateProposalParams,
   EntityType,
   EthersSigner,
   ExtendIntentParams,
   hexToBytes,
-  INTENT_HASH_VALIDATION_712_TYPES,
   OpType,
   ProposalInstruction,
+  ProposalSigner,
   randomHex,
   SETTLER_EIP712_DOMAIN,
-  SettlerSDK,
   SolanaEip712Domain,
+  SvmController,
+  SvmSettler,
   SvmTokenFee,
+  ValidatorSigner,
 } from '@mimicprotocol/sdk'
+import * as ControllerIDL from '@mimicprotocol/sdk/src/settler/svm/idls/controller.json'
+import * as SettlerIDL from '@mimicprotocol/sdk/src/settler/svm/idls/settler.json'
+import { Settler } from '@mimicprotocol/sdk/src/settler/svm/idls/types/settler'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
@@ -37,10 +41,8 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import * as ControllerIDL from '../target/idl/controller.json'
-import * as SettlerIDL from '../target/idl/settler.json'
-import { Settler } from '../target/types/settler'
 import {
+  ACCOUNT_CLOSE_FEE,
   addValidatorsToIntent,
   createAllowlistedEntity,
   createAxiaSignature,
@@ -54,35 +56,32 @@ import {
   createValidatedIntent,
   createValidatorSignature,
   createWritableInstructionAccount,
-  ethAddressToByteArray,
-  expectTransactionError,
-  generateIntentHash,
-  generateNonce,
-  getCurrentTimestamp,
-  randomKeypair,
-  randomPubkey,
-  removeEntityFromAllowlist,
-  toLamports,
-} from './helpers'
-import {
-  ACCOUNT_CLOSE_FEE,
   DEFAULT_DATA_HEX,
   DEFAULT_MAX_FEE,
   EMPTY_DATA_HEX,
+  ethAddressToByteArray,
+  expectTransactionError,
   EXPIRATION_TEST_DELAY,
   EXPIRATION_TEST_DELAY_PLUS_ONE,
+  generateIntentHash,
+  generateNonce,
+  getCurrentTimestamp,
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   PROPOSAL_DEADLINE_OFFSET,
+  randomKeypair,
+  randomPubkey,
+  removeEntityFromAllowlist,
   SHORT_DEADLINE,
   STALE_CLAIM_DELAY,
   STALE_CLAIM_DELAY_PLUS_ONE,
   TEST_DATA_HEX_1,
   TEST_DATA_HEX_2,
   TEST_DATA_HEX_3,
+  toLamports,
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
-} from './helpers/constants'
+} from './helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
@@ -98,12 +97,12 @@ describe('Settler', () => {
 
   let program: Program<Settler>
 
-  let sdk: SettlerSDK
-  let maliciousSdk: SettlerSDK
-  let solverSdk: SettlerSDK
-  let adminSdk: SettlerSDK
+  let sdk: SvmSettler
+  let maliciousSdk: SvmSettler
+  let solverSdk: SvmSettler
+  let adminSdk: SvmSettler
 
-  let controllerSdk: ControllerSDK
+  let controllerSdk: SvmController
 
   before(async () => {
     admin = Keypair.fromSecretKey(
@@ -120,17 +119,17 @@ describe('Settler', () => {
 
     program = new Program<Settler>(SettlerIDL as any, provider)
 
-    sdk = new SettlerSDK(provider)
-    maliciousSdk = new SettlerSDK(maliciousProvider)
-    solverSdk = new SettlerSDK(solverProvider)
-    adminSdk = new SettlerSDK(provider)
+    sdk = new SvmSettler(provider)
+    maliciousSdk = new SvmSettler(maliciousProvider)
+    solverSdk = new SvmSettler(solverProvider)
+    adminSdk = new SvmSettler(provider)
 
     provider.client.airdrop(admin.publicKey, toLamports(100))
     provider.client.airdrop(malicious.publicKey, toLamports(100))
     provider.client.airdrop(solver.publicKey, toLamports(100))
 
     // Initialize Controller and add Solver to allowlist
-    controllerSdk = new ControllerSDK(provider)
+    controllerSdk = new SvmController(provider)
     await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
     await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
@@ -1677,7 +1676,11 @@ describe('Settler', () => {
       )
 
       const validatorEthAddress = hexToBytes(ethValidator.address)
-      const eip712Preimage = solverSdk.getEip712Preimage(INTENT_HASH_VALIDATION_712_TYPES, { intent: hash })
+      const eip712Preimage = new ValidatorSigner().getIntentMessage({
+        hash,
+        settler: program.programId.toString(),
+        chainId: Chains.Solana,
+      })
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
         message: hexToBytes(eip712Preimage),
@@ -2013,7 +2016,10 @@ describe('Settler', () => {
 
       const { signature, recoveryId } = await createAxiaSignature(intent.hash, proposal, ethAxia)
 
-      const eip712Preimage = solverSdk.getProposalEip712Preimage(intent.hash, proposal)
+      const eip712Preimage = new ProposalSigner().getMessage(
+        solverSdk.anchorProposalToEip712Proposal(proposal, intent.hash),
+        { chainId: Chains.Solana, address: program.programId.toString() }
+      )
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
         message: hexToBytes(eip712Preimage),
