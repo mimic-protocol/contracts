@@ -5,5 +5,6 @@ use anchor_lang::prelude::*;
 pub enum OpType {
     Swap = 0,
     Transfer = 1,
-    Call = 2,
+    EvmCall = 2,
+    SvmCall = 3,
 }

@@ -1,8 +1,8 @@
+import { ControllerSDK, EntityType } from '@mimicprotocol/sdk'
 import { PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, TransactionMetadata } from 'litesvm'
 
-import ControllerSDK, { EntityType } from '../../sdks/controller/Controller'
 import { makeTxSignAndSend } from '../utils'
 
 /**

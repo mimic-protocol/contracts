@@ -11,18 +11,15 @@ pub struct AddInstructionsToProposal<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
 
+    /// Any proposal
     #[account(
         mut,
         realloc = Proposal::extended_size(proposal.to_account_info().data_len(), &more_instructions)?,
         realloc::payer = creator,
         realloc::zero = true,
-        has_one = creator @ SettlerError::IncorrectProposalCreator
-    )]
-
-    /// Any proposal
-    #[account(
         constraint = proposal.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::ProposalIsExpired,
-        constraint = !proposal.is_final @ SettlerError::ProposalIsFinal
+        constraint = !proposal.is_final @ SettlerError::ProposalIsFinal,
+        has_one = creator @ SettlerError::IncorrectProposalCreator
     )]
     pub proposal: Box<Account<'info, Proposal>>,
 

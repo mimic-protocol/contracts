@@ -5,11 +5,21 @@ import { Address, Program, Wallet } from '@coral-xyz/anchor'
 import {
   bytesToHex,
   Chains,
+  CreateProposalParams,
+  EntityType,
   EthersSigner,
+  ExtendIntentParams,
   hexToBytes,
-  INTENT_HASH_VALIDATION_712_TYPES,
+  OpType,
+  ProposalInstruction,
+  ProposalSigner,
   randomHex,
   SETTLER_EIP712_DOMAIN,
+  SolanaEip712Domain,
+  SvmController,
+  SvmSettler,
+  SvmTokenFee,
+  ValidatorSigner,
 } from '@mimicprotocol/sdk'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
@@ -28,20 +38,11 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
-import SettlerSDK from '../sdks/settler/Settler'
-import {
-  CreateProposalParams,
-  ExtendIntentParams,
-  OpType,
-  ProposalInstruction,
-  SolanaEip712Domain,
-  TokenFee,
-} from '../sdks/settler/types'
 import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
 import {
+  ACCOUNT_CLOSE_FEE,
   addValidatorsToIntent,
   createAllowlistedEntity,
   createAxiaSignature,
@@ -55,35 +56,32 @@ import {
   createValidatedIntent,
   createValidatorSignature,
   createWritableInstructionAccount,
-  ethAddressToByteArray,
-  expectTransactionError,
-  generateIntentHash,
-  generateNonce,
-  getCurrentTimestamp,
-  randomKeypair,
-  randomPubkey,
-  removeEntityFromAllowlist,
-  toLamports,
-} from './helpers'
-import {
-  ACCOUNT_CLOSE_FEE,
   DEFAULT_DATA_HEX,
   DEFAULT_MAX_FEE,
   EMPTY_DATA_HEX,
+  ethAddressToByteArray,
+  expectTransactionError,
   EXPIRATION_TEST_DELAY,
   EXPIRATION_TEST_DELAY_PLUS_ONE,
+  generateIntentHash,
+  generateNonce,
+  getCurrentTimestamp,
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   PROPOSAL_DEADLINE_OFFSET,
+  randomKeypair,
+  randomPubkey,
+  removeEntityFromAllowlist,
   SHORT_DEADLINE,
   STALE_CLAIM_DELAY,
   STALE_CLAIM_DELAY_PLUS_ONE,
   TEST_DATA_HEX_1,
   TEST_DATA_HEX_2,
   TEST_DATA_HEX_3,
+  toLamports,
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
-} from './helpers/constants'
+} from './helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
@@ -99,12 +97,12 @@ describe('Settler', () => {
 
   let program: Program<Settler>
 
-  let sdk: SettlerSDK
-  let maliciousSdk: SettlerSDK
-  let solverSdk: SettlerSDK
-  let adminSdk: SettlerSDK
+  let sdk: SvmSettler
+  let maliciousSdk: SvmSettler
+  let solverSdk: SvmSettler
+  let adminSdk: SvmSettler
 
-  let controllerSdk: ControllerSDK
+  let controllerSdk: SvmController
 
   before(async () => {
     admin = Keypair.fromSecretKey(
@@ -121,17 +119,17 @@ describe('Settler', () => {
 
     program = new Program<Settler>(SettlerIDL as any, provider)
 
-    sdk = new SettlerSDK(provider)
-    maliciousSdk = new SettlerSDK(maliciousProvider)
-    solverSdk = new SettlerSDK(solverProvider)
-    adminSdk = new SettlerSDK(provider)
+    sdk = new SvmSettler(provider)
+    maliciousSdk = new SvmSettler(maliciousProvider)
+    solverSdk = new SvmSettler(solverProvider)
+    adminSdk = new SvmSettler(provider)
 
     provider.client.airdrop(admin.publicKey, toLamports(100))
     provider.client.airdrop(malicious.publicKey, toLamports(100))
     provider.client.airdrop(solver.publicKey, toLamports(100))
 
     // Initialize Controller and add Solver to allowlist
-    controllerSdk = new ControllerSDK(provider)
+    controllerSdk = new SvmController(provider)
     await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
     await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
@@ -161,7 +159,7 @@ describe('Settler', () => {
         const ix = await sdk.initializeIx(domain)
         await makeTxSignAndSend(provider, ix)
 
-        const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
+        const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsKey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
         expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(ethers.TypedDataEncoder.hashDomain(domain))
       })
@@ -182,7 +180,7 @@ describe('Settler', () => {
           it(`updates domain correctly (${testCase})`, async () => {
             const ix = await adminSdk.updateEip712DomainIx(domain)
             const res = await makeTxSignAndSend(provider, ix)
-            const settings = await program.account.settlerSettings.fetch(adminSdk.getSettlerSettingsPubkey())
+            const settings = await program.account.settlerSettings.fetch(adminSdk.getSettlerSettingsKey())
             expect(res.toString()).to.not.include('FailedTransaction')
             expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(
               ethers.TypedDataEncoder.hashDomain(domain)
@@ -268,8 +266,8 @@ describe('Settler', () => {
               ],
               eventsHex: [
                 {
-                  topicHex: randomHex(32).slice(2),
-                  dataHex: randomHex(100).slice(2),
+                  topic: randomHex(32).slice(2),
+                  data: randomHex(100).slice(2),
                 },
               ],
               isFinal: true,
@@ -291,7 +289,7 @@ describe('Settler', () => {
               expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
               expect(intent.events.length).to.be.eq(1)
               expect(intent.validators.length).to.be.eq(0)
-              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].dataHex)
+              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].data)
             })
           })
 
@@ -409,8 +407,8 @@ describe('Settler', () => {
               amount: new BN(tokenFee.amount),
             }))
             const events = eventsHex.map((eventHex) => ({
-              topic: Array.from(Uint8Array.from(hexToBytes(eventHex.topicHex))),
-              data: hexToBytes(eventHex.dataHex),
+              topic: Array.from(Uint8Array.from(hexToBytes(eventHex.topic))),
+              data: hexToBytes(eventHex.data),
             }))
             const intentKey = PublicKey.findProgramAddressSync(
               [Buffer.from('intent'), hexToBytes(intentHash)],
@@ -433,7 +431,7 @@ describe('Settler', () => {
               .accountsPartial({
                 intent: intentKey,
                 solver: solverSdk.getSignerKey(),
-                solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solver.publicKey),
+                solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solver.publicKey),
               })
               .instruction()
           })
@@ -545,8 +543,8 @@ describe('Settler', () => {
                   extendParams = {
                     moreEventsHex: [
                       {
-                        topicHex: randomHex(32).slice(2),
-                        dataHex: TEST_DATA_HEX_2,
+                        topic: randomHex(32).slice(2),
+                        data: TEST_DATA_HEX_2,
                       },
                     ],
                   }
@@ -559,10 +557,10 @@ describe('Settler', () => {
                   const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].topicHex
+                    extendParams.moreEventsHex![0].topic
                   )
                   expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].dataHex
+                    extendParams.moreEventsHex![0].data
                   )
                 })
               })
@@ -583,8 +581,8 @@ describe('Settler', () => {
                     ],
                     moreEventsHex: [
                       {
-                        topicHex: randomHex(32).slice(2),
-                        dataHex: TEST_DATA_HEX_3,
+                        topic: randomHex(32).slice(2),
+                        data: TEST_DATA_HEX_3,
                       },
                     ],
                   }
@@ -600,7 +598,7 @@ describe('Settler', () => {
                   expect(intent.maxFees[1].amount.toNumber()).to.be.eq(extendParams.moreMaxFees![0].amount)
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].topicHex
+                    extendParams.moreEventsHex![0].topic
                   )
                   expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(TEST_DATA_HEX_3)
                 })
@@ -616,8 +614,8 @@ describe('Settler', () => {
                 extendParams = {
                   moreDataHex: randomHex(50).slice(2),
                   moreEventsHex: [
-                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
-                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
+                    { topic: randomHex(32).slice(2), data: randomHex(400).slice(2) },
+                    { topic: randomHex(32).slice(2), data: randomHex(400).slice(2) },
                   ],
                   moreMaxFees: [
                     { mint: randomPubkey(), amount: 1 },
@@ -1278,7 +1276,7 @@ describe('Settler', () => {
         let intentHash: string
         let deadline: number
         let instructions: ProposalInstruction[]
-        let fees: TokenFee[]
+        let fees: SvmTokenFee[]
 
         beforeEach('generate non-existent intent hash and proposal params', async () => {
           intentHash = generateIntentHash()
@@ -1514,21 +1512,19 @@ describe('Settler', () => {
     })
 
     context('when caller is not proposal creator', () => {
-      let proposalCreator: PublicKey
-
       beforeEach('create proposal and instruction params', async () => {
         intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
-        proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
         moreInstructions = []
       })
 
       it('throws an error', async () => {
-        const ix = await maliciousSdk.addInstructionsToProposalIx(
-          intentHash,
-          moreInstructions,
-          undefined,
-          proposalCreator
-        )
+        const ix = await program.methods
+          .addInstructionsToProposal([], true)
+          .accountsPartial({
+            creator: malicious.publicKey,
+            proposal: solverSdk.getProposalKey(intentHash),
+          })
+          .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
@@ -1643,7 +1639,13 @@ describe('Settler', () => {
       })
 
       it('throws an error', async () => {
-        const ix = await maliciousSdk.claimStaleProposalIx(intentHash, solver.publicKey)
+        const ix = await program.methods
+          .claimStaleProposal()
+          .accountsPartial({
+            creator: malicious.publicKey,
+            proposal: solverSdk.getProposalKey(intentHash),
+          })
+          .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
@@ -1674,7 +1676,11 @@ describe('Settler', () => {
       )
 
       const validatorEthAddress = hexToBytes(ethValidator.address)
-      const eip712Preimage = solverSdk.getEip712Preimage(INTENT_HASH_VALIDATION_712_TYPES, { intent: hash })
+      const eip712Preimage = new ValidatorSigner().getIntentMessage({
+        hash,
+        settler: program.programId.toString(),
+        chainId: Chains.Solana,
+      })
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
         message: hexToBytes(eip712Preimage),
@@ -1688,10 +1694,10 @@ describe('Settler', () => {
         .addValidatorSig()
         .accountsPartial({
           solver: solverSdk.getSignerKey(),
-          solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+          solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solverSdk.getSignerKey()),
           intent: solverSdk.getIntentKey(hash),
           fulfilledIntent: solverSdk.getFulfilledIntentKey(hash),
-          validatorRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Validator, validatorEthAddress),
+          validatorRegistry: solverSdk.getEntityRegistryKey(EntityType.Validator, validatorEthAddress),
           ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
           ...accountsPartial,
         })
@@ -1831,7 +1837,7 @@ describe('Settler', () => {
                     validator1,
                     {},
                     {
-                      validatorRegistry: solverSdk.getEntityRegistryPubkey(
+                      validatorRegistry: solverSdk.getEntityRegistryKey(
                         EntityType.Validator,
                         hexToBytes(validator2.address)
                       ),
@@ -2010,7 +2016,10 @@ describe('Settler', () => {
 
       const { signature, recoveryId } = await createAxiaSignature(intent.hash, proposal, ethAxia)
 
-      const eip712Preimage = solverSdk.getProposalEip712Preimage(intent.hash, proposal)
+      const eip712Preimage = new ProposalSigner().getMessage(
+        solverSdk.anchorProposalToEip712Proposal(proposal, intent.hash),
+        { chainId: Chains.Solana, address: program.programId.toString() }
+      )
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
         message: hexToBytes(eip712Preimage),
@@ -2024,9 +2033,9 @@ describe('Settler', () => {
         .addAxiaSig()
         .accountsPartial({
           solver: solverSdk.getSignerKey(),
-          solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solverSdk.getSignerKey()),
+          solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solverSdk.getSignerKey()),
           proposal: proposalKeyOverride,
-          axiaRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Axia, hexToBytes(ethAxia.address)),
+          axiaRegistry: solverSdk.getEntityRegistryKey(EntityType.Axia, hexToBytes(ethAxia.address)),
           ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
           ...accountsPartial,
         })

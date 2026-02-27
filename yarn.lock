@@ -48,7 +48,7 @@
   resolved "https://registry.yarnpkg.com/@coral-xyz/anchor-errors/-/anchor-errors-0.31.1.tgz#d635cbac2533973ae6bfb5d3ba1de89ce5aece2d"
   integrity sha512-NhNEku4F3zzUSBtrYz84FzYWm48+9OvmT1Hhnwr6GnPQry2dsEqH/ti/7ASjjpoFTWRnPXrjAIT1qM6Isop+LQ==
 
-"@coral-xyz/anchor@^0.32.1":
+"@coral-xyz/anchor@0.32.1", "@coral-xyz/anchor@^0.32.1":
   version "0.32.1"
   resolved "https://registry.yarnpkg.com/@coral-xyz/anchor/-/anchor-0.32.1.tgz#a07440d9d267840f4f99f1493bd8ce7d7f128e57"
   integrity sha512-zAyxFtfeje2FbMA1wzgcdVs7Hng/MijPKpRijoySPCicnvcTQs/+dnPZ/cR+LcXM9v9UYSyW81uRNYZtN5G4yg==
@@ -493,11 +493,12 @@
     ethers "^6.13.5"
     zod "^3.23.8"
 
-"@mimicprotocol/sdk@0.0.1-rc.35":
-  version "0.0.1-rc.35"
-  resolved "https://registry.yarnpkg.com/@mimicprotocol/sdk/-/sdk-0.0.1-rc.35.tgz#e2ee55087aae85bef7f963cbe757e1f91387eb38"
-  integrity sha512-DDTs6LbEs5fcxG262CEHbWJFEWZ5DVvFBSGS9gANs6nc6NYflLZYBiV+N24VsYjJ5EWEw6KW1mIdx9akQbHPEw==
+"@mimicprotocol/sdk@0.0.1-rc.36":
+  version "0.0.1-rc.36"
+  resolved "https://registry.yarnpkg.com/@mimicprotocol/sdk/-/sdk-0.0.1-rc.36.tgz#c334badfec683c8af2f113f4d2b914341fbfb08f"
+  integrity sha512-B91yg2S8B0jc/fOjpTMDMgqOAYZeuZJgSwMCyFSwFhmaUeVVlwZGqjzpxPVN237BIXN2vV+eNI1xWmnoCm6CJw==
   dependencies:
+    "@coral-xyz/anchor" "0.32.1"
     "@solana/web3.js" "^1.98.4"
     borsh "^2.0.0"
     cron-parser "^5.3.1"
