@@ -3,8 +3,6 @@
 
 import { Program, Wallet, web3 } from '@coral-xyz/anchor'
 import { EntityType, SvmController } from '@mimicprotocol/sdk'
-import * as ControllerIDL from '@mimicprotocol/sdk/src/settler/svm/idls/controller.json'
-import { Controller } from '@mimicprotocol/sdk/src/settler/svm/idls/types/controller'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import fs from 'fs'
@@ -12,6 +10,8 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
+import * as ControllerIDL from '../target/idl/controller.json'
+import { Controller } from '../target/types/controller'
 import { expectTransactionError, randomKeypair, randomPubkey, toLamports } from './helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 

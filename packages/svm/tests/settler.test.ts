@@ -21,9 +21,6 @@ import {
   SvmTokenFee,
   ValidatorSigner,
 } from '@mimicprotocol/sdk'
-import * as ControllerIDL from '@mimicprotocol/sdk/src/settler/svm/idls/controller.json'
-import * as SettlerIDL from '@mimicprotocol/sdk/src/settler/svm/idls/settler.json'
-import { Settler } from '@mimicprotocol/sdk/src/settler/svm/idls/types/settler'
 import {
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
@@ -41,6 +38,9 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
+import * as ControllerIDL from '../target/idl/controller.json'
+import * as SettlerIDL from '../target/idl/settler.json'
+import { Settler } from '../target/types/settler'
 import {
   ACCOUNT_CLOSE_FEE,
   addValidatorsToIntent,
