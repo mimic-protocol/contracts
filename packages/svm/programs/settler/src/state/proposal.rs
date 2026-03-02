@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::{
     types::TokenFee,
-    utils::{add, mul, sub},
+    utils::{add, mul, sub, Proposal as Eip712Proposal},
 };
 
 #[account]
@@ -54,6 +54,18 @@ impl Proposal {
             add(size, Proposal::instructions_size(more_instructions)?)?,
             4,
         )
+    }
+
+    pub fn to_eip712_struct(&self, intent_hash: [u8; 32]) -> Eip712Proposal {
+        use alloy_primitives::U256;
+
+        Eip712Proposal {
+            intent: intent_hash.into(),
+            solver: self.creator.to_string(),
+            deadline: U256::from(self.deadline),
+            data: vec![].into(),
+            fees: self.fees.iter().map(|fee| U256::from(fee.amount)).collect(),
+        }
     }
 }
 

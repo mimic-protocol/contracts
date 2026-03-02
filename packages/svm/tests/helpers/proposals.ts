@@ -1,10 +1,9 @@
 import { Program } from '@coral-xyz/anchor'
+import { CreateProposalParams, ProposalInstruction, SettlerSDK } from '@mimicprotocol/sdk'
 import { PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 
-import SettlerSDK from '../../sdks/settler/Settler'
-import { CreateProposalParams, ProposalInstruction } from '../../sdks/settler/types'
 import * as SettlerIDL from '../../target/idl/settler.json'
 import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
@@ -41,6 +40,8 @@ export type CreateProposalOptions = Partial<{
   intentOptions: CreateProposalIntentOptions
   proposalParams: Partial<CreateProposalParams>
 }>
+
+export type ProposalAccount = NonNullable<Awaited<ReturnType<Program<Settler>['account']['proposal']['fetch']>>>
 
 /**
  * Create proposal params (intent, deadline, instructions, fees) for testing

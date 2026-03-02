@@ -1,7 +1,10 @@
 use anchor_lang::prelude::*;
 use std::str::FromStr;
 
-use crate::{constants::DEPLOYER_KEY, controller, errors::SettlerError, state::SettlerSettings};
+use crate::{
+    constants::DEPLOYER_KEY, controller, errors::SettlerError, state::SettlerSettings,
+    types::Eip712Domain,
+};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -20,7 +23,7 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+pub fn initialize(ctx: Context<Initialize>, domain: Eip712Domain) -> Result<()> {
     require_keys_eq!(
         ctx.accounts.deployer.key(),
         Pubkey::from_str(DEPLOYER_KEY).unwrap(),
@@ -31,6 +34,7 @@ pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
 
     settler_settings.controller_program = controller::ID;
     settler_settings.bump = ctx.bumps.settler_settings;
+    settler_settings.eip712_domain_hash = domain.to_alloy_struct().hash_struct().into();
 
     Ok(())
 }

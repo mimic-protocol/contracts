@@ -6,8 +6,10 @@ use anchor_lang::{
 use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
-    state::Proposal,
-    utils::{check_ed25519_ix, get_args_from_ed25519_ix_data, Ed25519Args},
+    state::{Intent, Proposal, SettlerSettings},
+    utils::{
+        check_secp256k1_ix, create_axia_message, get_args_from_secp256k1_ix_data, Secp256k1Args,
+    },
 };
 
 #[derive(Accounts)]
@@ -23,7 +25,7 @@ pub struct AddAxiaSig<'info> {
     pub solver_registry: Box<Account<'info, EntityRegistry>>,
 
     #[account(
-        seeds = [b"entity-registry", &[EntityType::Axia as u8], axia_registry.entity_pubkey.as_ref()],
+        seeds = [b"entity-registry", &[EntityType::Axia as u8], axia_registry.entity_address.as_ref()],
         bump = axia_registry.bump,
         seeds::program = controller::ID,
     )]
@@ -34,8 +36,18 @@ pub struct AddAxiaSig<'info> {
         mut,
         constraint = proposal.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::ProposalIsExpired,
         constraint = proposal.is_final @ SettlerError::ProposalIsNotFinal,
+        has_one = intent @ SettlerError::IncorrectIntentForProposal,
     )]
     pub proposal: Box<Account<'info, Proposal>>,
+
+    /// CHECK: Proposal's intent checked through has_one
+    pub intent: Box<Account<'info, Intent>>,
+
+    #[account(
+        seeds = [b"settler-settings"],
+        bump = settler_settings.bump,
+    )]
+    pub settler_settings: Box<Account<'info, SettlerSettings>>,
 
     /// CHECK: The address check is needed because otherwise
     /// the supplied Sysvar could be anything else.
@@ -44,6 +56,7 @@ pub struct AddAxiaSig<'info> {
 }
 
 pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
+    let settings = &ctx.accounts.settler_settings;
     let proposal = &mut ctx.accounts.proposal;
 
     // NOP if already signed
@@ -51,23 +64,28 @@ pub fn add_axia_sig(ctx: Context<AddAxiaSig>) -> Result<()> {
         return Ok(());
     }
 
-    // Get Ed25519 instruction
-    let ed25519_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;
-    let ed25519_ix_args: Ed25519Args = get_args_from_ed25519_ix_data(&ed25519_ix.data)?;
+    // Get Secp256k1 instruction
+    let secp256k1_ix: Instruction = get_instruction_relative(-1, &ctx.accounts.ix_sysvar)?;
+    let secp256k1_ix_args: Secp256k1Args = get_args_from_secp256k1_ix_data(&secp256k1_ix.data)?;
 
     // Verify correct program and accounts
-    check_ed25519_ix(&ed25519_ix)?;
+    check_secp256k1_ix(&secp256k1_ix)?;
 
     // Verify correct message was signed
-    require!(
-        ed25519_ix_args.msg == proposal.key().as_array(),
-        SettlerError::SigVerificationFailed
+    let expected_message = create_axia_message(
+        &settings.eip712_domain_hash,
+        proposal.to_eip712_struct(ctx.accounts.intent.hash),
     );
 
-    // Verify pubkey is whitelisted Axia
     require!(
-        ed25519_ix_args.pubkey == &ctx.accounts.axia_registry.entity_pubkey.to_bytes(),
-        SettlerError::AxiaNotAllowlisted
+        secp256k1_ix_args.msg == expected_message.as_slice(),
+        SettlerError::SigVerificationFailedIncorrectMessage
+    );
+
+    // Verify address is whitelisted Axia
+    require!(
+        ctx.accounts.axia_registry.entity_address == secp256k1_ix_args.eth_address,
+        SettlerError::SigVerificationFailedIncorrectAxia
     );
 
     // Updates proposal as signed

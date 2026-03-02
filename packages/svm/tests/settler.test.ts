@@ -1,25 +1,51 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import { Program, Wallet } from '@coral-xyz/anchor'
-import { randomHex } from '@mimicprotocol/sdk'
-import { Keypair, PublicKey, TransactionInstruction } from '@solana/web3.js'
+import { Address, Program, Wallet } from '@coral-xyz/anchor'
+import {
+  bytesToHex,
+  Chains,
+  CreateProposalParams,
+  EntityType,
+  EthersSigner,
+  ExtendIntentParams,
+  hexToBytes,
+  OpType,
+  ProposalInstruction,
+  ProposalSigner,
+  randomHex,
+  SETTLER_EIP712_DOMAIN,
+  SolanaEip712Domain,
+  SvmController,
+  SvmSettler,
+  SvmTokenFee,
+  ValidatorSigner,
+} from '@mimicprotocol/sdk'
+import {
+  CreateSecp256k1InstructionWithEthAddressParams,
+  Keypair,
+  PublicKey,
+  Secp256k1Program,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+  TransactionInstruction,
+} from '@solana/web3.js'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { BN } from 'bn.js'
 import { expect } from 'chai'
+import { ethers } from 'ethers'
 import fs from 'fs'
 import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
-import SettlerSDK from '../sdks/settler/Settler'
-import { CreateProposalParams, ExtendIntentParams, OpType, ProposalInstruction, TokenFee } from '../sdks/settler/types'
 import * as ControllerIDL from '../target/idl/controller.json'
 import * as SettlerIDL from '../target/idl/settler.json'
 import { Settler } from '../target/types/settler'
 import {
+  ACCOUNT_CLOSE_FEE,
   addValidatorsToIntent,
+  createAllowlistedEntity,
+  createAxiaSignature,
   CreateIntentOptions,
   createIntentParams,
   CreateProposalOptions,
@@ -28,34 +54,34 @@ import {
   createTestIntent,
   createTestProposalInstruction,
   createValidatedIntent,
+  createValidatorSignature,
   createWritableInstructionAccount,
-  expectTransactionError,
-  generateIntentHash,
-  generateNonce,
-  getCurrentTimestamp,
-  randomKeypair,
-  randomPubkey,
-  toLamports,
-} from './helpers'
-import {
-  ACCOUNT_CLOSE_FEE,
   DEFAULT_DATA_HEX,
   DEFAULT_MAX_FEE,
   EMPTY_DATA_HEX,
+  ethAddressToByteArray,
+  expectTransactionError,
   EXPIRATION_TEST_DELAY,
   EXPIRATION_TEST_DELAY_PLUS_ONE,
+  generateIntentHash,
+  generateNonce,
+  getCurrentTimestamp,
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   PROPOSAL_DEADLINE_OFFSET,
+  randomKeypair,
+  randomPubkey,
+  removeEntityFromAllowlist,
   SHORT_DEADLINE,
   STALE_CLAIM_DELAY,
   STALE_CLAIM_DELAY_PLUS_ONE,
   TEST_DATA_HEX_1,
   TEST_DATA_HEX_2,
   TEST_DATA_HEX_3,
+  toLamports,
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
-} from './helpers/constants'
+} from './helpers'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
@@ -71,11 +97,12 @@ describe('Settler', () => {
 
   let program: Program<Settler>
 
-  let sdk: SettlerSDK
-  let maliciousSdk: SettlerSDK
-  let solverSdk: SettlerSDK
+  let sdk: SvmSettler
+  let maliciousSdk: SvmSettler
+  let solverSdk: SvmSettler
+  let adminSdk: SvmSettler
 
-  let controllerSdk: ControllerSDK
+  let controllerSdk: SvmController
 
   before(async () => {
     admin = Keypair.fromSecretKey(
@@ -92,16 +119,17 @@ describe('Settler', () => {
 
     program = new Program<Settler>(SettlerIDL as any, provider)
 
-    sdk = new SettlerSDK(provider)
-    maliciousSdk = new SettlerSDK(maliciousProvider)
-    solverSdk = new SettlerSDK(solverProvider)
+    sdk = new SvmSettler(provider)
+    maliciousSdk = new SvmSettler(maliciousProvider)
+    solverSdk = new SvmSettler(solverProvider)
+    adminSdk = new SvmSettler(provider)
 
     provider.client.airdrop(admin.publicKey, toLamports(100))
     provider.client.airdrop(malicious.publicKey, toLamports(100))
     provider.client.airdrop(solver.publicKey, toLamports(100))
 
     // Initialize Controller and add Solver to allowlist
-    controllerSdk = new ControllerSDK(provider)
+    controllerSdk = new SvmController(provider)
     await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
     await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
@@ -113,7 +141,7 @@ describe('Settler', () => {
   describe('initialize', () => {
     context('when caller is not deployer', () => {
       it('cannot initialize if not deployer', async () => {
-        const ix = await maliciousSdk.initializeIx()
+        const ix = await maliciousSdk.initializeIx({})
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only Deployer can call this instruction.')
@@ -121,19 +149,87 @@ describe('Settler', () => {
     })
 
     context('when caller is deployer', () => {
+      const domain = {
+        name: 'Test',
+        version: '1.0.0',
+        chainId: 507424,
+      }
+
       it('should call initialize', async () => {
-        const ix = await sdk.initializeIx()
+        const ix = await sdk.initializeIx(domain)
         await makeTxSignAndSend(provider, ix)
 
-        const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsPubkey())
+        const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsKey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
+        expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(ethers.TypedDataEncoder.hashDomain(domain))
       })
 
       it('cannot call initialize again', async () => {
-        const ix = await sdk.initializeIx()
+        const ix = await sdk.initializeIx({})
         const res = await makeTxSignAndSend(provider, ix)
 
         expectTransactionError(res, 'already in use')
+      })
+    })
+  })
+
+  describe('update_eip712_domain', () => {
+    context('when caller is controller admin', () => {
+      context('when domain is valid', () => {
+        const itUpdatesDomainCorrectly = (testCase: string, domain: SolanaEip712Domain) => {
+          it(`updates domain correctly (${testCase})`, async () => {
+            const ix = await adminSdk.updateEip712DomainIx(domain)
+            const res = await makeTxSignAndSend(provider, ix)
+            const settings = await program.account.settlerSettings.fetch(adminSdk.getSettlerSettingsKey())
+            expect(res.toString()).to.not.include('FailedTransaction')
+            expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(
+              ethers.TypedDataEncoder.hashDomain(domain)
+            )
+          })
+        }
+
+        itUpdatesDomainCorrectly('only name', { name: 'Only Name' })
+        itUpdatesDomainCorrectly('only version', { version: '1.2.3' })
+        itUpdatesDomainCorrectly('name and version', { name: 'Name and Version', version: '1.2.3' })
+        itUpdatesDomainCorrectly('all fields', {
+          name: 'All Fields',
+          version: '2.2.2',
+          chainId: 14,
+          salt: Uint8Array.from(Array(32).fill(6)),
+        })
+        itUpdatesDomainCorrectly('all fields no salt', { name: 'All Fields no Salt', version: '0.1.0', chainId: 49 })
+        itUpdatesDomainCorrectly('empty domain', {})
+        itUpdatesDomainCorrectly('empty name', { name: '' })
+        itUpdatesDomainCorrectly('empty version', { version: '' })
+        itUpdatesDomainCorrectly('empty name and version', { name: '', version: '' })
+      })
+
+      context('when domain is invalid', () => {
+        const itThrowsAnError = (testCase: string, domain: SolanaEip712Domain, error: string) => {
+          it(`throws an error (${testCase})`, async () => {
+            const ix = await program.methods
+              .updateEip712Domain({
+                name: null,
+                version: null,
+                ...domain,
+                salt: domain.salt ? Array.from(domain.salt) : null,
+                chainId: domain.chainId ? new BN(domain.chainId) : null,
+              })
+              .instruction()
+            const res = await makeTxSignAndSend(provider, ix)
+            expectTransactionError(res, error)
+          })
+        }
+
+        itThrowsAnError('salt too short', { salt: Uint8Array.from([]) }, 'InstructionDidNotDeserialize.')
+      })
+    })
+
+    context('when caller is not controller admin', () => {
+      it('throws an error', async () => {
+        const ix = await solverSdk.updateEip712DomainIx({})
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expectTransactionError(res, 'OnlyControllerAdmin')
       })
     })
   })
@@ -170,8 +266,8 @@ describe('Settler', () => {
               ],
               eventsHex: [
                 {
-                  topicHex: randomHex(32).slice(2),
-                  dataHex: randomHex(100).slice(2),
+                  topic: randomHex(32).slice(2),
+                  data: randomHex(100).slice(2),
                 },
               ],
               isFinal: true,
@@ -184,7 +280,7 @@ describe('Settler', () => {
               expect(intent.op).to.deep.include({ transfer: {} })
               expect(intent.user.toString()).to.be.eq(intentOptions.user!.toString())
               expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
-              expect('0x' + Buffer.from(intent.nonce).toString('hex')).to.be.eq(intentOptions.nonceHex)
+              expect(bytesToHex(Buffer.from(intent.nonce))).to.be.eq(intentOptions.nonceHex)
               expect(intent.deadline.toNumber()).to.be.eq(intentOptions.deadline)
               expect(intent.minValidations).to.be.eq(intentOptions.minValidations)
               expect(intent.isFinal).to.be.true
@@ -193,7 +289,7 @@ describe('Settler', () => {
               expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
               expect(intent.events.length).to.be.eq(1)
               expect(intent.validators.length).to.be.eq(0)
-              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].dataHex)
+              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].data)
             })
           })
 
@@ -296,26 +392,26 @@ describe('Settler', () => {
           let ix: TransactionInstruction
 
           before('create intent params and ix with invalid hash', async () => {
-            intentHash = '123456' // invalid - not 32 bytes
+            intentHash = '0x123456' // invalid - not 32 bytes
             intentOptions = {}
 
             // Build ix with invalid hash
             const params = createIntentParams(client, intentOptions)
             const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
 
-            const intentHashParam = Array.from(Buffer.from(intentHash, 'hex'))
-            const nonce = Array.from(Buffer.from(nonceHex, 'hex'))
-            const data = Buffer.from(dataHex, 'hex')
+            const intentHashParam = Array.from(hexToBytes(intentHash))
+            const nonce = Array.from(hexToBytes(nonceHex))
+            const data = hexToBytes(dataHex)
             const maxFeesBn = maxFees.map((tokenFee) => ({
               ...tokenFee,
               amount: new BN(tokenFee.amount),
             }))
             const events = eventsHex.map((eventHex) => ({
-              topic: Array.from(Uint8Array.from(Buffer.from(eventHex.topicHex, 'hex'))),
-              data: Buffer.from(eventHex.dataHex, 'hex'),
+              topic: Array.from(Uint8Array.from(hexToBytes(eventHex.topic))),
+              data: hexToBytes(eventHex.data),
             }))
             const intentKey = PublicKey.findProgramAddressSync(
-              [Buffer.from('intent'), Buffer.from(intentHash, 'hex')],
+              [Buffer.from('intent'), hexToBytes(intentHash)],
               program.programId
             )[0]
 
@@ -335,7 +431,7 @@ describe('Settler', () => {
               .accountsPartial({
                 intent: intentKey,
                 solver: solverSdk.getSignerKey(),
-                solverRegistry: solverSdk.getEntityRegistryPubkey(EntityType.Solver, solver.publicKey),
+                solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solver.publicKey),
               })
               .instruction()
           })
@@ -447,8 +543,8 @@ describe('Settler', () => {
                   extendParams = {
                     moreEventsHex: [
                       {
-                        topicHex: randomHex(32).slice(2),
-                        dataHex: TEST_DATA_HEX_2,
+                        topic: randomHex(32).slice(2),
+                        data: TEST_DATA_HEX_2,
                       },
                     ],
                   }
@@ -461,10 +557,10 @@ describe('Settler', () => {
                   const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].topicHex
+                    extendParams.moreEventsHex![0].topic
                   )
                   expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].dataHex
+                    extendParams.moreEventsHex![0].data
                   )
                 })
               })
@@ -485,8 +581,8 @@ describe('Settler', () => {
                     ],
                     moreEventsHex: [
                       {
-                        topicHex: randomHex(32).slice(2),
-                        dataHex: TEST_DATA_HEX_3,
+                        topic: randomHex(32).slice(2),
+                        data: TEST_DATA_HEX_3,
                       },
                     ],
                   }
@@ -502,7 +598,7 @@ describe('Settler', () => {
                   expect(intent.maxFees[1].amount.toNumber()).to.be.eq(extendParams.moreMaxFees![0].amount)
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
-                    extendParams.moreEventsHex![0].topicHex
+                    extendParams.moreEventsHex![0].topic
                   )
                   expect(Buffer.from(intent.events[1].data).toString('hex')).to.be.eq(TEST_DATA_HEX_3)
                 })
@@ -518,8 +614,8 @@ describe('Settler', () => {
                 extendParams = {
                   moreDataHex: randomHex(50).slice(2),
                   moreEventsHex: [
-                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
-                    { topicHex: randomHex(32).slice(2), dataHex: randomHex(400).slice(2) },
+                    { topic: randomHex(32).slice(2), data: randomHex(400).slice(2) },
+                    { topic: randomHex(32).slice(2), data: randomHex(400).slice(2) },
                   ],
                   moreMaxFees: [
                     { mint: randomPubkey(), amount: 1 },
@@ -569,7 +665,7 @@ describe('Settler', () => {
                   expect(intent.maxFees.length).to.be.eq(55)
                   expect(intent.events.length).to.be.eq(44)
                   expect(intent.isFinal).to.be.false
-                  expect(intentAcc?.data.length).to.be.eq(26581)
+                  expect(intentAcc?.data.length).to.be.eq(26569)
                 })
               })
 
@@ -1180,7 +1276,7 @@ describe('Settler', () => {
         let intentHash: string
         let deadline: number
         let instructions: ProposalInstruction[]
-        let fees: TokenFee[]
+        let fees: SvmTokenFee[]
 
         beforeEach('generate non-existent intent hash and proposal params', async () => {
           intentHash = generateIntentHash()
@@ -1416,21 +1512,19 @@ describe('Settler', () => {
     })
 
     context('when caller is not proposal creator', () => {
-      let proposalCreator: PublicKey
-
       beforeEach('create proposal and instruction params', async () => {
         intentHash = await createTestProposal({ proposalParams: { isFinal: false } })
-        proposalCreator = (await program.account.proposal.fetch(solverSdk.getProposalKey(intentHash))).creator
         moreInstructions = []
       })
 
       it('throws an error', async () => {
-        const ix = await maliciousSdk.addInstructionsToProposalIx(
-          intentHash,
-          moreInstructions,
-          undefined,
-          proposalCreator
-        )
+        const ix = await program.methods
+          .addInstructionsToProposal([], true)
+          .accountsPartial({
+            creator: malicious.publicKey,
+            proposal: solverSdk.getProposalKey(intentHash),
+          })
+          .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
@@ -1545,11 +1639,661 @@ describe('Settler', () => {
       })
 
       it('throws an error', async () => {
-        const ix = await maliciousSdk.claimStaleProposalIx(intentHash, solver.publicKey)
+        const ix = await program.methods
+          .claimStaleProposal()
+          .accountsPartial({
+            creator: malicious.publicKey,
+            proposal: solverSdk.getProposalKey(intentHash),
+          })
+          .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, `Signer must be proposal creator`)
       })
+    })
+  })
+
+  describe('add_validator_sigs', () => {
+    const createAllowlistedValidator = async () => {
+      const validator = ethers.Wallet.createRandom()
+      await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator, hexToBytes(validator.address))
+      return validator
+    }
+
+    const createSigAndIxs = async (
+      hash: string = intentHash,
+      ethValidator: ethers.HDNodeWallet = validator,
+      secp256k1IxOptions: Partial<CreateSecp256k1InstructionWithEthAddressParams> = {},
+      accountsPartial: Partial<{
+        fulfilledIntent: Address
+        intent: Address
+        validatorRegistry: Address
+      }> = {}
+    ) => {
+      const { signature, recoveryId } = await createValidatorSignature(
+        hash,
+        EthersSigner.fromPrivateKey(ethValidator.privateKey)
+      )
+
+      const validatorEthAddress = hexToBytes(ethValidator.address)
+      const eip712Preimage = new ValidatorSigner().getIntentMessage({
+        hash,
+        settler: program.programId.toString(),
+        chainId: Chains.Solana,
+      })
+
+      const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+        message: hexToBytes(eip712Preimage),
+        ethAddress: validatorEthAddress,
+        signature: Buffer.from(signature),
+        recoveryId,
+        ...secp256k1IxOptions,
+      })
+
+      const ix = await program.methods
+        .addValidatorSig()
+        .accountsPartial({
+          solver: solverSdk.getSignerKey(),
+          solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solverSdk.getSignerKey()),
+          intent: solverSdk.getIntentKey(hash),
+          fulfilledIntent: solverSdk.getFulfilledIntentKey(hash),
+          validatorRegistry: solverSdk.getEntityRegistryKey(EntityType.Validator, validatorEthAddress),
+          ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+          ...accountsPartial,
+        })
+        .instruction()
+
+      return [secp256k1Ix, ix]
+    }
+
+    const itThrowsAnError = async (error: string) => {
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+        expectTransactionError(res, error)
+      })
+    }
+
+    let intentHash: string
+    let validator: ethers.HDNodeWallet
+    let ixs: TransactionInstruction[]
+
+    before('set correct domain', async () => {
+      const ix = await adminSdk.updateEip712DomainIx({
+        ...SETTLER_EIP712_DOMAIN,
+        chainId: Chains.Solana,
+      })
+      await makeTxSignAndSend(provider, ix)
+    })
+
+    context('when caller is whitelisted solver', () => {
+      context('when intent was created', () => {
+        context('when intent conditions are met', () => {
+          context('when signature is cryptographically valid', () => {
+            context('when signature is logically valid', () => {
+              context('when adding valid signatures', () => {
+                context('when adding one signature', () => {
+                  before(async () => {
+                    intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+                    validator = await createAllowlistedValidator()
+                    ixs = await createSigAndIxs()
+                  })
+
+                  it('should add validator to intent validators array', async () => {
+                    const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    await makeTxSignAndSend(solverProvider, ...ixs)
+                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                    expect(intentBefore.validators.length).to.be.eq(0)
+                    expect(intentAfter.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators[0]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+                  })
+
+                  it('should not add the validator twice (idempotent ix)', async () => {
+                    client.expireBlockhash()
+                    ixs = await createSigAndIxs()
+                    const res = await makeTxSignAndSend(solverProvider, ...ixs)
+
+                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                    expect(res.toString()).to.not.include('FailedTransactionMetadata')
+                    expect(intentAfter.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators[0]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+                  })
+                })
+
+                context('when adding multiple signatures', () => {
+                  const validators: ethers.HDNodeWallet[] = []
+                  const sigIxs: TransactionInstruction[][] = []
+
+                  before('creates multiple allowlisted validators and signatures', async () => {
+                    intentHash = await createTestIntent(solverSdk, solverProvider, { minValidations: 3, isFinal: true })
+                    for (let i = 0; i < 3; i++) {
+                      const validator = await createAllowlistedValidator()
+                      const ixs = await createSigAndIxs(undefined, validator)
+                      validators.push(validator)
+                      sigIxs.push(ixs)
+                    }
+                  })
+
+                  it('should add validators to intent validators array', async () => {
+                    for (let i = 0; i < 3; i++) {
+                      const validator = validators[i]
+                      const ixs = sigIxs[i]
+
+                      const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                      await makeTxSignAndSend(solverProvider, ...ixs)
+                      const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                      expect(intentBefore.validators.length).to.be.eq(i)
+                      expect(intentAfter.validators.length).to.be.eq(i + 1)
+                      expect(intentAfter.validators[i]).to.be.deep.eq(ethAddressToByteArray(validator.address))
+                    }
+                  })
+                })
+              })
+            })
+
+            context('when signature is logically invalid', () => {
+              context('when domain does not match', () => {
+                before(async () => {
+                  client.expireBlockhash()
+                  intentHash = await createTestIntent(solverSdk, solverProvider)
+                  ixs = await createSigAndIxs()
+                  const ix = await adminSdk.updateEip712DomainIx({ name: 'Other Domain' })
+                  await makeTxSignAndSend(provider, ix)
+                })
+
+                after(async () => {
+                  client.expireBlockhash()
+                  const ix = await adminSdk.updateEip712DomainIx({
+                    ...SETTLER_EIP712_DOMAIN,
+                    chainId: Chains.Solana,
+                  })
+                  await makeTxSignAndSend(provider, ix)
+                })
+
+                itThrowsAnError('SigVerificationFailedIncorrectMessage')
+              })
+
+              context('when validator is not whitelisted', () => {
+                before(async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                  validator = ethers.Wallet.createRandom()
+                  ixs = await createSigAndIxs()
+                })
+
+                itThrowsAnError(
+                  'Program log: AnchorError caused by account: validator_registry. Error Code: AccountNotInitialized'
+                )
+              })
+
+              context('when signing with another address', () => {
+                before('create valid signature but from another validator', async () => {
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+                  const validator1 = await createAllowlistedValidator()
+                  const validator2 = await createAllowlistedValidator()
+                  ixs = await createSigAndIxs(
+                    intentHash,
+                    validator1,
+                    {},
+                    {
+                      validatorRegistry: solverSdk.getEntityRegistryKey(
+                        EntityType.Validator,
+                        hexToBytes(validator2.address)
+                      ),
+                    }
+                  )
+                })
+
+                itThrowsAnError('SigVerificationFailedIncorrectValidator')
+              })
+
+              context('when signing for another intent', () => {
+                before(async () => {
+                  const otherHash = generateIntentHash()
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+                  validator = await createAllowlistedValidator()
+                  ixs = await createSigAndIxs(
+                    otherHash,
+                    validator,
+                    {},
+                    {
+                      intent: solverSdk.getIntentKey(intentHash),
+                      fulfilledIntent: solverSdk.getFulfilledIntentKey(intentHash),
+                    }
+                  )
+                })
+
+                itThrowsAnError('SigVerificationFailedIncorrectMessage')
+              })
+            })
+          })
+
+          context('when signature is cryptographically invalid', () => {
+            before(async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+              validator = await createAllowlistedValidator()
+              ixs = await createSigAndIxs(intentHash, validator, {
+                signature: Buffer.from(new Uint8Array(64).fill(0xff)),
+              })
+            })
+
+            itThrowsAnError('err: InstructionError(0, Custom(2))')
+          })
+        })
+
+        context('when intent conditions are not met', () => {
+          context('when the intent was not executed', () => {
+            context('when the intent is final', () => {
+              context('when the intent has not expired yet', () => {
+                context('when min_validations is already met', async () => {
+                  before(async () => {
+                    intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
+                      isFinal: true,
+                      minValidations: 1,
+                    })
+                    validator = await createAllowlistedValidator()
+                    ixs = await createSigAndIxs()
+                  })
+
+                  it('should not add the validator', async () => {
+                    const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    const res = await makeTxSignAndSend(solverProvider, ...ixs)
+                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+
+                    expect(res.toString()).to.not.include('FailedTransactionMetadata')
+                    expect(intentBefore.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators.length).to.be.eq(1)
+                    expect(intentAfter.validators[0]).to.not.be.deep.eq(ethAddressToByteArray(validator.address))
+                  })
+                })
+              })
+
+              context('when the intent has expired', () => {
+                before(async () => {
+                  const deadline = getCurrentTimestamp(client, SHORT_DEADLINE)
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true, deadline })
+                  validator = await createAllowlistedValidator()
+                  ixs = await createSigAndIxs()
+                  warpSeconds(solverProvider, WARP_TIME_LONG)
+                })
+
+                itThrowsAnError('IntentIsExpired')
+              })
+            })
+
+            context('when the intent is not final', () => {
+              before(async () => {
+                intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+                validator = await createAllowlistedValidator()
+                ixs = await createSigAndIxs()
+              })
+
+              itThrowsAnError('IntentIsNotFinal')
+            })
+          })
+
+          context('when the intent was already executed', () => {
+            context('when fulfilledIntent exists', () => {
+              before(async () => {
+                intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: true })
+
+                // Mock FulfilledIntent
+                const fulfilledIntent = sdk.getFulfilledIntentKey(intentHash)
+                client.setAccount(fulfilledIntent, {
+                  executable: false,
+                  lamports: 1002240,
+                  owner: program.programId,
+                  data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
+                })
+
+                validator = await createAllowlistedValidator()
+                ixs = await createSigAndIxs()
+              })
+
+              itThrowsAnError(
+                'Program log: AnchorError caused by account: fulfilled_intent. Error Code: AccountNotSystemOwned'
+              )
+            })
+          })
+        })
+      })
+
+      context('when intent was never created', () => {
+        before('generate random intent hash and ixs without sdk', async () => {
+          intentHash = generateIntentHash()
+          validator = ethers.Wallet.createRandom()
+          ixs = await createSigAndIxs(intentHash, validator)
+        })
+
+        itThrowsAnError('AnchorError caused by account: intent. Error Code: AccountNotInitialized')
+      })
+    })
+
+    context('when caller is not whitelisted solver', () => {
+      before('create test intent and de-whitelist solver', async () => {
+        intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
+        validator = ethers.Wallet.createRandom()
+        ixs = await createSigAndIxs()
+
+        await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      after('re-whitelist solver', async () => {
+        await createAllowlistedEntity(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      itThrowsAnError('Program log: AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
+    })
+  })
+
+  describe('add_axia_sig', () => {
+    const createAllowlistedAxia = async () => {
+      const axia = ethers.Wallet.createRandom()
+      await createAllowlistedEntity(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
+      return axia
+    }
+
+    const createTestProposal = async (options?: CreateProposalOptions): Promise<PublicKey> => {
+      const params = await createProposalParams(solverSdk, solverProvider, client, options)
+      const ix = await solverSdk.createProposalIx(params.intentHash, params)
+      await makeTxSignAndSend(solverProvider, ix)
+      return solverSdk.getProposalKey(params.intentHash)
+    }
+
+    const createSigAndIxs = async (
+      proposalKeyOverride: PublicKey = proposalKey,
+      ethAxia: ethers.HDNodeWallet = axia,
+      secp256k1IxOptions: Partial<CreateSecp256k1InstructionWithEthAddressParams> = {},
+      accountsPartial: Partial<{
+        proposal: Address
+        intent: Address
+        axiaRegistry: Address
+      }> = {}
+    ): Promise<TransactionInstruction[]> => {
+      const proposal = await program.account.proposal.fetch(proposalKeyOverride)
+      const intent = await program.account.intent.fetch(proposal.intent)
+
+      const { signature, recoveryId } = await createAxiaSignature(intent.hash, proposal, ethAxia)
+
+      const eip712Preimage = new ProposalSigner().getMessage(
+        solverSdk.anchorProposalToEip712Proposal(proposal, intent.hash),
+        { chainId: Chains.Solana, address: program.programId.toString() }
+      )
+
+      const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
+        message: hexToBytes(eip712Preimage),
+        ethAddress: ethAxia.address,
+        signature: Buffer.from(signature),
+        recoveryId,
+        ...secp256k1IxOptions,
+      })
+
+      const ix = await program.methods
+        .addAxiaSig()
+        .accountsPartial({
+          solver: solverSdk.getSignerKey(),
+          solverRegistry: solverSdk.getEntityRegistryKey(EntityType.Solver, solverSdk.getSignerKey()),
+          proposal: proposalKeyOverride,
+          axiaRegistry: solverSdk.getEntityRegistryKey(EntityType.Axia, hexToBytes(ethAxia.address)),
+          ixSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+          ...accountsPartial,
+        })
+        .instruction()
+
+      return [secp256k1Ix, ix]
+    }
+
+    const itThrowsAnError = async (error: string) => {
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ...ixs)
+        expectTransactionError(res.toString(), error)
+      })
+    }
+
+    let ixs: TransactionInstruction[] = []
+    let proposalKey: PublicKey = PublicKey.default
+    let axia: ethers.HDNodeWallet
+
+    before('set correct domain', async () => {
+      client.expireBlockhash()
+      const ix = await adminSdk.updateEip712DomainIx({
+        ...SETTLER_EIP712_DOMAIN,
+        chainId: Chains.Solana,
+      })
+      await makeTxSignAndSend(provider, ix)
+    })
+
+    context('when caller is whitelisted solver', () => {
+      context('when signer is whitelisted axia', () => {
+        context('when proposal exists', () => {
+          context('when proposal conditions are met', () => {
+            context('when signature is cryptographically valid', () => {
+              context('when signature is logically valid', () => {
+                context('when proposal is unsigned', () => {
+                  before(async () => {
+                    axia = await createAllowlistedAxia()
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs()
+                  })
+
+                  it('should sign the proposal', async () => {
+                    let proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.false
+
+                    await makeTxSignAndSend(solverProvider, ...ixs)
+
+                    proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.true
+                  })
+                })
+
+                context('when proposal is already signed', () => {
+                  before(async () => {
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs()
+                    await makeTxSignAndSend(solverProvider, ...ixs)
+                    client.expireBlockhash()
+                  })
+
+                  it('should not sign the proposal twice (idempotent ix)', async () => {
+                    let proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.true
+
+                    const res = await makeTxSignAndSend(solverProvider, ...ixs)
+
+                    proposal = await program.account.proposal.fetch(proposalKey)
+                    expect(proposal.isSigned).to.be.true
+                    expect(res.toString()).to.not.include('FailedTransactionMetadata')
+                  })
+                })
+              })
+
+              context('when signature is logically invalid', () => {
+                context('when domain does not match', () => {
+                  before(async () => {
+                    client.expireBlockhash()
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, undefined, undefined, {
+                      proposal: await createTestProposal(),
+                    })
+                    const ix = await adminSdk.updateEip712DomainIx({ name: 'Other Domain' })
+                    await makeTxSignAndSend(provider, ix)
+                  })
+
+                  after(async () => {
+                    client.expireBlockhash()
+                    const ix = await adminSdk.updateEip712DomainIx({
+                      ...SETTLER_EIP712_DOMAIN,
+                      chainId: Chains.Solana,
+                    })
+                    await makeTxSignAndSend(provider, ix)
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectMessage')
+                })
+
+                context('when signing for another proposal', () => {
+                  before(async () => {
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, undefined, undefined, {
+                      proposal: await createTestProposal(),
+                    })
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectMessage')
+                })
+
+                context('when signing with another allowlisted axia key', () => {
+                  before(async () => {
+                    const otherAxia = await createAllowlistedAxia()
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, undefined, undefined, {
+                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(
+                        EntityType.Axia,
+                        hexToBytes(otherAxia.address)
+                      ),
+                    })
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectAxia')
+                })
+
+                context('when signing with an allowlisted validator key', () => {
+                  before(async () => {
+                    const validator = ethers.Wallet.createRandom()
+                    await createAllowlistedEntity(
+                      controllerSdk,
+                      provider,
+                      EntityType.Validator,
+                      hexToBytes(validator.address)
+                    )
+
+                    proposalKey = await createTestProposal()
+                    ixs = await createSigAndIxs(undefined, validator, undefined, {
+                      axiaRegistry: controllerSdk.getEntityRegistryPubkey(
+                        EntityType.Axia,
+                        hexToBytes(validator.address)
+                      ),
+                    })
+                  })
+
+                  itThrowsAnError('AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized')
+                })
+
+                context('when signing another message', () => {
+                  before('create personal signature', async () => {
+                    proposalKey = await createTestProposal()
+
+                    const message = hexToBytes(ethers.keccak256(hexToBytes('0xdeadbeef')))
+                    const fullSignature = await axia.signMessage(message)
+                    const fullSigBytes = ethers.getBytes(fullSignature)
+
+                    const signature = Array.from(fullSigBytes.slice(0, 64))
+                    const recoveryId = fullSigBytes[64] - 27
+
+                    const prefix = Buffer.from('\x19Ethereum Signed Message:\n32', 'utf8')
+                    const prefixedMessage = Buffer.concat([prefix, message])
+
+                    ixs = await createSigAndIxs(undefined, undefined, {
+                      message: prefixedMessage,
+                      signature,
+                      recoveryId,
+                    })
+                  })
+
+                  itThrowsAnError('SigVerificationFailedIncorrectMessage')
+                })
+              })
+            })
+
+            context('when signature is not cryptographically valid', () => {
+              before(async () => {
+                proposalKey = await createTestProposal()
+                ixs = await createSigAndIxs(undefined, undefined, {
+                  signature: Buffer.from(new Uint8Array(64).fill(0xff)),
+                })
+              })
+
+              itThrowsAnError('err: InstructionError(0, Custom(2))')
+            })
+          })
+
+          context('when proposal conditions are not met', () => {
+            context('when the proposal is final', () => {
+              context('when the proposal deadline is in the past', () => {
+                before('create proposal and warp until it has expired', async () => {
+                  proposalKey = await createTestProposal({
+                    proposalParams: { isFinal: true, deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
+                  })
+                  ixs = await createSigAndIxs()
+                  warpSeconds(provider, WARP_TIME_LONG)
+                })
+
+                itThrowsAnError('ProposalIsExpired')
+              })
+
+              context('when the proposal deadline equals now', () => {
+                before('create proposal and warp until it has expired', async () => {
+                  proposalKey = await createTestProposal({
+                    proposalParams: { isFinal: true, deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
+                  })
+                  ixs = await createSigAndIxs()
+                  warpSeconds(provider, WARP_TIME_SHORT)
+                })
+
+                itThrowsAnError('ProposalIsExpired')
+              })
+            })
+
+            context('when the proposal is not final', () => {
+              before('create proposal and warp until it has expired', async () => {
+                proposalKey = await createTestProposal({
+                  proposalParams: { isFinal: false },
+                })
+                ixs = await createSigAndIxs()
+              })
+
+              itThrowsAnError('ProposalIsNotFinal')
+            })
+          })
+        })
+
+        context('when proposal does not exist', () => {
+          before(async () => {
+            ixs = await createSigAndIxs(undefined, undefined, undefined, {
+              proposal: randomPubkey(),
+              intent: randomPubkey(),
+            })
+          })
+
+          itThrowsAnError('AnchorError caused by account: proposal. Error Code: AccountNotInitialized')
+        })
+      })
+
+      context('when signer is not whitelisted axia', () => {
+        before('create objects and de-whitelist axia', async () => {
+          proposalKey = await createTestProposal()
+          ixs = await createSigAndIxs()
+          await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
+        })
+
+        itThrowsAnError('AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized')
+      })
+    })
+
+    context('when caller is not whitelisted solver', () => {
+      before('create objects and de-whitelist solver', async () => {
+        proposalKey = await createTestProposal()
+        ixs = await createSigAndIxs()
+        await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      after('re-whitelist solver', async () => {
+        await createAllowlistedEntity(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+      })
+
+      itThrowsAnError('AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
     })
   })
 })

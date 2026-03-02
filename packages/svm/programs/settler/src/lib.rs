@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("HbNt35Ng8aM4NUy39evpCQqXEC4Nmaq16ewY8dyNF6NF");
+declare_id!("AcyeAq69xe7JV4F9uwpWzPgyxbxxYUALnYfeMsaDauGR");
 declare_program!(controller);
 
 pub mod constants;
@@ -94,7 +94,14 @@ pub mod settler {
         instructions::extend_intent(ctx, more_data, more_max_fees, more_events, finalize)
     }
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        instructions::initialize(ctx)
+    pub fn initialize(ctx: Context<Initialize>, domain: Eip712Domain) -> Result<()> {
+        instructions::initialize(ctx, domain)
+    }
+
+    pub fn update_eip712_domain(
+        ctx: Context<UpdateEip712Domain>,
+        domain: Eip712Domain,
+    ) -> Result<()> {
+        instructions::update_eip712_domain(ctx, domain)
     }
 }

@@ -6,8 +6,8 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-settler = "HbNt35Ng8aM4NUy39evpCQqXEC4Nmaq16ewY8dyNF6NF"
-controller = "7PwVkjnnapxytWFW69WFDLhfVZZgKhBE9m3zwcDZmncr"
+settler = "AcyeAq69xe7JV4F9uwpWzPgyxbxxYUALnYfeMsaDauGR"
+controller = "DL2RrwABRChbMFawCu5tGZ6VavM3RZgiGHEbu7PP47fK"
 
 [registry]
 url = "https://api.apr.dev"

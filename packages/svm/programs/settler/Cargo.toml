@@ -22,6 +22,8 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = { version = "0.32.1", features = [ "init-if-needed" ] }
+alloy-sol-types = "1.5.4"
+alloy-primitives = "1.5.4"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

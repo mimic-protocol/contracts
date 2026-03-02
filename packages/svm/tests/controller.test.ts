@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 import { Program, Wallet, web3 } from '@coral-xyz/anchor'
+import { EntityType, SvmController } from '@mimicprotocol/sdk'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import fs from 'fs'
@@ -9,7 +10,6 @@ import { LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
-import ControllerSDK, { EntityType } from '../sdks/controller/Controller'
 import * as ControllerIDL from '../target/idl/controller.json'
 import { Controller } from '../target/types/controller'
 import { expectTransactionError, randomKeypair, randomPubkey, toLamports } from './helpers'
@@ -30,10 +30,10 @@ describe('Controller', () => {
 
   let program: Program<Controller>
 
-  let deployerSdk: ControllerSDK
-  let adminSdk: ControllerSDK
-  let otherAdminSdk: ControllerSDK
-  let maliciousSdk: ControllerSDK
+  let deployerSdk: SvmController
+  let adminSdk: SvmController
+  let otherAdminSdk: SvmController
+  let maliciousSdk: SvmController
 
   before(async () => {
     deployer = web3.Keypair.fromSecretKey(
@@ -52,10 +52,10 @@ describe('Controller', () => {
 
     program = new Program<Controller>(ControllerIDL as any, deployerProvider)
 
-    deployerSdk = new ControllerSDK(deployerProvider)
-    adminSdk = new ControllerSDK(adminProvider)
-    otherAdminSdk = new ControllerSDK(otherAdminProvider)
-    maliciousSdk = new ControllerSDK(maliciousProvider)
+    deployerSdk = new SvmController(deployerProvider)
+    adminSdk = new SvmController(adminProvider)
+    otherAdminSdk = new SvmController(otherAdminProvider)
+    maliciousSdk = new SvmController(maliciousProvider)
 
     deployerProvider.client.airdrop(deployer.publicKey, toLamports(100))
     deployerProvider.client.airdrop(admin.publicKey, toLamports(100))
@@ -155,7 +155,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
+        expect(entityRegistry.entityAddress).to.be.deep.eq(validator.toBuffer())
       })
 
       it('should create entity registry successfully (axia)', async () => {
@@ -167,7 +167,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+        expect(entityRegistry.entityAddress).to.be.deep.eq(axia.toBuffer())
       })
 
       it('should create entity registry successfully (solver)', async () => {
@@ -179,7 +179,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+        expect(entityRegistry.entityAddress).to.be.deep.eq(solver.toBuffer())
       })
 
       it('should change admin for next tests', async () => {
@@ -213,7 +213,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+        expect(entityRegistry.entityAddress).to.be.deep.eq(axia.toBuffer())
       })
 
       it('should create entity registry successfully (solver)', async () => {
@@ -225,7 +225,7 @@ describe('Controller', () => {
         )
 
         expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-        expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+        expect(entityRegistry.entityAddress).to.be.deep.eq(solver.toBuffer())
       })
     })
 
@@ -292,7 +292,7 @@ describe('Controller', () => {
           )
 
           expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator.toString())
+          expect(entityRegistry.entityAddress).to.be.deep.eq(validator.toBuffer())
         })
 
         it('should create entity registry after closing (axia)', async () => {
@@ -304,7 +304,7 @@ describe('Controller', () => {
           )
 
           expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia.toString())
+          expect(entityRegistry.entityAddress).to.be.deep.eq(axia.toBuffer())
         })
 
         it('should create entity registry after closing (solver)', async () => {
@@ -316,7 +316,7 @@ describe('Controller', () => {
           )
 
           expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver.toString())
+          expect(entityRegistry.entityAddress).to.be.deep.eq(solver.toBuffer())
         })
       })
 
@@ -329,7 +329,7 @@ describe('Controller', () => {
             otherAdminSdk.getEntityRegistryPubkey(EntityType.Validator, validator2)
           )
           expect(entityRegistry.entityType).to.deep.include({ validator: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(validator2.toString())
+          expect(entityRegistry.entityAddress).to.be.deep.eq(validator2.toBuffer())
         })
 
         it('should create another axia registry', async () => {
@@ -340,7 +340,7 @@ describe('Controller', () => {
             otherAdminSdk.getEntityRegistryPubkey(EntityType.Axia, axia2)
           )
           expect(entityRegistry.entityType).to.deep.include({ axia: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(axia2.toString())
+          expect(entityRegistry.entityAddress).to.be.deep.eq(axia2.toBuffer())
         })
 
         it('should create another solver registry', async () => {
@@ -351,7 +351,7 @@ describe('Controller', () => {
             otherAdminSdk.getEntityRegistryPubkey(EntityType.Solver, solver2)
           )
           expect(entityRegistry.entityType).to.deep.include({ solver: {} })
-          expect(entityRegistry.entityPubkey.toString()).to.be.eq(solver2.toString())
+          expect(entityRegistry.entityAddress).to.be.deep.eq(solver2.toBuffer())
         })
       })
 

@@ -1,11 +1,8 @@
 import { Program } from '@coral-xyz/anchor'
-import { randomHex } from '@mimicprotocol/sdk'
-import { PublicKey } from '@solana/web3.js'
+import { CreateIntentParams, OpType, randomHex, SettlerSDK, SvmTokenFee } from '@mimicprotocol/sdk'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 
-import SettlerSDK from '../../sdks/settler/Settler'
-import { CreateIntentParams, OpType, TokenFee } from '../../sdks/settler/types'
 import * as SettlerIDL from '../../target/idl/settler.json'
 import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
@@ -79,9 +76,9 @@ export async function addValidatorsToIntent(
   const intent = await program.account.intent.fetch(intentKey)
 
   // Generate validators
-  const validators: PublicKey[] = []
+  const validators: Buffer[] = []
   for (let i = 0; i < numValidators; i++) {
-    validators.push(randomPubkey())
+    validators.push(Buffer.from(randomHex(40)))
   }
 
   // Modify the intent to add validators
@@ -124,7 +121,7 @@ export async function createValidatedIntent(
 /**
  * Map intent maxFees to TokenFee format
  */
-export function mapIntentFeesToTokenFees(intent: IntentAccount): TokenFee[] {
+export function mapIntentFeesToTokenFees(intent: IntentAccount): SvmTokenFee[] {
   return intent.maxFees.map((maxFee) => ({
     mint: maxFee.mint,
     amount: maxFee.amount.toNumber(),
@@ -145,8 +142,8 @@ const DEFAULT_CREATE_INTENT_PARAMS: Omit<CreateIntentParams, 'deadline'> = {
   ],
   eventsHex: [
     {
-      topicHex: DEFAULT_TOPIC_HEX,
-      dataHex: DEFAULT_EVENT_DATA_HEX,
+      topic: DEFAULT_TOPIC_HEX,
+      data: DEFAULT_EVENT_DATA_HEX,
     },
   ],
 }

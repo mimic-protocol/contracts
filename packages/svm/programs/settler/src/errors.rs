@@ -8,11 +8,14 @@ pub enum SettlerError {
     #[msg("Only an allowlisted solver can call this instruction")]
     OnlySolver,
 
-    #[msg("Provided Axia address is not allowlisted")]
-    AxiaNotAllowlisted,
-
     #[msg("Only a allowlisted validator can call this instruction")]
     OnlyValidator,
+
+    #[msg("Only Controller admin can call this instruction")]
+    OnlyControllerAdmin,
+
+    #[msg("Provided Axia address is not allowlisted")]
+    AxiaNotAllowlisted,
 
     #[msg("No max fees provided")]
     NoMaxFees,
@@ -59,8 +62,17 @@ pub enum SettlerError {
     #[msg("Intent has insufficient validations")]
     InsufficientIntentValidations,
 
-    #[msg("Signature verification failed")]
-    SigVerificationFailed,
+    #[msg("Signature verification failed: invalid preinstruction")]
+    SigVerificationFailedInvalidPreinstruction,
+
+    #[msg("Signature verification failed: incorrect message")]
+    SigVerificationFailedIncorrectMessage,
+
+    #[msg("Signature verification failed: incorrect validator")]
+    SigVerificationFailedIncorrectValidator,
+
+    #[msg("Signature verification failed: incorrect Axia")]
+    SigVerificationFailedIncorrectAxia,
 
     #[msg("Incorrect intent for proposal")]
     IncorrectIntentForProposal,
