@@ -55,7 +55,7 @@ describe('IntentsValidator', () => {
       })
 
       context('SourceChain', () => {
-        const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
+        const intent = createSwapIntent({}, { sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
 
         context('when the source chain is not denied', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
@@ -89,7 +89,7 @@ describe('IntentsValidator', () => {
       })
 
       context('DestinationChain', () => {
-        const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
+        const intent = createSwapIntent({}, { sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
 
         context('when the destination chain is allowed', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
@@ -123,7 +123,7 @@ describe('IntentsValidator', () => {
       })
 
       context('TokenIn', () => {
-        const intent = createSwapIntent({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
+        const intent = createSwapIntent({}, { tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
 
         context('when the token in is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
@@ -157,7 +157,7 @@ describe('IntentsValidator', () => {
       })
 
       context('TokenOut', () => {
-        const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
+        const intent = createSwapIntent({}, { tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
 
         context('when the token out is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
@@ -191,7 +191,7 @@ describe('IntentsValidator', () => {
       })
 
       context('Recipient', () => {
-        const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
+        const intent = createSwapIntent({}, { tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
 
         context('when the recipient is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account1)
@@ -239,7 +239,7 @@ describe('IntentsValidator', () => {
       })
 
       context('Chain', () => {
-        const intent = createTransferIntent({ chainId: CHAIN_LOCAL, transfers: [] })
+        const intent = createTransferIntent({}, { chainId: CHAIN_LOCAL, transfers: [] })
 
         context('when the chain is not denied', () => {
           const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
@@ -273,7 +273,7 @@ describe('IntentsValidator', () => {
       })
 
       context('Token', () => {
-        const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+        const intent = createTransferIntent({}, { transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
 
         context('when all tokens are not denied', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token1)
@@ -307,7 +307,7 @@ describe('IntentsValidator', () => {
       })
 
       context('Recipient', () => {
-        const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+        const intent = createTransferIntent({}, { transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
 
         context('when the recipient is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account1)
@@ -358,7 +358,7 @@ describe('IntentsValidator', () => {
       })
 
       context('Chain', () => {
-        const intent = createCallIntent({ chainId: CHAIN_LOCAL, calls: [] })
+        const intent = createCallIntent({}, { chainId: CHAIN_LOCAL, calls: [] })
 
         context('when the chain is not denied', () => {
           const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
@@ -392,7 +392,7 @@ describe('IntentsValidator', () => {
       })
 
       context('Target', () => {
-        const intent = createCallIntent({ calls: [{ target: target1, data: '0x', value: 0 }] })
+        const intent = createCallIntent({}, { calls: [{ target: target1, data: '0x', value: 0 }] })
 
         context('when all targets are not denied', () => {
           const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
@@ -427,7 +427,7 @@ describe('IntentsValidator', () => {
 
       context('Selector', () => {
         const selector = '0xa9059cbb'
-        const intent = createCallIntent({ calls: [{ target: target1, data: selector, value: 0 }] })
+        const intent = createCallIntent({}, { calls: [{ target: target1, data: selector, value: 0 }] })
 
         context('when the selector is allowed', () => {
           const safeguard = createOnlySelectorSafeguard(selector)
@@ -463,11 +463,14 @@ describe('IntentsValidator', () => {
   })
 
   describe('Tree', () => {
-    const intent = createSwapIntent({
-      sourceChain: CHAIN_LOCAL,
-      destinationChain: CHAIN_LOCAL,
-      tokensIn: [{ token: token1, amount: 1n }],
-    })
+    const intent = createSwapIntent(
+      {},
+      {
+        sourceChain: CHAIN_LOCAL,
+        destinationChain: CHAIN_LOCAL,
+        tokensIn: [{ token: token1, amount: 1n }],
+      }
+    )
 
     describe('AND', () => {
       context('when all children pass', () => {

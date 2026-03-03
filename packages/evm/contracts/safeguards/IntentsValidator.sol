@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.20;
 
-import './CallIntentsValidator.sol';
-import './TransferIntentsValidator.sol';
+import './CallOperationsValidator.sol';
+import './TransferOperationsValidator.sol';
 import './Safeguards.sol';
-import './SwapIntentsValidator.sol';
+import './SwapOperationsValidator.sol';
 import '../Intents.sol';
 import '../interfaces/IIntentsValidator.sol';
 
@@ -13,7 +13,12 @@ import '../interfaces/IIntentsValidator.sol';
  * @title IntentsValidator
  * @dev Performs intents validations based on safeguards
  */
-contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIntentsValidator, CallIntentsValidator {
+contract IntentsValidator is
+    IIntentsValidator,
+    SwapOperationsValidator,
+    TransferOperationsValidator,
+    CallOperationsValidator
+{
     /**
      * @dev Safeguard validation failed
      */
@@ -129,10 +134,17 @@ contract IntentsValidator is IIntentsValidator, SwapIntentsValidator, TransferIn
      */
     function _isSafeguardValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
         if (safeguard.mode == uint8(0)) revert IntentsValidatorNoneAllowed();
-        if (intent.op == uint8(OpType.Swap)) return _isSwapIntentValid(intent, safeguard);
-        if (intent.op == uint8(OpType.Transfer)) return _isTransferIntentValid(intent, safeguard);
-        if (intent.op == uint8(OpType.Call)) return _isCallIntentValid(intent, safeguard);
-        revert IntentsValidatorUnknownIntentType(uint8(intent.op));
+        for (uint256 i = 0; i < intent.operations.length; i++) {
+            Operation memory operation = intent.operations[i];
+            if (operation.op == uint8(OpType.Swap)) {
+                if (!_isSwapOperationValid(operation, safeguard)) return false;
+            } else if (operation.op == uint8(OpType.Transfer)) {
+                if (!_isTransferOperationValid(operation, safeguard)) return false;
+            } else if (operation.op == uint8(OpType.Call)) {
+                if (!_isCallOperationValid(operation, safeguard)) return false;
+            } else revert IntentsValidatorUnknownOperationType(uint8(operation.op));
+        }
+        return true;
     }
 
     /**

@@ -2,12 +2,12 @@
 
 pragma solidity ^0.8.20;
 
-import './BaseIntentsValidator.sol';
+import './BaseOperationsValidator.sol';
 import './Safeguards.sol';
 import '../Intents.sol';
 
 /**
- * @dev Swap safeguard modes to validate swap intents
+ * @dev Swap safeguard modes to validate swap operations
  * @param None To ensure no swaps are allowed
  * @param SourceChain To validate that the source chain is allowed
  * @param DestinationChain To validate that the destination chain is allowed
@@ -25,28 +25,32 @@ enum SwapSafeguardMode {
 }
 
 /**
- * @title SwapIntentsValidator
- * @dev Performs swap intents validations based on safeguards
+ * @title SwapOperationsValidator
+ * @dev Performs swap operations validations based on safeguards
  */
-contract SwapIntentsValidator is BaseIntentsValidator {
+contract SwapOperationsValidator is BaseOperationsValidator {
     /**
-     * @dev Tells whether a swap intent is valid for a safeguard
-     * @param intent Swap intent to be validated
-     * @param safeguard Safeguard to validate the intent with
+     * @dev Tells whether a swap operation is valid for a safeguard
+     * @param operation Swap operation to be validated
+     * @param safeguard Safeguard to validate the operation with
      */
-    function _isSwapIntentValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
-        SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
+    function _isSwapOperationValid(Operation memory operation, Safeguard memory safeguard)
+        internal
+        pure
+        returns (bool)
+    {
+        SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
         if (safeguard.mode == uint8(SwapSafeguardMode.SourceChain))
-            return _isChainAllowed(swapIntent.sourceChain, safeguard.config);
+            return _isChainAllowed(swapOperation.sourceChain, safeguard.config);
         if (safeguard.mode == uint8(SwapSafeguardMode.DestinationChain))
-            return _isChainAllowed(swapIntent.destinationChain, safeguard.config);
+            return _isChainAllowed(swapOperation.destinationChain, safeguard.config);
         if (safeguard.mode == uint8(SwapSafeguardMode.TokenIn))
-            return _areSwapTokensInValid(swapIntent.tokensIn, safeguard.config);
+            return _areSwapTokensInValid(swapOperation.tokensIn, safeguard.config);
         if (safeguard.mode == uint8(SwapSafeguardMode.TokenOut))
-            return _areSwapTokensOutValid(swapIntent.tokensOut, safeguard.config);
+            return _areSwapTokensOutValid(swapOperation.tokensOut, safeguard.config);
         if (safeguard.mode == uint8(SwapSafeguardMode.Recipient))
-            return _areSwapRecipientsValid(swapIntent.tokensOut, safeguard.config);
-        revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
+            return _areSwapRecipientsValid(swapOperation.tokensOut, safeguard.config);
+        revert OperationsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**

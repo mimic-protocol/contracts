@@ -1,6 +1,5 @@
 import {
   BigNumberish,
-  encodeSwapIntent,
   fp,
   MAX_UINT256,
   NATIVE_TOKEN_ADDRESS,
@@ -31,15 +30,17 @@ import {
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
 import {
   Account,
-  CallIntent,
+  CallOperation,
   CallProposal,
   createCallIntent,
   createCallProposal,
   createIntent,
   createProposal,
   createSwapIntent,
+  createSwapOperation,
   createSwapProposal,
   createTransferIntent,
+  createTransferOperation,
   createTransferProposal,
   currentTimestamp,
   hashIntent,
@@ -47,11 +48,11 @@ import {
   Intent,
   Proposal,
   signProposal,
-  SwapIntent,
+  SwapOperation,
   SwapProposal,
   toAddress,
   toArray,
-  TransferIntent,
+  TransferOperation,
   TransferProposal,
 } from './helpers'
 import { addValidations } from './helpers/validations'
@@ -394,18 +395,16 @@ describe('Settler', () => {
 
       const itRevertsUnlessDestinationChain = (reason: string) => {
         context('when the intent is a swap', () => {
-          beforeEach('set intent type', async () => {
-            intentParams.op = OpType.Swap
-          })
-
           context('when the swap is single-chain', () => {
-            beforeEach('set intent data', async () => {
-              intentParams.data = encodeSwapIntent({
+            beforeEach('set intent operation', async () => {
+              const operation = createSwapOperation({
+                user: intentParams.user,
                 sourceChain: 31337,
                 destinationChain: 31337,
                 tokensIn: [],
                 tokensOut: [],
               })
+              intentParams.operations = [operation]
             })
 
             itReverts(reason)
@@ -413,26 +412,30 @@ describe('Settler', () => {
 
           context('when the swap is cross-chain', () => {
             context('when executing on the source chain', () => {
-              beforeEach('set intent data', async () => {
-                intentParams.data = encodeSwapIntent({
+              beforeEach('set intent operation', async () => {
+                const operation = createSwapOperation({
+                  user: intentParams.user,
                   sourceChain: 31337,
                   destinationChain: 1,
                   tokensIn: [],
                   tokensOut: [],
                 })
+                intentParams.operations = [operation]
               })
 
               itReverts(reason)
             })
 
             context('when executing on the destination chain', () => {
-              beforeEach('set intent data', async () => {
-                intentParams.data = encodeSwapIntent({
+              beforeEach('set intent operation', async () => {
+                const operation = createSwapOperation({
+                  user: intentParams.user,
                   sourceChain: 1,
                   destinationChain: 31337,
                   tokensIn: [],
                   tokensOut: [],
                 })
+                intentParams.operations = [operation]
               })
 
               it('does not validate the deadline', async () => {
@@ -446,16 +449,22 @@ describe('Settler', () => {
         })
 
         context('when the intent is a transfer', () => {
-          beforeEach('set intent type', async () => {
-            intentParams.op = OpType.Transfer
+          beforeEach('set intent operation', async () => {
+            const operation = createTransferOperation({
+              user: intentParams.user,
+            })
+            intentParams.operations = [operation]
           })
 
           itReverts(reason)
         })
 
         context('when the intent is a call', () => {
-          beforeEach('set intent type', async () => {
-            intentParams.op = OpType.EvmCall
+          beforeEach('set intent operation', async () => {
+            const operation = createTransferOperation({
+              user: intentParams.user,
+            })
+            intentParams.operations = [operation]
           })
 
           itReverts(reason)
@@ -480,374 +489,351 @@ describe('Settler', () => {
             })
 
             context('when the nonce has not been used', () => {
-              context('when the intent deadline has not been reached', () => {
-                beforeEach('set intent deadline', async () => {
-                  const now = await currentTimestamp()
-                  intentParams.deadline = now + BigInt(120 * 10)
-                })
-
-                context('when the proposal deadline has not been reached', () => {
-                  beforeEach('set proposal deadline', async () => {
-                    const now = await currentTimestamp()
-                    proposalParams.deadline = now + BigInt(120 * 10)
-                  })
-
-                  context('when the proposal fee length is correct', () => {
-                    let feeToken: TokenMock
-                    const feeAmount = fp(0.1)
-
-                    beforeEach('deploy fee token', async () => {
-                      feeToken = await ethers.deployContract('TokenMock', ['TKN', 18])
+              context('when the operations are not empty', () => {
+                context('when the proposal datas length matches the intent operations lenght', () => {
+                  context('when the intent deadline has not been reached', () => {
+                    beforeEach('set intent deadline', async () => {
+                      const now = await currentTimestamp()
+                      intentParams.deadline = now + BigInt(120 * 10)
                     })
 
-                    beforeEach('set intent max fees', async () => {
-                      intentParams.maxFees = [{ token: feeToken, amount: feeAmount }]
-                    })
-
-                    beforeEach('mint and approve fee tokens', async () => {
-                      await feeToken.mint(user, feeAmount)
-                      const allowance = await feeToken.allowance(user, settler)
-                      await feeToken.connect(user).approve(settler, allowance + feeAmount)
-                    })
-
-                    context('when the proposal fee is lower than or equal to the intent max fee', () => {
-                      beforeEach('set proposal fee', async () => {
-                        proposalParams.fees = [feeAmount]
+                    context('when the proposal deadline has not been reached', () => {
+                      beforeEach('set proposal deadline', async () => {
+                        const now = await currentTimestamp()
+                        proposalParams.deadline = now + BigInt(120 * 10)
                       })
 
-                      context(
-                        'when the intent minimum validations is higher or equal than the controller minimum validations',
-                        () => {
-                          const validator1 = Wallet.createRandom()
-                          const validator2 = Wallet.createRandom()
-                          beforeEach('set min validations', async () => {
-                            await controller.connect(admin).setMinValidations(1)
-                            intentParams.minValidations = 2
+                      context('when the proposal fee length is correct', () => {
+                        let feeToken: TokenMock
+                        const feeAmount = fp(0.1)
+
+                        beforeEach('deploy fee token', async () => {
+                          feeToken = await ethers.deployContract('TokenMock', ['TKN', 18])
+                        })
+
+                        beforeEach('set intent max fees', async () => {
+                          intentParams.maxFees = [{ token: feeToken, amount: feeAmount }]
+                        })
+
+                        beforeEach('mint and approve fee tokens', async () => {
+                          await feeToken.mint(user, feeAmount)
+                          const allowance = await feeToken.allowance(user, settler)
+                          await feeToken.connect(user).approve(settler, allowance + feeAmount)
+                        })
+
+                        context('when the proposal fee is lower than or equal to the intent max fee', () => {
+                          beforeEach('set proposal fee', async () => {
+                            proposalParams.fees = [feeAmount]
                           })
 
-                          beforeEach('set intent', async () => {
-                            const futureIntent = createSwapIntent(intentParams)
-                            intentParams.op = futureIntent.op
-                            intentParams.configSig = randomSig()
-                            intentParams.data = futureIntent.data
-                            intentParams.events = []
-                          })
-
-                          context('when the validations are more or equal than the required validations', () => {
-                            beforeEach('set intent validations', async () => {
-                              await addValidations(settler, intentParams, [validator1, validator2])
-                            })
-
-                            context('when the validators are allowed', () => {
-                              beforeEach('allow validators', async () => {
-                                await controller
-                                  .connect(admin)
-                                  .setAllowedValidators([validator1.address, validator2.address], [true, true])
+                          context(
+                            'when the intent minimum validations is higher or equal than the controller minimum validations',
+                            () => {
+                              const validator1 = Wallet.createRandom()
+                              const validator2 = Wallet.createRandom()
+                              beforeEach('set min validations', async () => {
+                                await controller.connect(admin).setMinValidations(1)
+                                intentParams.minValidations = 2
                               })
 
-                              context('when the validations are in order', () => {
-                                beforeEach('set intent validations in order', async () => {
+                              beforeEach('set intent', async () => {
+                                const futureIntent = createSwapIntent(intentParams, { user: intentParams.user })
+                                intentParams.configSig = randomSig()
+                                intentParams.operations = futureIntent.operations
+                                intentParams.events = []
+                              })
+
+                              context('when the validations are more or equal than the required validations', () => {
+                                beforeEach('set intent validations', async () => {
                                   await addValidations(settler, intentParams, [validator1, validator2])
                                 })
 
-                                context('when the proposal has been signed properly', () => {
-                                  beforeEach('allow proposal signer', async () => {
-                                    await controller.connect(admin).setAllowedProposalSigners([admin], [true])
+                                context('when the validators are allowed', () => {
+                                  beforeEach('allow validators', async () => {
+                                    await controller
+                                      .connect(admin)
+                                      .setAllowedValidators([validator1.address, validator2.address], [true, true])
                                   })
 
-                                  context('for swap intents', () => {
-                                    const swapIntentParams: Partial<SwapIntent> = {}
-                                    const swapProposalParams: Partial<SwapProposal> = {}
-                                    let tokenIn: TokenMock, tokenOut: TokenMock, executor: MintExecutorMock
-
-                                    const amountIn = fp(1)
-                                    const proposedAmountOut = amountIn - 1n
-                                    const minAmount = proposedAmountOut - 1n
-
-                                    beforeEach('set tokens', async () => {
-                                      tokenIn = await ethers.deployContract('TokenMock', ['IN', 18])
-                                      tokenOut = await ethers.deployContract('TokenMock', ['OUT', 18])
-                                      swapIntentParams.tokensIn = [{ token: tokenIn, amount: amountIn }]
-                                      swapIntentParams.tokensOut = [{ token: tokenOut, recipient: other, minAmount }]
+                                  context('when the validations are in order', () => {
+                                    beforeEach('set intent validations in order', async () => {
+                                      await addValidations(settler, intentParams, [validator1, validator2])
                                     })
 
-                                    beforeEach('set executor', async () => {
-                                      executor = await ethers.deployContract('MintExecutorMock')
-                                      swapProposalParams.executor = executor
-                                    })
-
-                                    beforeEach('mint and approve tokens', async () => {
-                                      await tokenIn.mint(user, amountIn)
-                                      await tokenIn.connect(user).approve(settler, amountIn)
-                                    })
-
-                                    const itReverts = (reason: string) => {
-                                      it('reverts', async () => {
-                                        const intent = createSwapIntent({ ...intentParams, ...swapIntentParams })
-                                        await addValidations(settler, intent, [validator1, validator2])
-                                        const proposal = createSwapProposal({
-                                          ...proposalParams,
-                                          ...swapProposalParams,
-                                        })
-                                        const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                                        await expect(
-                                          settler.execute(intent, proposal, signature)
-                                        ).to.be.revertedWithCustomError(settler, reason)
-                                      })
-                                    }
-
-                                    const itValidatesIntentsProperly = (
-                                      sourceChain: number,
-                                      destinationChain: number
-                                    ) => {
-                                      beforeEach('set source and destination chains', () => {
-                                        swapIntentParams.sourceChain = sourceChain
-                                        swapIntentParams.destinationChain = destinationChain
+                                    context('when the proposal has been signed properly', () => {
+                                      beforeEach('allow proposal signer', async () => {
+                                        await controller.connect(admin).setAllowedProposalSigners([admin], [true])
                                       })
 
-                                      context('when the proposed amounts length is correct', () => {
-                                        beforeEach('set proposed amounts', () => {
-                                          swapProposalParams.amountsOut = [proposedAmountOut]
+                                      context('for swap intents', () => {
+                                        const swapOperationParams: Partial<SwapOperation> = {}
+                                        const swapProposalParams: Partial<SwapProposal> = {}
+                                        let tokenIn: TokenMock, tokenOut: TokenMock, executor: MintExecutorMock
+
+                                        const amountIn = fp(1)
+                                        const proposedAmountOut = amountIn - 1n
+                                        const minAmount = proposedAmountOut - 1n
+
+                                        beforeEach('set tokens', async () => {
+                                          tokenIn = await ethers.deployContract('TokenMock', ['IN', 18])
+                                          tokenOut = await ethers.deployContract('TokenMock', ['OUT', 18])
+                                          swapOperationParams.tokensIn = [{ token: tokenIn, amount: amountIn }]
+                                          swapOperationParams.tokensOut = [
+                                            { token: tokenOut, recipient: other, minAmount },
+                                          ]
                                         })
 
-                                        context('when no recipient is the settler', () => {
-                                          beforeEach('set recipient', () => {
-                                            toArray(swapIntentParams.tokensOut).forEach((tokenOut) => {
-                                              tokenOut.recipient = other
+                                        beforeEach('set executor', async () => {
+                                          executor = await ethers.deployContract('MintExecutorMock')
+                                          swapProposalParams.executor = executor
+                                        })
+
+                                        beforeEach('mint and approve tokens', async () => {
+                                          await tokenIn.mint(user, amountIn)
+                                          await tokenIn.connect(user).approve(settler, amountIn)
+                                          swapOperationParams.user = user
+                                        })
+
+                                        const itReverts = (reason: string) => {
+                                          it('reverts', async () => {
+                                            const intent = createSwapIntent(intentParams, swapOperationParams)
+                                            await addValidations(settler, intent, [validator1, validator2])
+                                            const proposal = createSwapProposal({
+                                              ...proposalParams,
+                                              ...swapProposalParams,
                                             })
+                                            const signature = await signProposal(
+                                              settler,
+                                              intent,
+                                              solver,
+                                              proposal,
+                                              admin
+                                            )
+
+                                            await expect(
+                                              settler.execute(intent, proposal, signature)
+                                            ).to.be.revertedWithCustomError(settler, reason)
+                                          })
+                                        }
+
+                                        const itValidatesIntentsProperly = (
+                                          sourceChain: number,
+                                          destinationChain: number
+                                        ) => {
+                                          beforeEach('set source and destination chains', () => {
+                                            swapOperationParams.sourceChain = sourceChain
+                                            swapOperationParams.destinationChain = destinationChain
                                           })
 
-                                          context('when the proposal amount is greater than the min amount', () => {
-                                            beforeEach('set proposal amount', () => {
-                                              swapProposalParams.amountsOut = [minAmount + 1n]
+                                          context('when the proposed amounts length is correct', () => {
+                                            beforeEach('set proposed amounts', () => {
+                                              swapProposalParams.amountsOut = [proposedAmountOut]
                                             })
 
-                                            const itExecutesTheProposalSuccessfully = () => {
-                                              const itExecutesSuccessfully = () => {
-                                                it('executes successfully', async () => {
-                                                  const intent = createSwapIntent({
-                                                    ...intentParams,
-                                                    ...swapIntentParams,
+                                            context('when no recipient is the settler', () => {
+                                              beforeEach('set recipient', () => {
+                                                toArray(swapOperationParams.tokensOut).forEach((tokenOut) => {
+                                                  tokenOut.recipient = other
+                                                })
+                                              })
+
+                                              context('when the proposal amount is greater than the min amount', () => {
+                                                beforeEach('set proposal amount', () => {
+                                                  swapProposalParams.amountsOut = [minAmount + 1n]
+                                                })
+
+                                                const itExecutesTheProposalSuccessfully = () => {
+                                                  const itExecutesSuccessfully = () => {
+                                                    it('executes successfully', async () => {
+                                                      const intent = createSwapIntent(intentParams, swapOperationParams)
+
+                                                      await addValidations(settler, intent, [validator1, validator2])
+                                                      const proposal = createSwapProposal({
+                                                        ...proposalParams,
+                                                        ...swapProposalParams,
+                                                      })
+                                                      const signature = await signProposal(
+                                                        settler,
+                                                        intent,
+                                                        solver,
+                                                        proposal,
+                                                        admin
+                                                      )
+
+                                                      const tx = await settler.execute(intent, proposal, signature)
+
+                                                      const executorEvents = await executor.queryFilter(
+                                                        executor.filters.Minted(),
+                                                        tx.blockNumber
+                                                      )
+                                                      expect(executorEvents).to.have.lengthOf(1)
+
+                                                      const settlerEvents = await settler.queryFilter(
+                                                        settler.filters.ProposalExecuted(),
+                                                        tx.blockNumber
+                                                      )
+                                                      expect(settlerEvents).to.have.lengthOf(1)
+
+                                                      const proposalHash = await settler.getProposalHash(
+                                                        proposal,
+                                                        intent,
+                                                        solver
+                                                      )
+                                                      expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                                                    })
+                                                  }
+
+                                                  context(
+                                                    'when the amount out is greater than the proposal amount',
+                                                    () => {
+                                                      const amountOut = proposedAmountOut + 1n
+
+                                                      beforeEach('set swap proposal data', async () => {
+                                                        swapProposalParams.executorData =
+                                                          AbiCoder.defaultAbiCoder().encode(
+                                                            ['address[]', 'uint256[]'],
+                                                            [[tokenOut.target], [amountOut]]
+                                                          )
+                                                      })
+
+                                                      itExecutesSuccessfully()
+                                                    }
+                                                  )
+
+                                                  context(
+                                                    'when the amount out is lower than the proposal amount',
+                                                    () => {
+                                                      const amountOut = proposedAmountOut - 1n
+
+                                                      beforeEach('set swap proposal data', async () => {
+                                                        swapProposalParams.executorData =
+                                                          AbiCoder.defaultAbiCoder().encode(
+                                                            ['address[]', 'uint256[]'],
+                                                            [[tokenOut.target], [amountOut]]
+                                                          )
+                                                      })
+
+                                                      if (destinationChain == 31337)
+                                                        itReverts('SettlerAmountOutLtProposed')
+                                                      else itExecutesSuccessfully()
+                                                    }
+                                                  )
+                                                }
+
+                                                context('when the executor is allowed', () => {
+                                                  beforeEach('allow executor', async () => {
+                                                    await controller
+                                                      .connect(admin)
+                                                      .setAllowedExecutors([executor], [true])
                                                   })
-                                                  await addValidations(settler, intent, [validator1, validator2])
-                                                  const proposal = createSwapProposal({
-                                                    ...proposalParams,
-                                                    ...swapProposalParams,
+
+                                                  itExecutesTheProposalSuccessfully()
+                                                })
+
+                                                context('when the executor is not allowed', () => {
+                                                  beforeEach('disallow executor', async () => {
+                                                    await controller
+                                                      .connect(admin)
+                                                      .setAllowedExecutors([executor], [false])
                                                   })
-                                                  const signature = await signProposal(
-                                                    settler,
-                                                    intent,
-                                                    solver,
-                                                    proposal,
-                                                    admin
-                                                  )
 
-                                                  const tx = await settler.execute(intent, proposal, signature)
-
-                                                  const executorEvents = await executor.queryFilter(
-                                                    executor.filters.Minted(),
-                                                    tx.blockNumber
-                                                  )
-                                                  expect(executorEvents).to.have.lengthOf(1)
-
-                                                  const settlerEvents = await settler.queryFilter(
-                                                    settler.filters.ProposalExecuted(),
-                                                    tx.blockNumber
-                                                  )
-                                                  expect(settlerEvents).to.have.lengthOf(1)
-
-                                                  const proposalHash = await settler.getProposalHash(
-                                                    proposal,
-                                                    intent,
-                                                    solver
-                                                  )
-                                                  expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                                                  if (sourceChain == destinationChain)
+                                                    itExecutesTheProposalSuccessfully()
+                                                  else itReverts('SettlerExecutorNotAllowed')
                                                 })
-                                              }
+                                              })
 
-                                              context('when the amount out is greater than the proposal amount', () => {
-                                                const amountOut = proposedAmountOut + 1n
-
-                                                beforeEach('set swap proposal data', async () => {
-                                                  swapProposalParams.executorData = AbiCoder.defaultAbiCoder().encode(
-                                                    ['address[]', 'uint256[]'],
-                                                    [[tokenOut.target], [amountOut]]
-                                                  )
+                                              context('when the proposal amount is lower than the min amount', () => {
+                                                beforeEach('set proposal amount', () => {
+                                                  swapProposalParams.amountsOut = [minAmount - 1n]
                                                 })
 
-                                                itExecutesSuccessfully()
+                                                itReverts('SettlerProposedAmountLtMinAmount')
                                               })
+                                            })
 
-                                              context('when the amount out is lower than the proposal amount', () => {
-                                                const amountOut = proposedAmountOut - 1n
-
-                                                beforeEach('set swap proposal data', async () => {
-                                                  swapProposalParams.executorData = AbiCoder.defaultAbiCoder().encode(
-                                                    ['address[]', 'uint256[]'],
-                                                    [[tokenOut.target], [amountOut]]
-                                                  )
+                                            context('when a recipient is the settler', () => {
+                                              beforeEach('set recipient', () => {
+                                                toArray(swapOperationParams.tokensOut).forEach((tokenOut) => {
+                                                  tokenOut.recipient = settler
                                                 })
-
-                                                if (destinationChain == 31337) itReverts('SettlerAmountOutLtProposed')
-                                                else itExecutesSuccessfully()
-                                              })
-                                            }
-
-                                            context('when the executor is allowed', () => {
-                                              beforeEach('allow executor', async () => {
-                                                await controller.connect(admin).setAllowedExecutors([executor], [true])
                                               })
 
-                                              itExecutesTheProposalSuccessfully()
-                                            })
-
-                                            context('when the executor is not allowed', () => {
-                                              beforeEach('disallow executor', async () => {
-                                                await controller.connect(admin).setAllowedExecutors([executor], [false])
-                                              })
-
-                                              if (sourceChain == destinationChain) itExecutesTheProposalSuccessfully()
-                                              else itReverts('SettlerExecutorNotAllowed')
+                                              itReverts('SettlerInvalidRecipient')
                                             })
                                           })
 
-                                          context('when the proposal amount is lower than the min amount', () => {
-                                            beforeEach('set proposal amount', () => {
-                                              swapProposalParams.amountsOut = [minAmount - 1n]
+                                          context('when the proposed amounts length is not correct', () => {
+                                            beforeEach('set proposed amounts', () => {
+                                              swapProposalParams.amountsOut = [minAmount, minAmount]
                                             })
 
-                                            itReverts('SettlerProposedAmountLtMinAmount')
+                                            itReverts('SettlerInvalidProposedAmounts')
+                                          })
+                                        }
+
+                                        context('when the source chain is the current chain', () => {
+                                          const sourceChain = 31337
+
+                                          context('when the destination chain is the current chain', () => {
+                                            const destinationChain = 31337
+
+                                            itValidatesIntentsProperly(sourceChain, destinationChain)
+                                          })
+
+                                          context('when the destination chain is not the current chain', () => {
+                                            const destinationChain = 1
+
+                                            itValidatesIntentsProperly(sourceChain, destinationChain)
                                           })
                                         })
 
-                                        context('when a recipient is the settler', () => {
-                                          beforeEach('set recipient', () => {
-                                            toArray(swapIntentParams.tokensOut).forEach((tokenOut) => {
-                                              tokenOut.recipient = settler
-                                            })
+                                        context('when the source chain is not the current chain', () => {
+                                          const sourceChain = 1
+
+                                          context('when the destination chain is the current chain', () => {
+                                            const destinationChain = 31337
+
+                                            itValidatesIntentsProperly(sourceChain, destinationChain)
                                           })
 
-                                          itReverts('SettlerInvalidRecipient')
-                                        })
-                                      })
+                                          context('when the destination chain is not the current chain', () => {
+                                            const destinationChain = 1
 
-                                      context('when the proposed amounts length is not correct', () => {
-                                        beforeEach('set proposed amounts', () => {
-                                          swapProposalParams.amountsOut = [minAmount, minAmount]
-                                        })
-
-                                        itReverts('SettlerInvalidProposedAmounts')
-                                      })
-                                    }
-
-                                    context('when the source chain is the current chain', () => {
-                                      const sourceChain = 31337
-
-                                      context('when the destination chain is the current chain', () => {
-                                        const destinationChain = 31337
-
-                                        itValidatesIntentsProperly(sourceChain, destinationChain)
-                                      })
-
-                                      context('when the destination chain is not the current chain', () => {
-                                        const destinationChain = 1
-
-                                        itValidatesIntentsProperly(sourceChain, destinationChain)
-                                      })
-                                    })
-
-                                    context('when the source chain is not the current chain', () => {
-                                      const sourceChain = 1
-
-                                      context('when the destination chain is the current chain', () => {
-                                        const destinationChain = 31337
-
-                                        itValidatesIntentsProperly(sourceChain, destinationChain)
-                                      })
-
-                                      context('when the destination chain is not the current chain', () => {
-                                        const destinationChain = 1
-
-                                        beforeEach('set source and destination chains', () => {
-                                          swapIntentParams.sourceChain = sourceChain
-                                          swapIntentParams.destinationChain = destinationChain
-                                        })
-
-                                        itReverts('SettlerInvalidChain')
-                                      })
-                                    })
-                                  })
-
-                                  context('for transfer intents', () => {
-                                    const transferIntentParams: Partial<TransferIntent> = {}
-                                    const transferProposalParams: Partial<TransferProposal> = {}
-                                    let token: TokenMock
-
-                                    const amount = fp(1)
-
-                                    beforeEach('set token', async () => {
-                                      token = await ethers.deployContract('TokenMock', ['TKN', 18])
-                                    })
-
-                                    beforeEach('set intent params', async () => {
-                                      transferIntentParams.transfers = [{ token, amount, recipient: other }]
-                                    })
-
-                                    beforeEach('mint and approve tokens', async () => {
-                                      await token.mint(user, amount)
-                                      await token.connect(user).approve(settler, amount)
-                                    })
-
-                                    const itReverts = (reason: string) => {
-                                      it('reverts', async () => {
-                                        const intent = createTransferIntent({
-                                          ...intentParams,
-                                          ...transferIntentParams,
-                                        })
-                                        await addValidations(settler, intent, [validator1, validator2])
-                                        const proposal = createTransferProposal({
-                                          ...proposalParams,
-                                          ...transferProposalParams,
-                                        })
-                                        const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                                        await expect(
-                                          settler.execute(intent, proposal, signature)
-                                        ).to.be.revertedWithCustomError(settler, reason)
-                                      })
-                                    }
-
-                                    context('when the chain is the current chain', () => {
-                                      beforeEach('set chain', () => {
-                                        transferIntentParams.chainId = 31337
-                                      })
-
-                                      context('when the proposal has some data', () => {
-                                        beforeEach('set proposal data', () => {
-                                          proposalParams.data = '0xab'
-                                        })
-
-                                        itReverts('SettlerProposalDataNotEmpty')
-                                      })
-
-                                      context('when the proposal has no data', () => {
-                                        beforeEach('set proposal data', () => {
-                                          proposalParams.data = '0x'
-                                        })
-
-                                        context('when the recipient is not the settler', () => {
-                                          beforeEach('set recipient', () => {
-                                            toArray(transferIntentParams.transfers).forEach((transfer) => {
-                                              transfer.recipient = other
+                                            beforeEach('set source and destination chains', () => {
+                                              swapOperationParams.sourceChain = sourceChain
+                                              swapOperationParams.destinationChain = destinationChain
                                             })
+
+                                            itReverts('SettlerInvalidChain')
                                           })
+                                        })
+                                      })
 
-                                          it('executes successfully', async () => {
-                                            const intent = createTransferIntent({
-                                              ...intentParams,
-                                              ...transferIntentParams,
-                                            })
+                                      context('for transfer intents', () => {
+                                        const transferOperationParams: Partial<TransferOperation> = {}
+                                        const transferProposalParams: Partial<TransferProposal> = {}
+                                        let token: TokenMock
+
+                                        const amount = fp(1)
+
+                                        beforeEach('set token', async () => {
+                                          token = await ethers.deployContract('TokenMock', ['TKN', 18])
+                                        })
+
+                                        beforeEach('set intent params', async () => {
+                                          transferOperationParams.transfers = [{ token, amount, recipient: other }]
+                                        })
+
+                                        beforeEach('mint and approve tokens', async () => {
+                                          await token.mint(user, amount)
+                                          await token.connect(user).approve(settler, amount)
+                                          transferOperationParams.user = user
+                                        })
+
+                                        const itReverts = (reason: string) => {
+                                          it('reverts', async () => {
+                                            const intent = createTransferIntent(intentParams, transferOperationParams)
                                             await addValidations(settler, intent, [validator1, validator2])
                                             const proposal = createTransferProposal({
                                               ...proposalParams,
@@ -861,101 +847,112 @@ describe('Settler', () => {
                                               admin
                                             )
 
-                                            const tx = await settler.execute(intent, proposal, signature)
-
-                                            const settlerEvents = await settler.queryFilter(
-                                              settler.filters.ProposalExecuted(),
-                                              tx.blockNumber
-                                            )
-                                            expect(settlerEvents).to.have.lengthOf(1)
-
-                                            const proposalHash = await settler.getProposalHash(proposal, intent, solver)
-                                            expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                                            await expect(
+                                              settler.execute(intent, proposal, signature)
+                                            ).to.be.revertedWithCustomError(settler, reason)
                                           })
-                                        })
+                                        }
 
-                                        context('when a recipient is the settler', () => {
-                                          beforeEach('set recipient', () => {
-                                            toArray(transferIntentParams.transfers).forEach((transfer) => {
-                                              transfer.recipient = settler
+                                        context('when the chain is the current chain', () => {
+                                          beforeEach('set chain', () => {
+                                            transferOperationParams.chainId = 31337
+                                          })
+
+                                          context('when the proposal has some data', () => {
+                                            beforeEach('set proposal data', () => {
+                                              proposalParams.datas = ['0xab']
+                                            })
+
+                                            itReverts('SettlerProposalDataNotEmpty')
+                                          })
+
+                                          context('when the proposal has no data', () => {
+                                            beforeEach('set proposal data', () => {
+                                              proposalParams.datas = ['0x']
+                                            })
+
+                                            context('when the recipient is not the settler', () => {
+                                              beforeEach('set recipient', () => {
+                                                toArray(transferOperationParams.transfers).forEach((transfer) => {
+                                                  transfer.recipient = other
+                                                })
+                                              })
+
+                                              it('executes successfully', async () => {
+                                                const intent = createTransferIntent(
+                                                  intentParams,
+                                                  transferOperationParams
+                                                )
+                                                await addValidations(settler, intent, [validator1, validator2])
+                                                const proposal = createTransferProposal({
+                                                  ...proposalParams,
+                                                  ...transferProposalParams,
+                                                })
+                                                const signature = await signProposal(
+                                                  settler,
+                                                  intent,
+                                                  solver,
+                                                  proposal,
+                                                  admin
+                                                )
+
+                                                const tx = await settler.execute(intent, proposal, signature)
+
+                                                const settlerEvents = await settler.queryFilter(
+                                                  settler.filters.ProposalExecuted(),
+                                                  tx.blockNumber
+                                                )
+                                                expect(settlerEvents).to.have.lengthOf(1)
+
+                                                const proposalHash = await settler.getProposalHash(
+                                                  proposal,
+                                                  intent,
+                                                  solver
+                                                )
+                                                expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                                              })
+                                            })
+
+                                            context('when a recipient is the settler', () => {
+                                              beforeEach('set recipient', () => {
+                                                toArray(transferOperationParams.transfers).forEach((transfer) => {
+                                                  transfer.recipient = settler
+                                                })
+                                              })
+
+                                              itReverts('SettlerInvalidRecipient')
                                             })
                                           })
-
-                                          itReverts('SettlerInvalidRecipient')
-                                        })
-                                      })
-                                    })
-
-                                    context('when the chain is not the current chain', () => {
-                                      beforeEach('set chain', () => {
-                                        transferIntentParams.chainId = 1
-                                      })
-
-                                      itReverts('SettlerInvalidChain')
-                                    })
-                                  })
-
-                                  context('for call intents', () => {
-                                    const callIntentParams: Partial<CallIntent> = {}
-                                    const callProposalParams: Partial<CallProposal> = {}
-                                    let token: TokenMock
-
-                                    beforeEach('set token', async () => {
-                                      token = await ethers.deployContract('TokenMock', ['TKN', 18])
-                                    })
-
-                                    beforeEach('set intent params', async () => {
-                                      const target = await ethers.deployContract('CallMock')
-                                      const data = target.interface.encodeFunctionData('call')
-
-                                      callIntentParams.calls = [{ target, data, value: 0 }]
-                                    })
-
-                                    const itReverts = (reason: string) => {
-                                      it('reverts', async () => {
-                                        const intent = createCallIntent({ ...intentParams, ...callIntentParams })
-                                        await addValidations(settler, intent, [validator1, validator2])
-                                        const proposal = createCallProposal({
-                                          ...proposalParams,
-                                          ...callProposalParams,
-                                        })
-                                        const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                                        await expect(
-                                          settler.execute(intent, proposal, signature)
-                                        ).to.be.revertedWithCustomError(settler, reason)
-                                      })
-                                    }
-
-                                    context('when the chain is the current chain', () => {
-                                      beforeEach('set chain', () => {
-                                        callIntentParams.chainId = 31337
-                                      })
-
-                                      context('when the proposal has some data', () => {
-                                        beforeEach('set proposal data', () => {
-                                          proposalParams.data = '0xab'
                                         })
 
-                                        itReverts('SettlerProposalDataNotEmpty')
-                                      })
-
-                                      context('when no data is given', () => {
-                                        beforeEach('set proposal data', () => {
-                                          proposalParams.data = '0x'
-                                        })
-
-                                        context('when the user is a smart account', () => {
-                                          beforeEach('set intent user', async () => {
-                                            intentParams.user = await ethers.deployContract('SmartAccountContract', [
-                                              settler,
-                                              owner,
-                                            ])
-                                            await feeToken.mint(intentParams.user, feeAmount)
+                                        context('when the chain is not the current chain', () => {
+                                          beforeEach('set chain', () => {
+                                            transferOperationParams.chainId = 1
                                           })
 
-                                          it('executes successfully', async () => {
-                                            const intent = createCallIntent({ ...intentParams, ...callIntentParams })
+                                          itReverts('SettlerInvalidChain')
+                                        })
+                                      })
+
+                                      context('for call intents', () => {
+                                        const callOperationParams: Partial<CallOperation> = {}
+                                        const callProposalParams: Partial<CallProposal> = {}
+                                        let token: TokenMock
+
+                                        beforeEach('set token', async () => {
+                                          token = await ethers.deployContract('TokenMock', ['TKN', 18])
+                                        })
+
+                                        beforeEach('set intent params', async () => {
+                                          const target = await ethers.deployContract('CallMock')
+                                          const data = target.interface.encodeFunctionData('call')
+
+                                          callOperationParams.calls = [{ target, data, value: 0 }]
+                                        })
+
+                                        const itReverts = (reason: string) => {
+                                          it('reverts', async () => {
+                                            const intent = createCallIntent(intentParams, callOperationParams)
                                             await addValidations(settler, intent, [validator1, validator2])
                                             const proposal = createCallProposal({
                                               ...proposalParams,
@@ -969,168 +966,241 @@ describe('Settler', () => {
                                               admin
                                             )
 
-                                            const tx = await settler.execute(intent, proposal, signature)
+                                            await expect(
+                                              settler.execute(intent, proposal, signature)
+                                            ).to.be.revertedWithCustomError(settler, reason)
+                                          })
+                                        }
 
-                                            const settlerEvents = await settler.queryFilter(
-                                              settler.filters.ProposalExecuted(),
-                                              tx.blockNumber
-                                            )
-                                            expect(settlerEvents).to.have.lengthOf(1)
+                                        context('when the chain is the current chain', () => {
+                                          beforeEach('set chain', () => {
+                                            callOperationParams.chainId = 31337
+                                          })
 
-                                            const proposalHash = await settler.getProposalHash(proposal, intent, solver)
-                                            expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                                          context('when the proposal has some data', () => {
+                                            beforeEach('set proposal data', () => {
+                                              proposalParams.datas = ['0xab']
+                                            })
+
+                                            itReverts('SettlerProposalDataNotEmpty')
+                                          })
+
+                                          context('when no data is given', () => {
+                                            beforeEach('set proposal data', () => {
+                                              proposalParams.datas = ['0x']
+                                            })
+
+                                            context('when the user is a smart account', () => {
+                                              beforeEach('set intent user', async () => {
+                                                const smartAccountUser = await ethers.deployContract(
+                                                  'SmartAccountContract',
+                                                  [settler, owner]
+                                                )
+                                                intentParams.user = smartAccountUser
+                                                callOperationParams.user = smartAccountUser
+                                                await feeToken.mint(intentParams.user, feeAmount)
+                                              })
+
+                                              it('executes successfully', async () => {
+                                                const intent = createCallIntent(intentParams, callOperationParams)
+                                                await addValidations(settler, intent, [validator1, validator2])
+                                                const proposal = createCallProposal({
+                                                  ...proposalParams,
+                                                  ...callProposalParams,
+                                                })
+                                                const signature = await signProposal(
+                                                  settler,
+                                                  intent,
+                                                  solver,
+                                                  proposal,
+                                                  admin
+                                                )
+
+                                                const tx = await settler.execute(intent, proposal, signature)
+
+                                                const settlerEvents = await settler.queryFilter(
+                                                  settler.filters.ProposalExecuted(),
+                                                  tx.blockNumber
+                                                )
+                                                expect(settlerEvents).to.have.lengthOf(1)
+
+                                                const proposalHash = await settler.getProposalHash(
+                                                  proposal,
+                                                  intent,
+                                                  solver
+                                                )
+                                                expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                                              })
+                                            })
+
+                                            context('when the user is not a smart account', () => {
+                                              context('when the user is an EOA', () => {
+                                                beforeEach('set intent user', async () => {
+                                                  intentParams.user = other
+                                                  callOperationParams.user = other
+                                                })
+
+                                                itReverts('SettlerUserNotSmartAccount')
+                                              })
+
+                                              context('when the user is another contract', () => {
+                                                beforeEach('set intent user', async () => {
+                                                  intentParams.user = token
+                                                  callOperationParams.user = token
+                                                })
+
+                                                itReverts('SettlerUserNotSmartAccount')
+                                              })
+                                            })
                                           })
                                         })
 
-                                        context('when the user is not a smart account', () => {
-                                          context('when the user is an EOA', () => {
-                                            beforeEach('set intent user', async () => {
-                                              intentParams.user = other
-                                            })
-
-                                            itReverts('SettlerUserNotSmartAccount')
+                                        context('when the chain is not the current chain', () => {
+                                          beforeEach('set chain', () => {
+                                            callOperationParams.chainId = 1
                                           })
 
-                                          context('when the user is another contract', () => {
-                                            beforeEach('set intent user', async () => {
-                                              intentParams.user = token
-                                            })
-
-                                            itReverts('SettlerUserNotSmartAccount')
-                                          })
+                                          itReverts('SettlerInvalidChain')
                                         })
                                       })
                                     })
 
-                                    context('when the chain is not the current chain', () => {
-                                      beforeEach('set chain', () => {
-                                        callIntentParams.chainId = 1
+                                    context('when the proposal has not been signed properly', () => {
+                                      beforeEach('disallow proposal signer', async () => {
+                                        await controller.connect(admin).setAllowedProposalSigners([admin], [false])
                                       })
 
-                                      itReverts('SettlerInvalidChain')
+                                      it('reverts', async () => {
+                                        const intent = createIntent(intentParams)
+                                        const proposal = createProposal(proposalParams)
+                                        const signature = await signProposal(settler, intent, solver, proposal, admin)
+
+                                        await expect(
+                                          settler.execute(intent, proposal, signature)
+                                        ).to.be.revertedWithCustomError(settler, 'SettlerProposalSignerNotAllowed')
+                                      })
                                     })
+                                  })
+
+                                  context('when the validations are not in order', () => {
+                                    beforeEach('set intent validations in disorder', async () => {
+                                      await addValidations(settler, intentParams, [validator1, validator2])
+                                      intentParams.validations = intentParams.validations?.reverse()
+                                    })
+
+                                    itReverts('SettlerValidatorDuplicatedOrUnsorted')
+                                  })
+
+                                  context('when the validations are the same', () => {
+                                    beforeEach('set duplicate validations', async () => {
+                                      await addValidations(settler, intentParams, [validator1, validator1])
+                                    })
+                                    itReverts('SettlerValidatorDuplicatedOrUnsorted')
                                   })
                                 })
 
-                                context('when the proposal has not been signed properly', () => {
-                                  beforeEach('disallow proposal signer', async () => {
-                                    await controller.connect(admin).setAllowedProposalSigners([admin], [false])
-                                  })
-
-                                  it('reverts', async () => {
-                                    const intent = createIntent(intentParams)
-                                    const proposal = createProposal(proposalParams)
-                                    const signature = await signProposal(settler, intent, solver, proposal, admin)
-
-                                    await expect(
-                                      settler.execute(intent, proposal, signature)
-                                    ).to.be.revertedWithCustomError(settler, 'SettlerProposalSignerNotAllowed')
-                                  })
+                                context('when the validators are not allowed', () => {
+                                  itReverts('SettlerValidatorNotAllowed')
                                 })
                               })
 
-                              context('when the validations are not in order', () => {
-                                beforeEach('set intent validations in disorder', async () => {
+                              context('when the validations are less than the required validations', () => {
+                                beforeEach('set intent validations', async () => {
+                                  await addValidations(settler, intentParams, [validator2])
+                                })
+                                itReverts('SettlerIntentValidationsNotEnough')
+                              })
+                            }
+                          )
+
+                          context(
+                            'when the intent minimum validations is less than the controller minimum validations',
+                            () => {
+                              beforeEach('set min validations', async () => {
+                                intentParams.minValidations = 1
+                                await controller.connect(admin).setMinValidations(2)
+                              })
+
+                              beforeEach('set intent', async () => {
+                                const futureIntent = createSwapIntent(intentParams, { user: intentParams.user })
+                                intentParams.configSig = randomSig()
+                                intentParams.operations = futureIntent.operations
+                                intentParams.events = []
+                              })
+
+                              const validator1 = Wallet.createRandom()
+                              const validator2 = Wallet.createRandom()
+
+                              context('when the validations are more or equal than the required validations', () => {
+                                beforeEach('set intent validations', async () => {
                                   await addValidations(settler, intentParams, [validator1, validator2])
-                                  intentParams.validations = intentParams.validations?.reverse()
                                 })
-
-                                itReverts('SettlerValidatorDuplicatedOrUnsorted')
+                                itReverts('SettlerValidatorNotAllowed')
                               })
 
-                              context('when the validations are the same', () => {
-                                beforeEach('set duplicate validations', async () => {
-                                  await addValidations(settler, intentParams, [validator1, validator1])
+                              context('when the validations are less than the required validations', () => {
+                                beforeEach('set intent validations', async () => {
+                                  await addValidations(settler, intentParams, [validator2])
                                 })
-                                itReverts('SettlerValidatorDuplicatedOrUnsorted')
+                                itReverts('SettlerIntentValidationsNotEnough')
                               })
-                            })
+                            }
+                          )
+                        })
 
-                            context('when the validators are not allowed', () => {
-                              itReverts('SettlerValidatorNotAllowed')
-                            })
+                        context('when the proposal fee is greater than the intent max fee', () => {
+                          beforeEach('set proposal fee', () => {
+                            proposalParams.fees = [feeAmount + 1n]
                           })
 
-                          context('when the validations are less than the required validations', () => {
-                            beforeEach('set intent validations', async () => {
-                              await addValidations(settler, intentParams, [validator2])
-                            })
-                            itReverts('SettlerIntentValidationsNotEnough')
-                          })
-                        }
-                      )
-
-                      context(
-                        'when the intent minimum validations is less than the controller minimum validations',
-                        () => {
-                          beforeEach('set min validations', async () => {
-                            intentParams.minValidations = 1
-                            await controller.connect(admin).setMinValidations(2)
-                          })
-
-                          beforeEach('set intent', async () => {
-                            const futureIntent = createSwapIntent(intentParams)
-                            intentParams.op = futureIntent.op
-                            intentParams.configSig = randomSig()
-                            intentParams.data = futureIntent.data
-                            intentParams.events = []
-                          })
-
-                          const validator1 = Wallet.createRandom()
-                          const validator2 = Wallet.createRandom()
-
-                          context('when the validations are more or equal than the required validations', () => {
-                            beforeEach('set intent validations', async () => {
-                              await addValidations(settler, intentParams, [validator1, validator2])
-                            })
-                            itReverts('SettlerValidatorNotAllowed')
-                          })
-
-                          context('when the validations are less than the required validations', () => {
-                            beforeEach('set intent validations', async () => {
-                              await addValidations(settler, intentParams, [validator2])
-                            })
-                            itReverts('SettlerIntentValidationsNotEnough')
-                          })
-                        }
-                      )
-                    })
-
-                    context('when the proposal fee is greater than the intent max fee', () => {
-                      beforeEach('set proposal fee', () => {
-                        proposalParams.fees = [feeAmount + 1n]
+                          itReverts('SettlerSolverFeeTooHigh')
+                        })
                       })
 
-                      itReverts('SettlerSolverFeeTooHigh')
+                      context('when the proposal fee length is not correct', () => {
+                        beforeEach('set proposal invalid fees', () => {
+                          proposalParams.fees = []
+                        })
+
+                        itReverts('SettlerSolverFeeInvalidLength')
+                      })
+                    })
+
+                    context('when the proposal deadline has been reached', () => {
+                      beforeEach('set deadline', async () => {
+                        const now = await currentTimestamp()
+                        proposalParams.deadline = now - BigInt(5 * 60)
+                      })
+
+                      itRevertsUnlessDestinationChain('SettlerProposalPastDeadline')
                     })
                   })
 
-                  context('when the proposal fee length is not correct', () => {
-                    beforeEach('set proposal invalid fees', () => {
-                      proposalParams.fees = []
+                  context('when the intent deadline has been reached', () => {
+                    beforeEach('set deadline', async () => {
+                      const now = await currentTimestamp()
+                      intentParams.deadline = now - BigInt(5 * 60)
                     })
 
-                    itReverts('SettlerSolverFeeInvalidLength')
+                    itRevertsUnlessDestinationChain('SettlerIntentPastDeadline')
                   })
                 })
 
-                context('when the proposal deadline has been reached', () => {
-                  beforeEach('set deadline', async () => {
-                    const now = await currentTimestamp()
-                    proposalParams.deadline = now - BigInt(5 * 60)
+                context('when the proposal datas length does not match the intent operations lenght', () => {
+                  beforeEach('set datas', () => {
+                    proposalParams.datas = [randomHex(32), randomHex(32)]
                   })
 
-                  itRevertsUnlessDestinationChain('SettlerProposalPastDeadline')
+                  itReverts('SettlerProposalDataInvalidLength')
                 })
               })
 
-              context('when the intent deadline has been reached', () => {
-                beforeEach('set deadline', async () => {
-                  const now = await currentTimestamp()
-                  intentParams.deadline = now - BigInt(5 * 60)
+              context('when the operations are empty', () => {
+                beforeEach('set operations', () => {
+                  intentParams.operations = []
                 })
 
-                itRevertsUnlessDestinationChain('SettlerIntentPastDeadline')
+                itReverts('SettlerIntentOperationsEmpty')
               })
             })
 
@@ -1144,7 +1214,11 @@ describe('Settler', () => {
                 intentParams.minValidations = 0
                 const intent = createSwapIntent({ ...intentParams, deadline: MAX_UINT256 })
                 const executor = await ethers.deployContract('EmptyExecutorMock')
-                const proposal = createSwapProposal({ ...proposalParams, deadline: MAX_UINT256, executor })
+                const proposal = createSwapProposal({
+                  ...proposalParams,
+                  deadline: MAX_UINT256,
+                  executor: toAddress(executor),
+                })
                 const signature = await signProposal(settler, intent, solver, proposal, admin)
 
                 await controller.connect(admin).setAllowedProposalSigners([admin], [true])
@@ -1220,14 +1294,19 @@ describe('Settler', () => {
               })
 
               beforeEach('create intent', async () => {
-                intent = createSwapIntent({
-                  settler,
-                  user,
-                  sourceChain,
-                  destinationChain,
-                  tokensIn: { token, amount },
-                  tokensOut: { token, minAmount, recipient },
-                })
+                intent = createSwapIntent(
+                  {
+                    settler,
+                    user,
+                  },
+                  {
+                    user,
+                    sourceChain,
+                    destinationChain,
+                    tokensIn: { token, amount },
+                    tokensOut: { token, minAmount, recipient },
+                  }
+                )
               })
 
               it('executes the intent', async () => {
@@ -1276,20 +1355,25 @@ describe('Settler', () => {
               })
 
               beforeEach('create intent', async () => {
-                intent = createSwapIntent({
-                  settler,
-                  user,
-                  sourceChain,
-                  destinationChain,
-                  tokensIn: [
-                    { token: token1, amount: amount1 },
-                    { token: token2, amount: amount2 },
-                  ],
-                  tokensOut: [
-                    { token: token1, minAmount: minAmountOut1, recipient },
-                    { token: token2, minAmount: minAmountOut2, recipient },
-                  ],
-                })
+                intent = createSwapIntent(
+                  {
+                    settler,
+                    user,
+                  },
+                  {
+                    user,
+                    sourceChain,
+                    destinationChain,
+                    tokensIn: [
+                      { token: token1, amount: amount1 },
+                      { token: token2, amount: amount2 },
+                    ],
+                    tokensOut: [
+                      { token: token1, minAmount: minAmountOut1, recipient },
+                      { token: token2, minAmount: minAmountOut2, recipient },
+                    ],
+                  }
+                )
               })
 
               it('executes the intent', async () => {
@@ -1351,15 +1435,20 @@ describe('Settler', () => {
                 const eventData = randomHex(120)
 
                 beforeEach('create intent', async () => {
-                  intent = createSwapIntent({
-                    settler,
-                    user: toAddress(from),
-                    sourceChain,
-                    destinationChain,
-                    tokensIn: { token: tokenIn, amount: amountIn },
-                    tokensOut: { token: tokenOut, minAmount: minAmountOut, recipient },
-                    events: [{ topic: eventTopic, data: eventData }],
-                  })
+                  intent = createSwapIntent(
+                    {
+                      settler,
+                      user: toAddress(from),
+                    },
+                    {
+                      user: toAddress(from),
+                      sourceChain,
+                      destinationChain,
+                      tokensIn: { token: tokenIn, amount: amountIn },
+                      tokensOut: { token: tokenOut, minAmount: minAmountOut, recipient },
+                      events: [{ topic: eventTopic, data: eventData }],
+                    }
+                  )
                 })
 
                 it('executes the intent', async () => {
@@ -1390,13 +1479,13 @@ describe('Settler', () => {
                   const signature = await signProposal(settler, intent, solver, proposal, admin)
                   const tx = await settler.execute(intent, proposal, signature)
 
-                  const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+                  const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
                   expect(events).to.have.lengthOf(1)
 
                   expect(events[0].args.user).to.be.equal(intent.user)
                   expect(events[0].args.topic).to.be.equal(eventTopic)
                   expect(events[0].args.op).to.be.equal(OpType.Swap)
-                  expect(events[0].args.intent).to.not.be.undefined
+                  expect(events[0].args.operation).to.not.be.undefined
                   expect(events[0].args.proposal).to.not.be.undefined
                   expect(events[0].args.output).to.not.be.undefined
                   expect(events[0].args.data).to.be.equal(eventData)
@@ -1506,21 +1595,26 @@ describe('Settler', () => {
 
               const itExecutesTheIntent = () => {
                 beforeEach('create intent', async () => {
-                  intent = createSwapIntent({
-                    settler,
-                    user,
-                    sourceChain,
-                    destinationChain,
-                    tokensIn: [
-                      { token: tokenIn1, amount: amountIn1 },
-                      { token: tokenIn2, amount: amountIn2 },
-                      { token: tokenIn3, amount: amountIn3 },
-                    ],
-                    tokensOut: [
-                      { token: tokenOut1, minAmount: minAmountOut1, recipient },
-                      { token: tokenOut2, minAmount: minAmountOut2, recipient },
-                    ],
-                  })
+                  intent = createSwapIntent(
+                    {
+                      settler,
+                      user,
+                    },
+                    {
+                      user,
+                      sourceChain,
+                      destinationChain,
+                      tokensIn: [
+                        { token: tokenIn1, amount: amountIn1 },
+                        { token: tokenIn2, amount: amountIn2 },
+                        { token: tokenIn3, amount: amountIn3 },
+                      ],
+                      tokensOut: [
+                        { token: tokenOut1, minAmount: minAmountOut1, recipient },
+                        { token: tokenOut2, minAmount: minAmountOut2, recipient },
+                      ],
+                    }
+                  )
                 })
 
                 it('executes the intent', async () => {
@@ -1611,14 +1705,19 @@ describe('Settler', () => {
               })
 
               beforeEach('create intent', async () => {
-                intent = createSwapIntent({
-                  settler,
-                  user,
-                  sourceChain,
-                  destinationChain,
-                  tokensIn: { token: tokenIn, amount },
-                  tokensOut: { token: tokenOut, minAmount, recipient },
-                })
+                intent = createSwapIntent(
+                  {
+                    settler,
+                    user,
+                  },
+                  {
+                    user,
+                    sourceChain,
+                    destinationChain,
+                    tokensIn: { token: tokenIn, amount },
+                    tokensOut: { token: tokenOut, minAmount, recipient },
+                  }
+                )
               })
 
               it('executes the intent', async () => {
@@ -1652,14 +1751,19 @@ describe('Settler', () => {
 
               const itExecutesTheIntent = () => {
                 beforeEach('create intent', async () => {
-                  intent = createSwapIntent({
-                    settler,
-                    user,
-                    sourceChain,
-                    destinationChain,
-                    tokensIn: { token: tokenIn, amount },
-                    tokensOut: { token: tokenOut, minAmount, recipient },
-                  })
+                  intent = createSwapIntent(
+                    {
+                      settler,
+                      user,
+                    },
+                    {
+                      user,
+                      sourceChain,
+                      destinationChain,
+                      tokensIn: { token: tokenIn, amount },
+                      tokensOut: { token: tokenOut, minAmount, recipient },
+                    }
+                  )
                 })
 
                 it('executes the intent', async () => {
@@ -1734,21 +1838,26 @@ describe('Settler', () => {
               })
 
               beforeEach('create intent', async () => {
-                intent = createSwapIntent({
-                  settler,
-                  user,
-                  sourceChain,
-                  destinationChain,
-                  tokensIn: [
-                    { token: tokenIn1, amount: amountIn1 },
-                    { token: tokenIn2, amount: amountIn2 },
-                    { token: tokenIn3, amount: amountIn3 },
-                  ],
-                  tokensOut: [
-                    { token: tokenOut1, minAmount: minAmountOut1, recipient },
-                    { token: tokenOut2, minAmount: minAmountOut2, recipient },
-                  ],
-                })
+                intent = createSwapIntent(
+                  {
+                    settler,
+                    user,
+                  },
+                  {
+                    user,
+                    sourceChain,
+                    destinationChain,
+                    tokensIn: [
+                      { token: tokenIn1, amount: amountIn1 },
+                      { token: tokenIn2, amount: amountIn2 },
+                      { token: tokenIn3, amount: amountIn3 },
+                    ],
+                    tokensOut: [
+                      { token: tokenOut1, minAmount: minAmountOut1, recipient },
+                      { token: tokenOut2, minAmount: minAmountOut2, recipient },
+                    ],
+                  }
+                )
               })
 
               it('executes the intent', async () => {
@@ -1800,21 +1909,26 @@ describe('Settler', () => {
 
               const itExecutesTheIntent = () => {
                 beforeEach('create intent', async () => {
-                  intent = createSwapIntent({
-                    settler,
-                    user,
-                    sourceChain,
-                    destinationChain,
-                    tokensIn: [
-                      { token: tokenIn1, amount: amountIn1 },
-                      { token: tokenIn2, amount: amountIn2 },
-                      { token: tokenIn3, amount: amountIn3 },
-                    ],
-                    tokensOut: [
-                      { token: tokenOut1, minAmount: minAmountOut1, recipient },
-                      { token: tokenOut2, minAmount: minAmountOut2, recipient },
-                    ],
-                  })
+                  intent = createSwapIntent(
+                    {
+                      settler,
+                      user,
+                    },
+                    {
+                      user,
+                      sourceChain,
+                      destinationChain,
+                      tokensIn: [
+                        { token: tokenIn1, amount: amountIn1 },
+                        { token: tokenIn2, amount: amountIn2 },
+                        { token: tokenIn3, amount: amountIn3 },
+                      ],
+                      tokensOut: [
+                        { token: tokenOut1, minAmount: minAmountOut1, recipient },
+                        { token: tokenOut2, minAmount: minAmountOut2, recipient },
+                      ],
+                    }
+                  )
                 })
 
                 it('executes the intent', async () => {
@@ -1887,13 +2001,18 @@ describe('Settler', () => {
             const eventData = randomHex(120)
 
             beforeEach('create intent', async () => {
-              intent = createTransferIntent({
-                settler,
-                user: toAddress(from),
-                transfers: [{ token, amount, recipient }],
-                maxFees: [{ token: feeToken, amount: feeAmount }],
-                events: [{ topic: eventTopic, data: eventData }],
-              })
+              intent = createTransferIntent(
+                {
+                  settler,
+                  user: toAddress(from),
+                  maxFees: [{ token: feeToken, amount: feeAmount }],
+                },
+                {
+                  user: toAddress(from),
+                  transfers: [{ token, amount, recipient }],
+                  events: [{ topic: eventTopic, data: eventData }],
+                }
+              )
             })
 
             it('executes the intent', async () => {
@@ -1933,13 +2052,13 @@ describe('Settler', () => {
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const tx = await settler.execute(intent, proposal, signature)
 
-              const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+              const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
               expect(events).to.have.lengthOf(1)
 
               expect(events[0].args.user).to.be.equal(intent.user)
               expect(events[0].args.topic).to.be.equal(eventTopic)
               expect(events[0].args.op).to.be.equal(OpType.Transfer)
-              expect(events[0].args.intent).to.not.be.undefined
+              expect(events[0].args.operation).to.not.be.undefined
               expect(events[0].args.proposal).to.not.be.undefined
               expect(events[0].args.output).to.be.eq('0x')
               expect(events[0].args.data).to.be.equal(eventData)
@@ -2127,16 +2246,21 @@ describe('Settler', () => {
           })
 
           beforeEach('create intent', async () => {
-            intent = createTransferIntent({
-              settler,
-              user,
-              maxFees: [{ token: token1, amount: feeAmount }],
-              transfers: [
-                { token: token1, amount: amount1, recipient },
-                { token: token1, amount: feeAmount, recipient: user }, // has no impact
-                { token: token2, amount: amount2, recipient },
-              ],
-            })
+            intent = createTransferIntent(
+              {
+                settler,
+                user,
+                maxFees: [{ token: token1, amount: feeAmount }],
+              },
+              {
+                user,
+                transfers: [
+                  { token: token1, amount: amount1, recipient },
+                  { token: token1, amount: feeAmount, recipient: user }, // has no impact
+                  { token: token2, amount: amount2, recipient },
+                ],
+              }
+            )
           })
 
           it('executes the intent', async () => {
@@ -2196,13 +2320,18 @@ describe('Settler', () => {
                 const eventData = randomHex(120)
 
                 beforeEach('create intent', async () => {
-                  intent = createCallIntent({
-                    settler,
-                    user,
-                    maxFees: [{ token: feeToken, amount: feeAmount }],
-                    calls: [{ target: target, data, value }],
-                    events: [{ topic: eventTopic, data: eventData }],
-                  })
+                  intent = createCallIntent(
+                    {
+                      settler,
+                      user,
+                      maxFees: [{ token: feeToken, amount: feeAmount }],
+                    },
+                    {
+                      user,
+                      calls: [{ target: target, data, value }],
+                      events: [{ topic: eventTopic, data: eventData }],
+                    }
+                  )
                 })
 
                 it('executes the intent', async () => {
@@ -2235,13 +2364,13 @@ describe('Settler', () => {
                   const signature = await signProposal(settler, intent, solver, proposal, admin)
                   const tx = await settler.execute(intent, proposal, signature)
 
-                  const events = await settler.queryFilter(settler.filters.IntentExecuted(), tx.blockNumber)
+                  const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
                   expect(events).to.have.lengthOf(1)
 
                   expect(events[0].args.user).to.be.equal(intent.user)
                   expect(events[0].args.topic).to.be.equal(eventTopic)
                   expect(events[0].args.op).to.be.equal(OpType.EvmCall)
-                  expect(events[0].args.intent).to.not.be.undefined
+                  expect(events[0].args.operation).to.not.be.undefined
                   expect(events[0].args.proposal).to.not.be.undefined
                   expect(events[0].args.output).to.not.be.undefined
                   expect(events[0].args.data).to.be.equal(eventData)
@@ -2305,12 +2434,17 @@ describe('Settler', () => {
               })
 
               beforeEach('create intent', async () => {
-                intent = createCallIntent({
-                  settler,
-                  user,
-                  maxFees: [{ token: feeToken, amount: feeAmount }],
-                  calls: [{ target: target, data, value: 0 }],
-                })
+                intent = createCallIntent(
+                  {
+                    settler,
+                    user,
+                    maxFees: [{ token: feeToken, amount: feeAmount }],
+                  },
+                  {
+                    user,
+                    calls: [{ target: target, data, value: 0 }],
+                  }
+                )
               })
 
               it('reverts', async () => {
@@ -2343,11 +2477,16 @@ describe('Settler', () => {
             })
 
             beforeEach('create intent', async () => {
-              intent = createCallIntent({
-                settler,
-                user,
-                calls: [{ target, data, value: 0 }],
-              })
+              intent = createCallIntent(
+                {
+                  settler,
+                  user,
+                },
+                {
+                  user,
+                  calls: [{ target, data, value: 0 }],
+                }
+              )
             })
 
             it('reverts', async () => {
@@ -2395,16 +2534,21 @@ describe('Settler', () => {
           })
 
           beforeEach('create intent', async () => {
-            intent = createCallIntent({
-              settler,
-              user,
-              maxFees: [{ token: feeToken, amount: feeAmount }],
-              calls: [
-                { target: target1, data, value: value1 },
-                { target: target2, data, value: value2 },
-                { target: target2, data, value: 0 },
-              ],
-            })
+            intent = createCallIntent(
+              {
+                settler,
+                user,
+                maxFees: [{ token: feeToken, amount: feeAmount }],
+              },
+              {
+                user,
+                calls: [
+                  { target: target1, data, value: value1 },
+                  { target: target2, data, value: value2 },
+                  { target: target2, data, value: 0 },
+                ],
+              }
+            )
           })
 
           it('executes the intent', async () => {

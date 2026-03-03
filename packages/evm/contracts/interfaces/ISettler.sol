@@ -10,9 +10,9 @@ import '../safeguards/Safeguards.sol';
  */
 interface ISettler {
     /**
-     * @dev The requested intent type is unknown
+     * @dev The requested operation type is unknown
      */
-    error SettlerUnknownIntentType(uint8 op);
+    error SettlerUnknownOperationType(uint8 op);
 
     /**
      * @dev The simulation has been successful
@@ -105,6 +105,16 @@ interface ISettler {
     error SettlerSolverFeeInvalidLength();
 
     /**
+     * @dev The intent operations array is empty
+     */
+    error SettlerIntentOperationsEmpty();
+
+    /**
+     * @dev The proposal datas length does not match the intent operations length
+     */
+    error SettlerProposalDataInvalidLength();
+
+    /**
      * @dev The solver fee is too high
      */
     error SettlerSolverFeeTooHigh(uint256 fee, uint256 max);
@@ -140,13 +150,13 @@ interface ISettler {
     error SmartAccountsHandlerZero();
 
     /**
-     * @dev Custom events emitted for each intent
+     * @dev Custom events emitted for each operation
      */
-    event IntentExecuted(
+    event OperationExecuted(
         address indexed user,
         bytes32 indexed topic,
         uint8 indexed op,
-        Intent intent,
+        Operation operation,
         Proposal proposal,
         bytes output,
         bytes data

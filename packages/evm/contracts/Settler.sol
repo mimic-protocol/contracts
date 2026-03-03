@@ -199,39 +199,44 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateIntent(intent, proposal, signature, simulated);
         getNonceBlock[intent.user][intent.nonce] = block.number;
 
-        if (intent.op == uint8(OpType.Swap)) _executeSwap(intent, proposal);
-        else if (intent.op == uint8(OpType.Transfer)) _executeTransfer(intent, proposal);
-        else if (intent.op == uint8(OpType.Call)) _executeCall(intent, proposal);
-        else revert SettlerUnknownIntentType(uint8(intent.op));
+        for (uint256 i = 0; i < intent.operations.length; i++) {
+            Operation memory operation = intent.operations[i];
+            if (operation.op == uint8(OpType.Swap)) _executeSwap(operation, proposal, i);
+            else if (operation.op == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
+            else if (operation.op == uint8(OpType.Call)) _executeCall(operation, proposal, i);
+            else revert SettlerUnknownOperationType(uint8(operation.op));
+        }
 
+        _payFees(intent, proposal);
         emit ProposalExecuted(proposal.hash(intent, _msgSender()));
     }
 
     /**
-     * @dev Validates and executes a proposal to fulfill a swap intent
-     * @param intent Swap intent to be fulfilled
-     * @param proposal Swap proposal to be executed
+     * @dev Validates and executes a proposal to fulfill a swap operation
+     * @param operation Swap operation to be fulfilled
+     * @param proposal Proposal with swap data to be executed
+     * @param index position where the swap proposal data is located on datas
      */
-    function _executeSwap(Intent memory intent, Proposal memory proposal) internal {
-        SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
-        SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
-        _validateSwapIntent(swapIntent, swapProposal);
+    function _executeSwap(Operation memory operation, Proposal memory proposal, uint256 index) internal {
+        SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
+        SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
+        _validateSwapOperation(swapOperation, swapProposal);
 
-        bool isSmartAccount = smartAccountsHandler.isSmartAccount(intent.user);
-        if (swapIntent.sourceChain == block.chainid) {
-            for (uint256 i = 0; i < swapIntent.tokensIn.length; i++) {
-                TokenIn memory tokenIn = swapIntent.tokensIn[i];
-                _transferFrom(tokenIn.token, intent.user, swapProposal.executor, tokenIn.amount, isSmartAccount);
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(operation.user);
+        if (swapOperation.sourceChain == block.chainid) {
+            for (uint256 i = 0; i < swapOperation.tokensIn.length; i++) {
+                TokenIn memory tokenIn = swapOperation.tokensIn[i];
+                _transferFrom(tokenIn.token, operation.user, swapProposal.executor, tokenIn.amount, isSmartAccount);
             }
         }
 
-        uint256[] memory preBalancesOut = _getTokensOutBalance(swapIntent);
-        IExecutor(swapProposal.executor).execute(intent, proposal);
+        uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
+        IExecutor(swapProposal.executor).execute(operation, proposal);
 
-        if (swapIntent.destinationChain == block.chainid) {
-            uint256[] memory outputs = new uint256[](swapIntent.tokensOut.length);
-            for (uint256 i = 0; i < swapIntent.tokensOut.length; i++) {
-                TokenOut memory tokenOut = swapIntent.tokensOut[i];
+        if (swapOperation.destinationChain == block.chainid) {
+            uint256[] memory outputs = new uint256[](swapOperation.tokensOut.length);
+            for (uint256 i = 0; i < swapOperation.tokensOut.length; i++) {
+                TokenOut memory tokenOut = swapOperation.tokensOut[i];
                 uint256 postBalanceOut = ERC20Helpers.balanceOf(tokenOut.token, address(this));
                 uint256 preBalanceOut = preBalancesOut[i];
                 if (postBalanceOut < preBalanceOut) revert SettlerPostBalanceOutLtPre(i, postBalanceOut, preBalanceOut);
@@ -243,48 +248,47 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, outputs[i]);
             }
 
-            _emitIntentEvents(intent, proposal, abi.encode(outputs));
-            _payFees(intent, proposal, isSmartAccount);
+            _emitOperationEvents(operation, proposal, abi.encode(outputs));
         }
     }
 
     /**
-     * @dev Validates and executes a proposal to fulfill a transfer intent
-     * @param intent Transfer intent to be fulfilled
+     * @dev Validates and executes a proposal to fulfill a transfer operation
+     * @param operation Transfer operation to be fulfilled
      * @param proposal Transfer proposal to be executed
+     * @param index position where the transfer proposal data is located on datas
      */
-    function _executeTransfer(Intent memory intent, Proposal memory proposal) internal {
-        TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
-        _validateTransferIntent(transferIntent, proposal);
+    function _executeTransfer(Operation memory operation, Proposal memory proposal, uint256 index) internal {
+        TransferOperation memory transferOperation = abi.decode(operation.data, (TransferOperation));
+        _validateTransferOperation(transferOperation, proposal.datas[index]);
 
-        bool isSmartAccount = smartAccountsHandler.isSmartAccount(intent.user);
-        for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
-            TransferData memory transfer = transferIntent.transfers[i];
-            _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(operation.user);
+        for (uint256 i = 0; i < transferOperation.transfers.length; i++) {
+            TransferData memory transfer = transferOperation.transfers[i];
+            _transferFrom(transfer.token, operation.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        _emitIntentEvents(intent, proposal, new bytes(0));
-        _payFees(intent, proposal, isSmartAccount);
+        _emitOperationEvents(operation, proposal, new bytes(0));
     }
 
     /**
-     * @dev Validates and executes a proposal to fulfill a call intent
-     * @param intent Call intent to be fulfilled
+     * @dev Validates and executes a proposal to fulfill a call operation
+     * @param operation Call operation to be fulfilled
      * @param proposal Call proposal to be executed
+     * @param index position where the call proposal data is located on datas
      */
-    function _executeCall(Intent memory intent, Proposal memory proposal) internal {
-        CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
-        _validateCallIntent(callIntent, proposal, intent.user);
+    function _executeCall(Operation memory operation, Proposal memory proposal, uint256 index) internal {
+        CallOperation memory callOperation = abi.decode(operation.data, (CallOperation));
+        _validateCallOperation(callOperation, proposal.datas[index], operation.user);
 
-        bytes[] memory outputs = new bytes[](callIntent.calls.length);
-        for (uint256 i = 0; i < callIntent.calls.length; i++) {
-            CallData memory call = callIntent.calls[i];
+        bytes[] memory outputs = new bytes[](callOperation.calls.length);
+        for (uint256 i = 0; i < callOperation.calls.length; i++) {
+            CallData memory call = callOperation.calls[i];
             // solhint-disable-next-line avoid-low-level-calls
-            outputs[i] = smartAccountsHandler.call(intent.user, call.target, call.data, call.value);
+            outputs[i] = smartAccountsHandler.call(operation.user, call.target, call.data, call.value);
         }
 
-        _emitIntentEvents(intent, proposal, abi.encode(outputs));
-        _payFees(intent, proposal, true);
+        _emitOperationEvents(operation, proposal, abi.encode(outputs));
     }
 
     /**
@@ -301,6 +305,9 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (intent.settler != address(this)) revert SettlerInvalidSettler(intent.settler);
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
         if (getNonceBlock[intent.user][intent.nonce] != 0) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
+
+        if (intent.operations.length == 0) revert SettlerIntentOperationsEmpty();
+        if (intent.operations.length != proposal.datas.length) revert SettlerProposalDataInvalidLength();
 
         if (intentsValidator != address(0)) {
             bytes memory safeguard = _userSafeguard[intent.user];
@@ -347,18 +354,18 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Validates a swap intent and its corresponding proposal
-     * @param intent Swap intent to be fulfilled
+     * @dev Validates a swap operation and its corresponding proposal
+     * @param operation Swap operation to be fulfilled
      * @param proposal Proposal to be executed
      */
-    function _validateSwapIntent(SwapIntent memory intent, SwapProposal memory proposal) internal view {
-        bool isChainInvalid = intent.sourceChain != block.chainid && intent.destinationChain != block.chainid;
+    function _validateSwapOperation(SwapOperation memory operation, SwapProposal memory proposal) internal view {
+        bool isChainInvalid = operation.sourceChain != block.chainid && operation.destinationChain != block.chainid;
         if (isChainInvalid) revert SettlerInvalidChain(block.chainid);
 
-        if (proposal.amountsOut.length != intent.tokensOut.length) revert SettlerInvalidProposedAmounts();
+        if (proposal.amountsOut.length != operation.tokensOut.length) revert SettlerInvalidProposedAmounts();
 
-        for (uint256 i = 0; i < intent.tokensOut.length; i++) {
-            TokenOut memory tokenOut = intent.tokensOut[i];
+        for (uint256 i = 0; i < operation.tokensOut.length; i++) {
+            TokenOut memory tokenOut = operation.tokensOut[i];
             address recipient = tokenOut.recipient;
             if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
 
@@ -367,47 +374,50 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             if (proposedAmount < minAmount) revert SettlerProposedAmountLtMinAmount(i, proposedAmount, minAmount);
         }
 
-        if (intent.sourceChain != intent.destinationChain) {
+        if (operation.sourceChain != operation.destinationChain) {
             bool isExecutorInvalid = !IController(controller).isExecutorAllowed(proposal.executor);
             if (isExecutorInvalid) revert SettlerExecutorNotAllowed(proposal.executor);
         }
     }
 
     /**
-     * @dev Validates a transfer intent and its corresponding proposal
-     * @param intent Transfer intent to be fulfilled
-     * @param proposal Proposal to be executed
+     * @dev Validates a transfer operation and its corresponding proposal
+     * @param operation Transfer operation to be fulfilled
+     * @param proposalData data of the proposal
      */
-    function _validateTransferIntent(TransferIntent memory intent, Proposal memory proposal) internal view {
-        if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
-        if (proposal.data.length > 0) revert SettlerProposalDataNotEmpty();
-        for (uint256 i = 0; i < intent.transfers.length; i++) {
-            address recipient = intent.transfers[i].recipient;
+    function _validateTransferOperation(TransferOperation memory operation, bytes memory proposalData) internal view {
+        if (operation.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+        if (proposalData.length > 0) revert SettlerProposalDataNotEmpty();
+        for (uint256 i = 0; i < operation.transfers.length; i++) {
+            address recipient = operation.transfers[i].recipient;
             if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
         }
     }
 
     /**
-     * @dev Validates a call intent and its corresponding proposal
-     * @param intent Call intent to be fulfilled
-     * @param proposal Proposal to be executed
-     * @param user The originator of the intent
+     * @dev Validates a call operation and its corresponding proposal
+     * @param operation Call operation to be fulfilled
+     * @param proposalData data of the proposal
+     * @param user The originator of the operation
      */
-    function _validateCallIntent(CallIntent memory intent, Proposal memory proposal, address user) internal view {
-        if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
-        if (proposal.data.length > 0) revert SettlerProposalDataNotEmpty();
+    function _validateCallOperation(CallOperation memory operation, bytes memory proposalData, address user)
+        internal
+        view
+    {
+        if (operation.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+        if (proposalData.length > 0) revert SettlerProposalDataNotEmpty();
         if (!smartAccountsHandler.isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
     }
 
     /**
-     * @dev Tells the contract balance for each token out of a swap intent
-     * @param intent Swap intent containing the list of tokens out
+     * @dev Tells the contract balance for each token out of a swap operation
+     * @param operation Swap operation containing the list of tokens out
      */
-    function _getTokensOutBalance(SwapIntent memory intent) internal view returns (uint256[] memory balances) {
-        balances = new uint256[](intent.tokensOut.length);
-        if (intent.destinationChain == block.chainid) {
-            for (uint256 i = 0; i < intent.tokensOut.length; i++) {
-                balances[i] = ERC20Helpers.balanceOf(intent.tokensOut[i].token, address(this));
+    function _getTokensOutBalance(SwapOperation memory operation) internal view returns (uint256[] memory balances) {
+        balances = new uint256[](operation.tokensOut.length);
+        if (operation.destinationChain == block.chainid) {
+            for (uint256 i = 0; i < operation.tokensOut.length; i++) {
+                balances[i] = ERC20Helpers.balanceOf(operation.tokensOut[i].token, address(this));
             }
         }
     }
@@ -417,29 +427,30 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param intent Intent to be fulfilled
      */
     function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
-        if (intent.op != uint8(OpType.Swap)) return true;
-        SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
+        Operation memory finalOperation = intent.operations[intent.operations.length - 1];
+        if (finalOperation.op != uint8(OpType.Swap)) return true;
+        SwapOperation memory swapIntent = abi.decode(finalOperation.data, (SwapOperation));
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
         return swapIntent.sourceChain == block.chainid;
     }
 
     /**
-     * @dev Emits intent custom events
-     * @param intent Intent to emit the custom events for
-     * @param proposal Proposal that fulfills the intent
+     * @dev Emits operation custom events
+     * @param operation Operation to emit the custom events for
+     * @param proposal Proposal that fulfills the operation
      * @param output Encoded array of outputs
      */
-    function _emitIntentEvents(Intent memory intent, Proposal memory proposal, bytes memory output) internal {
-        for (uint256 i = 0; i < intent.events.length; i++) {
-            IntentEvent memory intentEvent = intent.events[i];
-            emit IntentExecuted(
-                intent.user,
-                intentEvent.topic,
-                uint8(intent.op),
-                intent,
+    function _emitOperationEvents(Operation memory operation, Proposal memory proposal, bytes memory output) internal {
+        for (uint256 i = 0; i < operation.events.length; i++) {
+            OperationEvent memory operationEvent = operation.events[i];
+            emit OperationExecuted(
+                operation.user,
+                operationEvent.topic,
+                uint8(operation.op),
+                operation,
                 proposal,
                 output,
-                intentEvent.data
+                operationEvent.data
             );
         }
     }
@@ -448,11 +459,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Pays fees
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed
-     * @param isSmartAccount Whether the intent user is a smart account
      */
-    function _payFees(Intent memory intent, Proposal memory proposal, bool isSmartAccount) internal {
+    function _payFees(Intent memory intent, Proposal memory proposal) internal {
         address from = intent.user;
         address to = _msgSender();
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(intent.user);
         for (uint256 i = 0; i < intent.maxFees.length; i++) {
             address token = intent.maxFees[i].token;
             if (!Denominations.isUSD(token)) _transferFrom(token, from, to, proposal.fees[i], isSmartAccount);

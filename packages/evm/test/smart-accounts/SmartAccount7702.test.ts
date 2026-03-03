@@ -56,7 +56,7 @@ describe('SmartAccount7702', () => {
             const preUserTokenBalance = await balanceOf(token, user)
             const preRecipientBalance = await balanceOf(token, recipient)
 
-            const intent = createTransferIntent({ settler, user, transfers: [{ token, amount, recipient }] })
+            const intent = createTransferIntent({ settler, user }, { user, transfers: [{ token, amount, recipient }] })
             const proposal = createTransferProposal()
             const signature = await signProposal(settler, intent, solver, proposal, admin)
             const options = { authorizationList: [authorization] }
@@ -139,7 +139,7 @@ describe('SmartAccount7702', () => {
             })
 
             it('executes the intent', async () => {
-              const intent = createCallIntent({ settler, user, calls: [{ target: target, data, value }] })
+              const intent = createCallIntent({ settler, user }, { user, calls: [{ target: target, data, value }] })
               const proposal = createCallProposal()
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const options = { authorizationList: [authorization] }
@@ -169,7 +169,7 @@ describe('SmartAccount7702', () => {
             })
 
             it('reverts', async () => {
-              const intent = createCallIntent({ settler, user, calls: [{ target, data, value }] })
+              const intent = createCallIntent({ settler, user }, { user, calls: [{ target, data, value }] })
               const proposal = createCallProposal()
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const options = { authorizationList: [authorization] }
