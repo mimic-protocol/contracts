@@ -244,17 +244,22 @@ library IntentsHelpers {
     function hash(Operation[] memory operations) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](operations.length);
         for (uint256 i = 0; i < operations.length; i++) {
-            hashes[i] = keccak256(
-                abi.encode(
-                    OPERATION_TYPE_HASH,
-                    operations[i].op,
-                    operations[i].user,
-                    keccak256(operations[i].data),
-                    hash(operations[i].events)
-                )
-            );
+            hashes[i] = hash(operations[i]);
         }
         return keccak256(abi.encodePacked(hashes));
+    }
+
+    function hash(Operation memory operation) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    OPERATION_TYPE_HASH,
+                    operation.op,
+                    operation.user,
+                    keccak256(operation.data),
+                    hash(operation.events)
+                )
+            );
     }
 
     function hash(OperationEvent[] memory events) internal pure returns (bytes32) {

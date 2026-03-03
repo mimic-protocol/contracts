@@ -40,6 +40,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
+    using IntentsHelpers for Operation;
     using IntentsHelpers for Validation;
     using SmartAccountsHandlerHelpers for address;
 
@@ -84,6 +85,16 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function getIntentHash(Intent memory intent) external pure override returns (bytes32) {
         return intent.hash();
+    }
+
+    /**
+     * @dev Tells the unique hash of an operation
+     * @param operation Operation to get the hash of
+     * @param intent Intent the operation belongs to
+     * @param index index of operation inside operations array
+     */
+    function getUniqueOperationHash(Operation memory operation, Intent memory intent, uint256 index) external pure override returns (bytes32) {
+        return keccak256(abi.encodePacked(operation.hash(), intent.nonce, index));
     }
 
     /**
@@ -201,7 +212,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
-            if (operation.op == uint8(OpType.Swap)) _executeSwap(operation, proposal, i);
+            if (operation.op == uint8(OpType.Swap)) {
+                bytes32 operationHash = this.getUniqueOperationHash(operation, intent, i);
+                _executeSwap(operation, proposal, operationHash, i);
+            }
             else if (operation.op == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
             else if (operation.op == uint8(OpType.Call)) _executeCall(operation, proposal, i);
             else revert SettlerUnknownOperationType(uint8(operation.op));
@@ -215,9 +229,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Validates and executes a proposal to fulfill a swap operation
      * @param operation Swap operation to be fulfilled
      * @param proposal Proposal with swap data to be executed
+     * @param operationHash unique hash of operation
      * @param index position where the swap proposal data is located on datas
      */
-    function _executeSwap(Operation memory operation, Proposal memory proposal, uint256 index) internal {
+    function _executeSwap(Operation memory operation, Proposal memory proposal, bytes32 operationHash, uint256 index) internal {
         SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
         SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
         _validateSwapOperation(swapOperation, swapProposal);
@@ -231,7 +246,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
-        IExecutor(swapProposal.executor).execute(operation, proposal);
+        IExecutor(swapProposal.executor).execute(operation, operationHash, proposal);
 
         if (swapOperation.destinationChain == block.chainid) {
             uint256[] memory outputs = new uint256[](swapOperation.tokensOut.length);
