@@ -260,6 +260,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeTransfer(Operation memory operation, Proposal memory proposal, uint256 index) internal {
         TransferOperation memory transferOperation = abi.decode(operation.data, (TransferOperation));
+        if (transferOperation.chainId != block.chainid) return;
         _validateTransferOperation(transferOperation, proposal.datas[index]);
 
         bool isSmartAccount = smartAccountsHandler.isSmartAccount(operation.user);
@@ -279,7 +280,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeCall(Operation memory operation, Proposal memory proposal, uint256 index) internal {
         CallOperation memory callOperation = abi.decode(operation.data, (CallOperation));
-        _validateCallOperation(callOperation, proposal.datas[index], operation.user);
+        if (callOperation.chainId != block.chainid) return;
+        _validateCallOperation(proposal.datas[index], operation.user);
 
         bytes[] memory outputs = new bytes[](callOperation.calls.length);
         for (uint256 i = 0; i < callOperation.calls.length; i++) {
@@ -386,7 +388,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param proposalData data of the proposal
      */
     function _validateTransferOperation(TransferOperation memory operation, bytes memory proposalData) internal view {
-        if (operation.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
         if (proposalData.length > 0) revert SettlerProposalDataNotEmpty();
         for (uint256 i = 0; i < operation.transfers.length; i++) {
             address recipient = operation.transfers[i].recipient;
@@ -396,15 +397,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev Validates a call operation and its corresponding proposal
-     * @param operation Call operation to be fulfilled
      * @param proposalData data of the proposal
      * @param user The originator of the operation
      */
-    function _validateCallOperation(CallOperation memory operation, bytes memory proposalData, address user)
-        internal
-        view
-    {
-        if (operation.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+    function _validateCallOperation(bytes memory proposalData, address user) internal view {
         if (proposalData.length > 0) revert SettlerProposalDataNotEmpty();
         if (!smartAccountsHandler.isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
     }

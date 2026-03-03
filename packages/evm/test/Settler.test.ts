@@ -930,7 +930,31 @@ describe('Settler', () => {
                                             transferOperationParams.chainId = 1
                                           })
 
-                                          itReverts('SettlerInvalidChain')
+                                          it('ignores the operation', async () => {
+                                            const intent = createTransferIntent(intentParams, transferOperationParams)
+
+                                            await addValidations(settler, intent, [validator1, validator2])
+                                            const proposal = createTransferProposal({
+                                              ...proposalParams,
+                                              ...transferProposalParams,
+                                            })
+                                            const signature = await signProposal(
+                                              settler,
+                                              intent,
+                                              solver,
+                                              proposal,
+                                              admin
+                                            )
+
+                                            const preTokenAmount = await token.balanceOf(
+                                              toAddress(transferOperationParams.user)
+                                            )
+                                            await settler.execute(intent, proposal, signature)
+                                            const postTokenAmount = await token.balanceOf(
+                                              toAddress(transferOperationParams.user)
+                                            )
+                                            expect(preTokenAmount).to.be.equal(postTokenAmount)
+                                          })
                                         })
                                       })
 
@@ -1060,7 +1084,28 @@ describe('Settler', () => {
                                             callOperationParams.chainId = 1
                                           })
 
-                                          itReverts('SettlerInvalidChain')
+                                          it('ignores the operation', async () => {
+                                            const intent = createCallIntent(intentParams, callOperationParams)
+                                            await addValidations(settler, intent, [validator1, validator2])
+                                            const proposal = createCallProposal({
+                                              ...proposalParams,
+                                              ...callProposalParams,
+                                            })
+                                            const signature = await signProposal(
+                                              settler,
+                                              intent,
+                                              solver,
+                                              proposal,
+                                              admin
+                                            )
+
+                                            const tx = await settler.execute(intent, proposal, signature)
+                                            const settlerEvents = await settler.queryFilter(
+                                              settler.filters.OperationExecuted(),
+                                              tx.blockNumber
+                                            )
+                                            expect(settlerEvents).to.have.lengthOf(0)
+                                          })
                                         })
                                       })
                                     })
