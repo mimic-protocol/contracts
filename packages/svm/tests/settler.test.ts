@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import { Address, Program, Wallet } from '@coral-xyz/anchor'
+import { Address, Program, translateAddress, Wallet } from '@coral-xyz/anchor'
 import {
   bytesToHex,
   Chains,
@@ -254,17 +254,17 @@ describe('Settler', () => {
             const intentOptions: CreateIntentOptions = {
               op: OpType.Transfer,
               user: randomPubkey(),
-              nonceHex: generateNonce(),
-              deadline: 10_000,
+              nonce: generateNonce(),
+              deadline: '10000',
               minValidations: 5,
-              dataHex: TEST_DATA_HEX_1,
+              data: TEST_DATA_HEX_1,
               maxFees: [
                 {
-                  mint: randomPubkey(),
-                  amount: 1000,
+                  token: randomPubkey(),
+                  amount: '1000',
                 },
               ],
-              eventsHex: [
+              events: [
                 {
                   topic: randomHex(32).slice(2),
                   data: randomHex(100).slice(2),
@@ -280,23 +280,23 @@ describe('Settler', () => {
               expect(intent.op).to.deep.include({ transfer: {} })
               expect(intent.user.toString()).to.be.eq(intentOptions.user!.toString())
               expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
-              expect(bytesToHex(Buffer.from(intent.nonce))).to.be.eq(intentOptions.nonceHex)
-              expect(intent.deadline.toNumber()).to.be.eq(intentOptions.deadline)
+              expect(bytesToHex(Buffer.from(intent.nonce))).to.be.eq(intentOptions.nonce)
+              expect(intent.deadline.toString()).to.be.eq(intentOptions.deadline)
               expect(intent.minValidations).to.be.eq(intentOptions.minValidations)
               expect(intent.isFinal).to.be.true
-              expect(Buffer.from(intent.data).toString('hex')).to.be.eq(intentOptions.dataHex)
+              expect(Buffer.from(intent.data).toString('hex')).to.be.eq(intentOptions.data)
               expect(intent.maxFees.length).to.be.eq(1)
               expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
               expect(intent.events.length).to.be.eq(1)
               expect(intent.validators.length).to.be.eq(0)
-              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.eventsHex![0].data)
+              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.events![0].data)
             })
           })
 
           context('when creating an intent with empty data', () => {
             intentHash = generateIntentHash()
             const intentOptions: CreateIntentOptions = {
-              dataHex: EMPTY_DATA_HEX,
+              data: EMPTY_DATA_HEX,
             }
 
             it('creates the intent', async () => {
@@ -311,7 +311,7 @@ describe('Settler', () => {
           context('when creating an intent with empty events', () => {
             intentHash = generateIntentHash()
             const intentOptions: CreateIntentOptions = {
-              eventsHex: [],
+              events: [],
             }
 
             it('creates the intent', async () => {
@@ -397,16 +397,16 @@ describe('Settler', () => {
 
             // Build ix with invalid hash
             const params = createIntentParams(client, intentOptions)
-            const { op, user, nonceHex, deadline, minValidations, dataHex, maxFees, eventsHex } = params
+            const { op, user, nonce, deadline, minValidations, data, maxFees, events } = params
 
             const intentHashParam = Array.from(hexToBytes(intentHash))
-            const nonce = Array.from(hexToBytes(nonceHex))
-            const data = hexToBytes(dataHex)
+            const nonceArray = Array.from(hexToBytes(nonce))
+            const dataArray = hexToBytes(data)
             const maxFeesBn = maxFees.map((tokenFee) => ({
-              ...tokenFee,
+              mint: translateAddress(tokenFee.token),
               amount: new BN(tokenFee.amount),
             }))
-            const events = eventsHex.map((eventHex) => ({
+            const eventsArray = events.map((eventHex) => ({
               topic: Array.from(Uint8Array.from(hexToBytes(eventHex.topic))),
               data: hexToBytes(eventHex.data),
             }))
@@ -418,13 +418,13 @@ describe('Settler', () => {
             ix = await program.methods
               .createIntent(
                 intentHashParam,
-                data,
+                dataArray,
                 maxFeesBn,
-                events,
+                eventsArray,
                 minValidations,
                 solverSdk.opTypeToAnchorEnum(op),
-                user,
-                nonce,
+                translateAddress(user),
+                nonceArray,
                 new BN(deadline),
                 false
               )
@@ -518,8 +518,8 @@ describe('Settler', () => {
                   extendParams = {
                     moreMaxFees: [
                       {
-                        mint: randomPubkey(),
-                        amount: 2000,
+                        token: randomPubkey(),
+                        amount: '2000',
                       },
                     ],
                   }
@@ -532,8 +532,8 @@ describe('Settler', () => {
                   const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.maxFees.length).to.be.eq(2)
                   expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
-                  expect(intent.maxFees[1].mint.toString()).to.be.eq(extendParams.moreMaxFees![0].mint.toString())
-                  expect(intent.maxFees[1].amount.toNumber()).to.be.eq(extendParams.moreMaxFees![0].amount)
+                  expect(intent.maxFees[1].mint.toString()).to.be.eq(extendParams.moreMaxFees![0].token.toString())
+                  expect(intent.maxFees[1].amount.toString()).to.be.eq(extendParams.moreMaxFees![0].amount)
                 })
               })
 
@@ -569,14 +569,14 @@ describe('Settler', () => {
                 beforeEach('create intent and extend params', async () => {
                   intentHash = await createTestIntent(solverSdk, solverProvider, {
                     isFinal: false,
-                    dataHex: TEST_DATA_HEX_1,
+                    data: TEST_DATA_HEX_1,
                   })
                   extendParams = {
                     moreDataHex: TEST_DATA_HEX_2,
                     moreMaxFees: [
                       {
-                        mint: randomPubkey(),
-                        amount: 3000,
+                        token: randomPubkey(),
+                        amount: '3000',
                       },
                     ],
                     moreEventsHex: [
@@ -595,7 +595,7 @@ describe('Settler', () => {
                   const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(Buffer.from(intent.data).toString('hex')).to.be.eq(`${TEST_DATA_HEX_1}${TEST_DATA_HEX_2}`)
                   expect(intent.maxFees.length).to.be.eq(2)
-                  expect(intent.maxFees[1].amount.toNumber()).to.be.eq(extendParams.moreMaxFees![0].amount)
+                  expect(intent.maxFees[1].amount.toString()).to.be.eq(extendParams.moreMaxFees![0].amount)
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
                     extendParams.moreEventsHex![0].topic
@@ -618,17 +618,17 @@ describe('Settler', () => {
                     { topic: randomHex(32).slice(2), data: randomHex(400).slice(2) },
                   ],
                   moreMaxFees: [
-                    { mint: randomPubkey(), amount: 1 },
-                    { mint: randomPubkey(), amount: 1 + 1000 },
-                    { mint: randomPubkey(), amount: 1 + 2000 },
+                    { token: randomPubkey(), amount: '1' },
+                    { token: randomPubkey(), amount: `${1 + 1000}` },
+                    { token: randomPubkey(), amount: `${1 + 2000}` },
                   ],
                 }
 
                 before('create intent', async () => {
                   intentHash = await createTestIntent(solverSdk, solverProvider, {
                     isFinal: false,
-                    dataHex: '',
-                    eventsHex: [],
+                    data: '',
+                    events: [],
                   })
                   intentKey = sdk.getIntentKey(intentHash)
                 })
@@ -676,7 +676,7 @@ describe('Settler', () => {
                 before('create intent', async () => {
                   intentHash = await createTestIntent(solverSdk, solverProvider, {
                     isFinal: false,
-                    dataHex: TEST_DATA_HEX_1,
+                    data: TEST_DATA_HEX_1,
                   })
                   extendParams1 = { moreDataHex: randomHex(6).slice(2) }
                   extendParams2 = { moreDataHex: randomHex(6).slice(2) }
@@ -723,7 +723,7 @@ describe('Settler', () => {
               beforeEach('create intent and extend params', async () => {
                 intentHash = await createTestIntent(solverSdk, solverProvider, {
                   isFinal: false,
-                  dataHex: TEST_DATA_HEX_2,
+                  data: TEST_DATA_HEX_2,
                 })
                 extendParams = { moreDataHex: randomHex(6).slice(2) }
               })
@@ -974,7 +974,7 @@ describe('Settler', () => {
                 )
                 expect(proposal.intent.toString()).to.be.eq(sdk.getIntentKey(params.intentHash).toString())
                 expect(proposal.creator.toString()).to.be.eq(solver.publicKey.toString())
-                expect(proposal.deadline.toNumber()).to.be.eq(params.deadline)
+                expect(proposal.deadline.toString()).to.be.eq(params.deadline)
                 expect(proposal.isFinal).to.be.true
                 expect(proposal.instructions.length).to.be.eq(1)
                 expect(proposal.instructions[0].programId.toString()).to.be.eq(
@@ -1055,12 +1055,12 @@ describe('Settler', () => {
             context('when creating proposal with fees matching intent max_fees', () => {
               const testMaxFees = [
                 {
-                  mint: randomPubkey(),
-                  amount: DEFAULT_MAX_FEE,
+                  token: randomPubkey(),
+                  amount: `${DEFAULT_MAX_FEE}`,
                 },
                 {
-                  mint: randomPubkey(),
-                  amount: DEFAULT_MAX_FEE * 2,
+                  token: randomPubkey(),
+                  amount: `${DEFAULT_MAX_FEE * 2}`,
                 },
               ]
 
@@ -1082,9 +1082,9 @@ describe('Settler', () => {
                   sdk.getProposalKey(params.intentHash, solver.publicKey)
                 )
                 expect(proposal.fees.length).to.be.eq(2)
-                expect(proposal.fees[0].mint.toString()).to.be.eq(testMaxFees[0].mint.toString())
+                expect(proposal.fees[0].mint.toString()).to.be.eq(testMaxFees[0].token.toString())
                 expect(proposal.fees[0].amount.toString()).to.be.eq(testMaxFees[0].amount.toString())
-                expect(proposal.fees[1].mint.toString()).to.be.eq(testMaxFees[1].mint.toString())
+                expect(proposal.fees[1].mint.toString()).to.be.eq(testMaxFees[1].token.toString())
                 expect(proposal.fees[1].amount.toString()).to.be.eq(testMaxFees[1].amount.toString())
               })
             })
@@ -1123,7 +1123,7 @@ describe('Settler', () => {
 
                   params = await createProposalParams(solverSdk, solverProvider, client, {
                     intentHash,
-                    proposalParams: { deadline: intentDeadline + SHORT_DEADLINE },
+                    proposalParams: { deadline: `${intentDeadline + SHORT_DEADLINE}` },
                   })
                 })
 
@@ -1135,12 +1135,12 @@ describe('Settler', () => {
               context('when fees exceed max_fees', () => {
                 const testMaxFees = [
                   {
-                    mint: randomPubkey(),
-                    amount: DEFAULT_MAX_FEE,
+                    token: randomPubkey(),
+                    amount: `${DEFAULT_MAX_FEE}`,
                   },
                   {
-                    mint: randomPubkey(),
-                    amount: DEFAULT_MAX_FEE * 2,
+                    token: randomPubkey(),
+                    amount: `${DEFAULT_MAX_FEE * 2}`,
                   },
                 ]
 
@@ -1163,15 +1163,15 @@ describe('Settler', () => {
               context('when fees have wrong mint', () => {
                 const testMaxFees = [
                   {
-                    mint: randomPubkey(),
-                    amount: DEFAULT_MAX_FEE,
+                    token: randomPubkey(),
+                    amount: `${DEFAULT_MAX_FEE}`,
                   },
                 ]
 
                 const otherMaxFees = [
                   {
-                    mint: randomPubkey(),
-                    amount: DEFAULT_MAX_FEE,
+                    token: randomPubkey(),
+                    amount: `${DEFAULT_MAX_FEE}`,
                   },
                 ]
 
@@ -1220,7 +1220,7 @@ describe('Settler', () => {
                 deadline: intentDeadline,
               })
 
-              warpSeconds(provider, intentDeadline + 10)
+              warpSeconds(provider, Number(intentDeadline) + 10)
 
               params = await createProposalParams(solverSdk, solverProvider, client, { intentHash })
             })
@@ -1274,7 +1274,7 @@ describe('Settler', () => {
 
       context('when intent does not exist', () => {
         let intentHash: string
-        let deadline: number
+        let deadline: string
         let instructions: ProposalInstruction[]
         let fees: SvmTokenFee[]
 

@@ -1,5 +1,5 @@
 import { Program } from '@coral-xyz/anchor'
-import { CreateProposalParams, ProposalInstruction, SettlerSDK } from '@mimicprotocol/sdk'
+import { CreateProposalParams, ProposalInstruction, SvmSettler } from '@mimicprotocol/sdk'
 import { PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
@@ -32,7 +32,7 @@ export type CreateProposalInstructionOptions = Partial<{
 export type CreateProposalIntentOptions = Partial<{
   isFinal: boolean
   minValidations: number
-  deadline: number
+  deadline: string
 }>
 
 export type CreateProposalOptions = Partial<{
@@ -47,7 +47,7 @@ export type ProposalAccount = NonNullable<Awaited<ReturnType<Program<Settler>['a
  * Create proposal params (intent, deadline, instructions, fees) for testing
  */
 export async function createProposalParams(
-  solverSdk: SettlerSDK,
+  solverSdk: SvmSettler,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
   options: CreateProposalOptions = {}
@@ -81,7 +81,7 @@ async function getDefaultCreateProposalParams(client: LiteSVM): Promise<CreatePr
  * Create a finalized proposal
  */
 export async function createFinalizedProposal(
-  solverSdk: SettlerSDK,
+  solverSdk: SvmSettler,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
   options: CreateProposalOptions = {}

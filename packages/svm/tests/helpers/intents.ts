@@ -1,5 +1,5 @@
 import { Program } from '@coral-xyz/anchor'
-import { CreateIntentParams, OpType, randomHex, SettlerSDK, SvmTokenFee } from '@mimicprotocol/sdk'
+import { CreateIntentParams, OpType, randomHex, SvmSettler, SvmTokenFee } from '@mimicprotocol/sdk'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, LiteSVM } from 'litesvm'
 
@@ -43,7 +43,7 @@ export function createIntentParams(client: LiteSVM, params: Partial<CreateIntent
  * Create a test intent with configurable parameters
  */
 export async function createTestIntent(
-  solverSdk: SettlerSDK,
+  solverSdk: SvmSettler,
   solverProvider: LiteSVMProvider,
   options: CreateIntentOptions = {}
 ): Promise<string> {
@@ -64,7 +64,7 @@ export async function createTestIntent(
  */
 export async function addValidatorsToIntent(
   intentHash: string,
-  solverSdk: SettlerSDK,
+  solverSdk: SvmSettler,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
   numValidators: number
@@ -104,7 +104,7 @@ export async function addValidatorsToIntent(
  * Create a validated intent (with validators added to meet min_validations requirement)
  */
 export async function createValidatedIntent(
-  solverSdk: SettlerSDK,
+  solverSdk: SvmSettler,
   solverProvider: LiteSVMProvider,
   client: LiteSVM,
   options: CreateIntentOptions = {}
@@ -123,24 +123,24 @@ export async function createValidatedIntent(
  */
 export function mapIntentFeesToTokenFees(intent: IntentAccount): SvmTokenFee[] {
   return intent.maxFees.map((maxFee) => ({
-    mint: maxFee.mint,
-    amount: maxFee.amount.toNumber(),
+    token: maxFee.mint,
+    amount: maxFee.amount.toString(),
   }))
 }
 
 const DEFAULT_CREATE_INTENT_PARAMS: Omit<CreateIntentParams, 'deadline'> = {
   op: OpType.Transfer,
   user: randomPubkey(),
-  nonceHex: generateNonce(),
+  nonce: generateNonce(),
   minValidations: DEFAULT_MIN_VALIDATIONS,
-  dataHex: DEFAULT_DATA_HEX,
+  data: DEFAULT_DATA_HEX,
   maxFees: [
     {
-      mint: randomPubkey(),
-      amount: DEFAULT_MAX_FEE,
+      token: randomPubkey(),
+      amount: DEFAULT_MAX_FEE.toString(),
     },
   ],
-  eventsHex: [
+  events: [
     {
       topic: DEFAULT_TOPIC_HEX,
       data: DEFAULT_EVENT_DATA_HEX,
