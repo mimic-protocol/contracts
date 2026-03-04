@@ -93,7 +93,12 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param intent Intent the operation belongs to
      * @param index index of operation inside operations array
      */
-    function getUniqueOperationHash(Operation memory operation, Intent memory intent, uint256 index) external pure override returns (bytes32) {
+    function getUniqueOperationHash(Operation memory operation, Intent memory intent, uint256 index)
+        external
+        pure
+        override
+        returns (bytes32)
+    {
         return keccak256(abi.encodePacked(operation.hash(), intent.nonce, index));
     }
 
@@ -215,8 +220,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             if (operation.op == uint8(OpType.Swap)) {
                 bytes32 operationHash = this.getUniqueOperationHash(operation, intent, i);
                 _executeSwap(operation, proposal, operationHash, i);
-            }
-            else if (operation.op == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
+            } else if (operation.op == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
             else if (operation.op == uint8(OpType.Call)) _executeCall(operation, proposal, i);
             else revert SettlerUnknownOperationType(uint8(operation.op));
         }
@@ -232,7 +236,9 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param operationHash unique hash of operation
      * @param index position where the swap proposal data is located on datas
      */
-    function _executeSwap(Operation memory operation, Proposal memory proposal, bytes32 operationHash, uint256 index) internal {
+    function _executeSwap(Operation memory operation, Proposal memory proposal, bytes32 operationHash, uint256 index)
+        internal
+    {
         SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
         SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
         _validateSwapOperation(swapOperation, swapProposal);
@@ -246,7 +252,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
-        IExecutor(swapProposal.executor).execute(operation, operationHash, proposal);
+        IExecutor(swapProposal.executor).execute(operation, operationHash, proposal.datas[index]);
 
         if (swapOperation.destinationChain == block.chainid) {
             uint256[] memory outputs = new uint256[](swapOperation.tokensOut.length);

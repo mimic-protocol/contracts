@@ -227,7 +227,10 @@ interface ISettler {
      * @param intent Intent the operation belongs to
      * @param index index of operation inside operations array
      */
-    function getUniqueOperationHash(Operation memory operation, Intent memory intent, uint256 index) external pure returns (bytes32);
+    function getUniqueOperationHash(Operation memory operation, Intent memory intent, uint256 index)
+        external
+        pure
+        returns (bytes32);
 
     /**
      * @dev Tells the hash of a proposal
