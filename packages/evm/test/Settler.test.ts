@@ -462,7 +462,7 @@ describe('Settler', () => {
 
         context('when the intent is a call', () => {
           beforeEach('set intent operation', async () => {
-            const operation = createTransferOperation({
+            const operation = createCallOperation({
               user: intentParams.user,
             })
             intentParams.operations = [operation]
@@ -491,7 +491,7 @@ describe('Settler', () => {
 
             context('when the nonce has not been used', () => {
               context('when the operations are not empty', () => {
-                context('when the proposal datas length matches the intent operations lenght', () => {
+                context('when the proposal datas length matches the intent operations length', () => {
                   context('when the intent deadline has not been reached', () => {
                     beforeEach('set intent deadline', async () => {
                       const now = await currentTimestamp()
@@ -1232,7 +1232,7 @@ describe('Settler', () => {
                   })
                 })
 
-                context('when the proposal datas length does not match the intent operations lenght', () => {
+                context('when the proposal datas length does not match the intent operations length', () => {
                   beforeEach('set datas', () => {
                     proposalParams.datas = [randomHex(32), randomHex(32)]
                   })
