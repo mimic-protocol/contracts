@@ -33,6 +33,7 @@ import {
   CallOperation,
   CallProposal,
   createCallIntent,
+  createCallOperation,
   createCallProposal,
   createIntent,
   createProposal,
@@ -2636,6 +2637,131 @@ describe('Settler', () => {
               expect(event.args.result).to.equal('0x')
             }
           })
+        })
+      })
+
+      context('one of each', () => {
+        let target: Account, data: string
+        let smartAccount: SmartAccount
+        let feeToken: TokenMock
+        let proposal: Proposal
+        let executor: TransferExecutorMock
+        let tokenOut: TokenMock
+
+        const chainId = 31337
+
+        const callValue = fp(0.00001)
+        const feeAmount = fp(0.01)
+        const transferAmount = fp(0.5)
+        const swapAmountIn = fp(1) // WETH
+        const swapMinAmountOut = BigInt(2900 * 1e6) // USDC
+
+        beforeEach('deploy and mint token', async () => {
+          feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
+          await feeToken.mint(user, feeAmount)
+        })
+
+        beforeEach('prepare call operation', async () => {
+          smartAccount = await ethers.deployContract('SmartAccountContract', [settler, owner])
+          await owner.sendTransaction({ to: smartAccount, value: callValue })
+          target = await ethers.deployContract('CallMock')
+          data = target.interface.encodeFunctionData('call')
+        })
+
+        beforeEach('prepare swap operation', async () => {
+          executor = await ethers.deployContract('TransferExecutorMock')
+          tokenOut = await ethers.deployContract('TokenMock', ['USDC', 6])
+          await tokenOut.mint(executor, swapMinAmountOut)
+          await feeToken.mint(user, swapAmountIn)
+        })
+
+        beforeEach('approve token', async () => {
+          await feeToken.mint(user, transferAmount)
+          await feeToken.connect(user).approve(settler, feeAmount + transferAmount + swapAmountIn)
+        })
+
+        beforeEach('create intent', async () => {
+          const callOperation = createCallOperation({
+            user: smartAccount,
+            calls: [{ target: target, data, value: callValue }],
+            events: [{ topic: randomHex(32), data: randomHex(120) }],
+          })
+
+          const transferOperation = createTransferOperation({
+            user,
+            chainId,
+            transfers: [{ token: feeToken, amount: transferAmount, recipient: other }],
+            events: [{ topic: randomHex(32), data: randomHex(120) }],
+          })
+
+          const swapOperation = createSwapOperation({
+            user,
+            sourceChain: chainId,
+            destinationChain: chainId,
+            tokensIn: { token: feeToken, amount: swapAmountIn },
+            tokensOut: { token: tokenOut, minAmount: swapMinAmountOut, recipient: other },
+            events: [{ topic: randomHex(32), data: randomHex(120) }],
+          })
+
+          intent = createIntent({
+            settler,
+            user,
+            maxFees: [{ token: feeToken, amount: feeAmount }],
+            operations: [callOperation, transferOperation, swapOperation],
+          })
+        })
+
+        beforeEach('create proposal', () => {
+          const executorData = AbiCoder.defaultAbiCoder().encode(
+            ['address[]', 'uint256[]'],
+            [[tokenOut.target], [swapMinAmountOut]]
+          )
+          proposal = createSwapProposal({
+            fees: [feeAmount],
+            executor,
+            executorData,
+            amountsOut: [swapMinAmountOut],
+          })
+
+          proposal.datas = ['0x', '0x', ...proposal.datas]
+        })
+
+        it('executes the intent', async () => {
+          const preUserBalance = await balanceOf(feeToken, user)
+          const preSolverBalance = await balanceOf(feeToken, solver)
+          const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
+          const preOtherBalance = await balanceOf(feeToken, other)
+          const preOtherUSDCBalance = await balanceOf(tokenOut, other)
+
+          const signature = await signProposal(settler, intent, solver, proposal, admin)
+          await settler.execute(intent, proposal, signature)
+
+          const postUserBalance = await balanceOf(feeToken, user)
+          const postSolverBalance = await balanceOf(feeToken, solver)
+          const postOtherBalance = await balanceOf(feeToken, other)
+          // intent fee
+          expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + transferAmount + swapAmountIn)
+          expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+          // transfer intent
+          expect(postOtherBalance - preOtherBalance).to.be.eq(transferAmount)
+          // call intent
+          const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
+          expect(postTargetBalance - preTargetBalance).to.be.equal(callValue)
+          // swap intent
+          const postOtherUSDCBalance = await balanceOf(tokenOut, other)
+          expect(postOtherUSDCBalance - preOtherUSDCBalance).to.be.equal(swapMinAmountOut)
+        })
+
+        it('logs the intent events correctly', async () => {
+          const signature = await signProposal(settler, intent, solver, proposal, admin)
+          const tx = await settler.execute(intent, proposal, signature)
+
+          const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
+          expect(events).to.have.lengthOf(3)
+          // checking correct order of events Call->Transfer->Swap
+          expect(events[0].args.op).to.be.equal(OpType.EvmCall)
+          expect(events[1].args.op).to.be.equal(OpType.Transfer)
+          expect(events[2].args.op).to.be.equal(OpType.Swap)
         })
       })
     })
