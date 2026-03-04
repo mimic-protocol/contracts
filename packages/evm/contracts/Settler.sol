@@ -88,21 +88,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Tells the unique hash of an operation
-     * @param operation Operation to get the hash of
-     * @param intent Intent the operation belongs to
-     * @param index index of operation inside operations array
-     */
-    function getUniqueOperationHash(Operation memory operation, Intent memory intent, uint256 index)
-        external
-        pure
-        override
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(operation.hash(), intent.nonce, index));
-    }
-
-    /**
      * @dev Tells the hash of a proposal
      * @param proposal Proposal to be hashed
      * @param intent Intent being fulfilled by the requested proposal
@@ -218,7 +203,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
             if (operation.op == uint8(OpType.Swap)) {
-                bytes32 operationHash = this.getUniqueOperationHash(operation, intent, i);
+                bytes32 operationHash = keccak256(abi.encodePacked(operation.hash(), intent.nonce, i));
                 _executeSwap(operation, proposal, operationHash, i);
             } else if (operation.op == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
             else if (operation.op == uint8(OpType.Call)) _executeCall(operation, proposal, i);
