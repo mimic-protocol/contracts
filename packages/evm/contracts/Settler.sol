@@ -218,8 +218,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Validates and executes a proposal to fulfill a swap operation
      * @param operation Swap operation to be fulfilled
      * @param proposal Proposal with swap data to be executed
-     * @param operationHash unique hash of operation
-     * @param index position where the swap proposal data is located on datas
+     * @param operationHash Unique hash of operation
+     * @param index Position where the swap proposal data is located on datas
      */
     function _executeSwap(Operation memory operation, Proposal memory proposal, bytes32 operationHash, uint256 index)
         internal
@@ -458,7 +458,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Pays fees
+     * @dev Pays fees from the intent user
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed
      */

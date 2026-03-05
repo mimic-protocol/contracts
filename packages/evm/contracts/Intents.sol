@@ -49,7 +49,7 @@ struct Intent {
 /**
  * @dev Operation structure used to abstract over different operation types.
  * @param op The type of operation this operation represents.
- * @param user The originator of the operation.
+ * @param user The user of the operation.
  * @param data ABI-encoded data representing a specific operation type (e.g. SwapOperation, TransferOperation, CallOperation).
  * @param events List of custom operation events to be emitted.
  */
