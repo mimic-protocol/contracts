@@ -266,6 +266,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeTransfer(Operation memory operation, Proposal memory proposal, uint256 index) internal {
         TransferOperation memory transferOperation = abi.decode(operation.data, (TransferOperation));
+        // Ignore operations that are not on this chain for cross-chain swap cases
         if (transferOperation.chainId != block.chainid) return;
         _validateTransferOperation(transferOperation, proposal.datas[index]);
 
@@ -286,6 +287,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeCall(Operation memory operation, Proposal memory proposal, uint256 index) internal {
         CallOperation memory callOperation = abi.decode(operation.data, (CallOperation));
+        // Ignore operations that are not on this chain for cross-chain swap cases
         if (callOperation.chainId != block.chainid) return;
         _validateCallOperation(proposal.datas[index], operation.user);
 
@@ -472,7 +474,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     function _payFees(Intent memory intent, Proposal memory proposal) internal {
         address from = intent.user;
         address to = _msgSender();
-        bool isSmartAccount = smartAccountsHandler.isSmartAccount(intent.user);
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(from);
         for (uint256 i = 0; i < intent.maxFees.length; i++) {
             address token = intent.maxFees[i].token;
             if (!Denominations.isUSD(token)) _transferFrom(token, from, to, proposal.fees[i], isSmartAccount);
