@@ -428,9 +428,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev Tells if the intent and proposal deadlines should be validated
+            In the case the intent is being executed on the destination chain of a cross-chain swap, the deadlines are ignored
      * @param intent Intent to be fulfilled
      */
     function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
+        // Validators ensure off-chain that a cross-chain operation can only be the last operation
         Operation memory finalOperation = intent.operations[intent.operations.length - 1];
         if (finalOperation.opType != uint8(OpType.Swap)) return true;
         SwapOperation memory swapIntent = abi.decode(finalOperation.data, (SwapOperation));
