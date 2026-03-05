@@ -203,7 +203,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
             if (operation.op == uint8(OpType.Swap)) {
-                bytes32 operationHash = keccak256(abi.encodePacked(operation.hash(), intent.nonce, i));
+                bytes32 operationHash = operation.hash(intent.nonce, i);
                 _executeSwap(operation, proposal, operationHash, i);
             } else if (operation.op == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
             else if (operation.op == uint8(OpType.Call)) _executeCall(operation, proposal, i);

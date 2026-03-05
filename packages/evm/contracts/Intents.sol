@@ -198,7 +198,9 @@ library IntentsHelpers {
     bytes32 internal constant MAX_FEE_TYPE_HASH = keccak256('MaxFee(address token,uint256 amount)');
 
     bytes32 internal constant OPERATION_TYPE_HASH =
-        keccak256('Operation(uint8 op,address user,bytes data,OperationEvent[] events)');
+        keccak256(
+            'Operation(uint8 op,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)'
+        );
 
     bytes32 internal constant OPERATION_EVENT_TYPE_HASH = keccak256('OperationEvent(bytes32 topic,bytes data)');
 
@@ -214,7 +216,7 @@ library IntentsHelpers {
                     hash(intent.maxFees),
                     intent.configSig,
                     intent.minValidations,
-                    hash(intent.operations)
+                    hash(intent.operations, intent.nonce)
                 )
             );
     }
@@ -241,15 +243,15 @@ library IntentsHelpers {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function hash(Operation[] memory operations) internal pure returns (bytes32) {
+    function hash(Operation[] memory operations, bytes32 intentNonce) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](operations.length);
         for (uint256 i = 0; i < operations.length; i++) {
-            hashes[i] = hash(operations[i]);
+            hashes[i] = hash(operations[i], intentNonce, i);
         }
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function hash(Operation memory operation) internal pure returns (bytes32) {
+    function hash(Operation memory operation, bytes32 intentNonce, uint256 index) internal pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(
@@ -257,7 +259,9 @@ library IntentsHelpers {
                     operation.op,
                     operation.user,
                     keccak256(operation.data),
-                    hash(operation.events)
+                    hash(operation.events),
+                    intentNonce,
+                    index
                 )
             );
     }
