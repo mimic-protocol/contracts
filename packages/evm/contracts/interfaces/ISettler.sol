@@ -158,6 +158,7 @@ interface ISettler {
         uint8 indexed opType,
         Operation operation,
         Proposal proposal,
+        uint256 index,
         bytes output,
         bytes data
     );

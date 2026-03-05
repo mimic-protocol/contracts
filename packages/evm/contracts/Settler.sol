@@ -254,7 +254,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, outputs[i]);
             }
 
-            _emitOperationEvents(operation, proposal, abi.encode(outputs));
+            _emitOperationEvents(operation, proposal, index, abi.encode(outputs));
         }
     }
 
@@ -275,7 +275,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _transferFrom(transfer.token, operation.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        _emitOperationEvents(operation, proposal, new bytes(0));
+        _emitOperationEvents(operation, proposal, index, new bytes(0));
     }
 
     /**
@@ -296,7 +296,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             outputs[i] = smartAccountsHandler.call(operation.user, call.target, call.data, call.value);
         }
 
-        _emitOperationEvents(operation, proposal, abi.encode(outputs));
+        _emitOperationEvents(operation, proposal, index, abi.encode(outputs));
     }
 
     /**
@@ -440,9 +440,15 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Emits operation custom events
      * @param operation Operation to emit the custom events for
      * @param proposal Proposal that fulfills the operation
+     * @param index Position of the operation on operations
      * @param output Encoded array of outputs
      */
-    function _emitOperationEvents(Operation memory operation, Proposal memory proposal, bytes memory output) internal {
+    function _emitOperationEvents(
+        Operation memory operation,
+        Proposal memory proposal,
+        uint256 index,
+        bytes memory output
+    ) internal {
         for (uint256 i = 0; i < operation.events.length; i++) {
             OperationEvent memory operationEvent = operation.events[i];
             emit OperationExecuted(
@@ -451,6 +457,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 uint8(operation.opType),
                 operation,
                 proposal,
+                index,
                 output,
                 operationEvent.data
             );
