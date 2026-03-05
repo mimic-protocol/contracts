@@ -136,13 +136,13 @@ contract IntentsValidator is
         if (safeguard.mode == uint8(0)) revert IntentsValidatorNoneAllowed();
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
-            if (operation.op == uint8(OpType.Swap)) {
+            if (operation.opType == uint8(OpType.Swap)) {
                 if (!_isSwapOperationValid(operation, safeguard)) return false;
-            } else if (operation.op == uint8(OpType.Transfer)) {
+            } else if (operation.opType == uint8(OpType.Transfer)) {
                 if (!_isTransferOperationValid(operation, safeguard)) return false;
-            } else if (operation.op == uint8(OpType.Call)) {
+            } else if (operation.opType == uint8(OpType.Call)) {
                 if (!_isCallOperationValid(operation, safeguard)) return false;
-            } else revert IntentsValidatorUnknownOperationType(uint8(operation.op));
+            } else revert IntentsValidatorUnknownOperationType(uint8(operation.opType));
         }
         return true;
     }

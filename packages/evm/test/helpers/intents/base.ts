@@ -22,7 +22,7 @@ export type OperationEvent = {
 }
 
 export type Operation = {
-  op: OpType
+  opType: OpType
   user: Account
   data: string
   events: OperationEvent[]
@@ -61,8 +61,8 @@ function toRawIntent(intent: Intent): RawIntent {
     maxFees: intent.maxFees.map(({ token, amount }) => ({ token: toAddress(token), amount: amount.toString() })),
     configSig: intent.configSig,
     minValidations: intent.minValidations,
-    operations: intent.operations.map(({ op, user, data, events }) => ({
-      op,
+    operations: intent.operations.map(({ opType, user, data, events }) => ({
+      opType,
       user: toAddress(user),
       data,
       events: events.map(({ topic, data }) => ({ topic, data: data || '0x' })),
@@ -72,7 +72,7 @@ function toRawIntent(intent: Intent): RawIntent {
 
 function getOperationDefaults(): Operation {
   return {
-    op: OpType.Transfer,
+    opType: OpType.Transfer,
     user: randomEvmAddress(),
     data: '0x',
     events: [],

@@ -12,7 +12,7 @@ interface ISettler {
     /**
      * @dev The requested operation type is unknown
      */
-    error SettlerUnknownOperationType(uint8 op);
+    error SettlerUnknownOperationType(uint8 opType);
 
     /**
      * @dev The simulation has been successful
@@ -155,7 +155,7 @@ interface ISettler {
     event OperationExecuted(
         address indexed user,
         bytes32 indexed topic,
-        uint8 indexed op,
+        uint8 indexed opType,
         Operation operation,
         Proposal proposal,
         bytes output,

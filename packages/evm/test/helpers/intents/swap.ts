@@ -30,7 +30,7 @@ export function createSwapIntent(intentParams?: Partial<Intent>, operationParams
 }
 
 export function createSwapOperation(params?: Partial<SwapOperation>): Operation {
-  const operation = createOperation({ ...params, op: OpType.Swap })
+  const operation = createOperation({ ...params, opType: OpType.Swap })
   const swapOperation = { ...getDefaults(), ...params, ...operation } as SwapOperation
   operation.data = encodeSwapOperation(toSwapOperationData(swapOperation))
   return operation

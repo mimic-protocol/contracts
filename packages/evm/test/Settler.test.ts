@@ -1530,7 +1530,7 @@ describe('Settler', () => {
 
                   expect(events[0].args.user).to.be.equal(intent.user)
                   expect(events[0].args.topic).to.be.equal(eventTopic)
-                  expect(events[0].args.op).to.be.equal(OpType.Swap)
+                  expect(events[0].args.opType).to.be.equal(OpType.Swap)
                   expect(events[0].args.operation).to.not.be.undefined
                   expect(events[0].args.proposal).to.not.be.undefined
                   expect(events[0].args.output).to.not.be.undefined
@@ -2103,7 +2103,7 @@ describe('Settler', () => {
 
               expect(events[0].args.user).to.be.equal(intent.user)
               expect(events[0].args.topic).to.be.equal(eventTopic)
-              expect(events[0].args.op).to.be.equal(OpType.Transfer)
+              expect(events[0].args.opType).to.be.equal(OpType.Transfer)
               expect(events[0].args.operation).to.not.be.undefined
               expect(events[0].args.proposal).to.not.be.undefined
               expect(events[0].args.output).to.be.eq('0x')
@@ -2415,7 +2415,7 @@ describe('Settler', () => {
 
                   expect(events[0].args.user).to.be.equal(intent.user)
                   expect(events[0].args.topic).to.be.equal(eventTopic)
-                  expect(events[0].args.op).to.be.equal(OpType.EvmCall)
+                  expect(events[0].args.opType).to.be.equal(OpType.EvmCall)
                   expect(events[0].args.operation).to.not.be.undefined
                   expect(events[0].args.proposal).to.not.be.undefined
                   expect(events[0].args.output).to.not.be.undefined
@@ -2759,9 +2759,9 @@ describe('Settler', () => {
           const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
           expect(events).to.have.lengthOf(3)
           // checking correct order of events Call->Transfer->Swap
-          expect(events[0].args.op).to.be.equal(OpType.EvmCall)
-          expect(events[1].args.op).to.be.equal(OpType.Transfer)
-          expect(events[2].args.op).to.be.equal(OpType.Swap)
+          expect(events[0].args.opType).to.be.equal(OpType.EvmCall)
+          expect(events[1].args.opType).to.be.equal(OpType.Transfer)
+          expect(events[2].args.opType).to.be.equal(OpType.Swap)
         })
       })
     })

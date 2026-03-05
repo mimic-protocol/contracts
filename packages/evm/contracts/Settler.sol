@@ -202,12 +202,12 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
-            if (operation.op == uint8(OpType.Swap)) {
+            if (operation.opType == uint8(OpType.Swap)) {
                 bytes32 operationHash = operation.hash(intent.nonce, i);
                 _executeSwap(operation, proposal, operationHash, i);
-            } else if (operation.op == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
-            else if (operation.op == uint8(OpType.Call)) _executeCall(operation, proposal, i);
-            else revert SettlerUnknownOperationType(uint8(operation.op));
+            } else if (operation.opType == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, i);
+            else if (operation.opType == uint8(OpType.Call)) _executeCall(operation, proposal, i);
+            else revert SettlerUnknownOperationType(uint8(operation.opType));
         }
 
         _payFees(intent, proposal);
@@ -430,7 +430,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
         Operation memory finalOperation = intent.operations[intent.operations.length - 1];
-        if (finalOperation.op != uint8(OpType.Swap)) return true;
+        if (finalOperation.opType != uint8(OpType.Swap)) return true;
         SwapOperation memory swapIntent = abi.decode(finalOperation.data, (SwapOperation));
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
         return swapIntent.sourceChain == block.chainid;
@@ -448,7 +448,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             emit OperationExecuted(
                 operation.user,
                 operationEvent.topic,
-                uint8(operation.op),
+                uint8(operation.opType),
                 operation,
                 proposal,
                 output,

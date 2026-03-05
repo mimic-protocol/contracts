@@ -28,7 +28,7 @@ export function createCallIntent(intentParams?: Partial<Intent>, operationParams
 }
 
 export function createCallOperation(params?: Partial<CallOperation>): Operation {
-  const operation = createOperation({ ...params, op: OpType.EvmCall })
+  const operation = createOperation({ ...params, opType: OpType.EvmCall })
   const callOperation = { ...getDefaults(), ...params, ...operation } as CallOperation
   operation.data = encodeEvmCallOperation(toCallOperationData(callOperation))
   return operation

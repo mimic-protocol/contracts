@@ -26,7 +26,7 @@ export function createTransferIntent(
 }
 
 export function createTransferOperation(params?: Partial<TransferOperation>): Operation {
-  const operation = createOperation({ ...params, op: OpType.Transfer })
+  const operation = createOperation({ ...params, opType: OpType.Transfer })
   const transferOperation = { ...getDefaults(), ...params, ...operation } as TransferOperation
   operation.data = encodeTransferOperation(toTransferOperationData(transferOperation))
   return operation

@@ -48,13 +48,13 @@ struct Intent {
 
 /**
  * @dev Operation structure used to abstract over different operation types.
- * @param op The type of operation this operation represents.
+ * @param opType The type of operation this operation represents.
  * @param user The user of the operation.
  * @param data ABI-encoded data representing a specific operation type (e.g. SwapOperation, TransferOperation, CallOperation).
  * @param events List of custom operation events to be emitted.
  */
 struct Operation {
-    uint8 op;
+    uint8 opType;
     address user;
     bytes data;
     OperationEvent[] events;
@@ -187,7 +187,7 @@ struct SwapProposal {
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
         keccak256(
-            'Intent(address user,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes configSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 op,address user,bytes data,OperationEvent[] events)OperationEvent(bytes32 topic,bytes data)'
+            'Intent(address user,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes configSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 opType,address user,bytes data,OperationEvent[] events)OperationEvent(bytes32 topic,bytes data)'
         );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
@@ -199,7 +199,7 @@ library IntentsHelpers {
 
     bytes32 internal constant OPERATION_TYPE_HASH =
         keccak256(
-            'Operation(uint8 op,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)'
+            'Operation(uint8 opType,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)'
         );
 
     bytes32 internal constant OPERATION_EVENT_TYPE_HASH = keccak256('OperationEvent(bytes32 topic,bytes data)');
@@ -256,7 +256,7 @@ library IntentsHelpers {
             keccak256(
                 abi.encode(
                     OPERATION_TYPE_HASH,
-                    operation.op,
+                    operation.opType,
                     operation.user,
                     keccak256(operation.data),
                     hash(operation.events),

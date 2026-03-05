@@ -15,7 +15,7 @@ contract TransferExecutorMock is IExecutor {
     }
 
     function execute(Operation memory operation, bytes32, bytes memory proposalData) external override {
-        require(operation.op == uint8(OpType.Swap), 'Invalid operation type');
+        require(operation.opType == uint8(OpType.Swap), 'Invalid operation type');
 
         SwapProposal memory swapProposal = abi.decode(proposalData, (SwapProposal));
         (address[] memory tokens, uint256[] memory amounts) = abi.decode(swapProposal.data, (address[], uint256[]));
