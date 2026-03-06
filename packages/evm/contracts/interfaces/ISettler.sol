@@ -145,6 +145,11 @@ interface ISettler {
     error SettlerTooManySafeguards(uint256 lengthRequested);
 
     /**
+     * @dev The chain of an operation does not match the rest of the intent's operations
+     */
+    error SettlerOperationChainMismatch(uint256 expected, uint256 actual);
+
+    /**
      * @dev The new smart accounts handler is zero
      */
     error SmartAccountsHandlerZero();
