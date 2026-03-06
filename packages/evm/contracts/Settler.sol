@@ -200,6 +200,35 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateIntent(intent, proposal, signature, simulated);
         getNonceBlock[intent.user][intent.nonce] = block.number;
 
+        uint256 lastIndex = intent.operations.length - 1;
+        Operation memory lastOp = intent.operations[lastIndex];
+
+        if (lastOp.opType == uint8(OpType.Swap)) {
+            SwapOperation memory swapOp = abi.decode(lastOp.data, (SwapOperation));
+            if (swapOp.sourceChain != swapOp.destinationChain) {
+                if (block.chainid == swapOp.destinationChain) {
+                    bytes32 operationHash = lastOp.hash(intent.nonce, lastIndex);
+                    _executeSwap(lastOp, proposal, operationHash, lastIndex);
+                    _payFees(intent, proposal);
+                } else {
+                    _executeOperations(intent, proposal);
+                }
+                emit ProposalExecuted(proposal.hash(intent, _msgSender()));
+                return;
+            }
+        }
+
+        _executeOperations(intent, proposal);
+        _payFees(intent, proposal);
+        emit ProposalExecuted(proposal.hash(intent, _msgSender()));
+    }
+
+    /**
+     * @dev Executes all operations of an intent
+     * @param intent Intent containing the operations to be executed
+     * @param proposal Proposal with the data to fulfill each operation
+     */
+    function _executeOperations(Intent memory intent, Proposal memory proposal) internal {
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
             if (operation.opType == uint8(OpType.Swap)) {
@@ -209,9 +238,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             else if (operation.opType == uint8(OpType.Call)) _executeCall(operation, proposal, i);
             else revert SettlerUnknownOperationType(uint8(operation.opType));
         }
-
-        _payFees(intent, proposal);
-        emit ProposalExecuted(proposal.hash(intent, _msgSender()));
     }
 
     /**
