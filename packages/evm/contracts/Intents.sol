@@ -187,7 +187,7 @@ struct SwapProposal {
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
         keccak256(
-            'Intent(address user,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes configSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 opType,address user,bytes data,OperationEvent[] events)OperationEvent(bytes32 topic,bytes data)'
+            'Intent(address user,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes configSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 opType,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)OperationEvent(bytes32 topic,bytes data)'
         );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
