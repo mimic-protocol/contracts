@@ -57,11 +57,47 @@ const config: HardhatUserConfig = {
       url: process.env.SONIC_RPC_URL || 'https://rpc.soniclabs.com',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
     },
+    polygon: {
+      type: 'http',
+      chainId: 137,
+      url: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
+    bnb: {
+      type: 'http',
+      chainId: 56,
+      url: process.env.BNB_RPC_URL || 'https://bsc-dataseed.binance.org',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
+    avalanche: {
+      type: 'http',
+      chainId: 43114,
+      url: process.env.AVALANCHE_RPC_URL || 'https://api.avax.network/ext/bc/C/rpc',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
     baseSepolia: {
       type: 'http',
       chainId: 84532,
       url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
+  },
+  chainDescriptors: {
+    1088: {
+      name: 'Metis Andromeda',
+      chainType: 'optimism',
+      blockExplorers: {
+        etherscan: {
+          name: 'Metis Explorer',
+          url: 'https://andromeda-explorer.metis.io',
+          apiUrl: 'https://api.etherscan.io/v2/api',
+        },
+        blockscout: {
+          name: 'Metis Blockscout',
+          url: 'https://andromeda-explorer.metis.io',
+          apiUrl: 'https://andromeda-explorer.metis.io/api',
+        },
+      },
     },
   },
   verify: {
