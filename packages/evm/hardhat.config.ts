@@ -82,24 +82,6 @@ const config: HardhatUserConfig = {
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
     },
   },
-  chainDescriptors: {
-    1088: {
-      name: 'Metis Andromeda',
-      chainType: 'optimism',
-      blockExplorers: {
-        etherscan: {
-          name: 'Metis Explorer',
-          url: 'https://andromeda-explorer.metis.io',
-          apiUrl: 'https://api.etherscan.io/v2/api',
-        },
-        blockscout: {
-          name: 'Metis Blockscout',
-          url: 'https://andromeda-explorer.metis.io',
-          apiUrl: 'https://andromeda-explorer.metis.io/api',
-        },
-      },
-    },
-  },
   verify: {
     etherscan: {
       apiKey: process.env.ETHERSCAN_KEY || '',
