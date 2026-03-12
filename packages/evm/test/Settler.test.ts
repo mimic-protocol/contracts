@@ -399,7 +399,7 @@ describe('Settler', () => {
           context('when the swap is single-chain', () => {
             beforeEach('set intent operation', async () => {
               const operation = createSwapOperation({
-                user: intentParams.user,
+                user: intentParams.feePayer,
                 sourceChain: 31337,
                 destinationChain: 31337,
                 tokensIn: [],
@@ -415,7 +415,7 @@ describe('Settler', () => {
             context('when executing on the source chain', () => {
               beforeEach('set intent operation', async () => {
                 const operation = createSwapOperation({
-                  user: intentParams.user,
+                  user: intentParams.feePayer,
                   sourceChain: 31337,
                   destinationChain: 1,
                   tokensIn: [],
@@ -430,7 +430,7 @@ describe('Settler', () => {
             context('when executing on the destination chain', () => {
               beforeEach('set intent operation', async () => {
                 const operation = createSwapOperation({
-                  user: intentParams.user,
+                  user: intentParams.feePayer,
                   sourceChain: 1,
                   destinationChain: 31337,
                   tokensIn: [],
@@ -452,7 +452,7 @@ describe('Settler', () => {
         context('when the intent is a transfer', () => {
           beforeEach('set intent operation', async () => {
             const operation = createTransferOperation({
-              user: intentParams.user,
+              user: intentParams.feePayer,
             })
             intentParams.operations = [operation]
           })
@@ -463,7 +463,7 @@ describe('Settler', () => {
         context('when the intent is a call', () => {
           beforeEach('set intent operation', async () => {
             const operation = createCallOperation({
-              user: intentParams.user,
+              user: intentParams.feePayer,
             })
             intentParams.operations = [operation]
           })
@@ -480,7 +480,7 @@ describe('Settler', () => {
 
         context('when the settler contract is correct', () => {
           beforeEach('set settler', () => {
-            intentParams.user = user
+            intentParams.feePayer = user
             intentParams.settler = settler
           })
 
@@ -538,7 +538,7 @@ describe('Settler', () => {
                               })
 
                               beforeEach('set intent', async () => {
-                                const futureIntent = createSwapIntent(intentParams, { user: intentParams.user })
+                                const futureIntent = createSwapIntent(intentParams, { user: intentParams.feePayer })
                                 intentParams.triggerSig = randomSig()
                                 intentParams.operations = futureIntent.operations
                                 intentParams.events = []
@@ -1009,9 +1009,9 @@ describe('Settler', () => {
                                                     'SmartAccountContract',
                                                     [settler, owner]
                                                   )
-                                                  intentParams.user = smartAccountUser
+                                                  intentParams.feePayer = smartAccountUser
                                                   callOperationParams.user = smartAccountUser
-                                                  await feeToken.mint(intentParams.user, feeAmount)
+                                                  await feeToken.mint(intentParams.feePayer, feeAmount)
                                                 })
 
                                                 it('executes successfully', async () => {
@@ -1049,7 +1049,7 @@ describe('Settler', () => {
                                               context('when the user is not a smart account', () => {
                                                 context('when the user is an EOA', () => {
                                                   beforeEach('set intent user', async () => {
-                                                    intentParams.user = other
+                                                    intentParams.feePayer = other
                                                     callOperationParams.user = other
                                                   })
 
@@ -1058,7 +1058,7 @@ describe('Settler', () => {
 
                                                 context('when the user is another contract', () => {
                                                   beforeEach('set intent user', async () => {
-                                                    intentParams.user = token
+                                                    intentParams.feePayer = token
                                                     callOperationParams.user = token
                                                   })
 
@@ -1151,7 +1151,7 @@ describe('Settler', () => {
                               })
 
                               beforeEach('set intent', async () => {
-                                const futureIntent = createSwapIntent(intentParams, { user: intentParams.user })
+                                const futureIntent = createSwapIntent(intentParams, { user: intentParams.feePayer })
                                 intentParams.triggerSig = randomSig()
                                 intentParams.operations = futureIntent.operations
                                 intentParams.events = []
@@ -1326,7 +1326,7 @@ describe('Settler', () => {
                 intent = createSwapIntent(
                   {
                     settler,
-                    user,
+                    feePayer: user,
                   },
                   {
                     user,
@@ -1387,7 +1387,7 @@ describe('Settler', () => {
                 intent = createSwapIntent(
                   {
                     settler,
-                    user,
+                    feePayer: user,
                   },
                   {
                     user,
@@ -1467,7 +1467,7 @@ describe('Settler', () => {
                   intent = createSwapIntent(
                     {
                       settler,
-                      user: toAddress(from),
+                      feePayer: toAddress(from),
                     },
                     {
                       user: toAddress(from),
@@ -1481,7 +1481,7 @@ describe('Settler', () => {
                 })
 
                 it('executes the intent', async () => {
-                  const preBalanceIn = await balanceOf(tokenIn, intent.user)
+                  const preBalanceIn = await balanceOf(tokenIn, intent.feePayer)
                   const preBalanceOut = await balanceOf(tokenOut, recipient)
 
                   const executorData = AbiCoder.defaultAbiCoder().encode(
@@ -1492,7 +1492,7 @@ describe('Settler', () => {
                   const signature = await signProposal(settler, intent, solver, proposal, admin)
                   await settler.execute(intent, proposal, signature)
 
-                  const postBalanceIn = await balanceOf(tokenIn, intent.user)
+                  const postBalanceIn = await balanceOf(tokenIn, intent.feePayer)
                   expect(preBalanceIn - postBalanceIn).to.be.eq(amountIn)
 
                   const postBalanceOut = await balanceOf(tokenOut, recipient)
@@ -1511,7 +1511,7 @@ describe('Settler', () => {
                   const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
                   expect(events).to.have.lengthOf(1)
 
-                  expect(events[0].args.user).to.be.equal(intent.user)
+                  expect(events[0].args.user).to.be.equal(intent.operations[0].user)
                   expect(events[0].args.topic).to.be.equal(eventTopic)
                   expect(events[0].args.opType).to.be.equal(OpType.Swap)
                   expect(events[0].args.operation).to.not.be.undefined
@@ -1627,7 +1627,7 @@ describe('Settler', () => {
                   intent = createSwapIntent(
                     {
                       settler,
-                      user,
+                      feePayer: user,
                     },
                     {
                       user,
@@ -1737,7 +1737,7 @@ describe('Settler', () => {
                 intent = createSwapIntent(
                   {
                     settler,
-                    user,
+                    feePayer: user,
                   },
                   {
                     user,
@@ -1783,7 +1783,7 @@ describe('Settler', () => {
                   intent = createSwapIntent(
                     {
                       settler,
-                      user,
+                      feePayer: user,
                     },
                     {
                       user,
@@ -1870,7 +1870,7 @@ describe('Settler', () => {
                 intent = createSwapIntent(
                   {
                     settler,
-                    user,
+                    feePayer: user,
                   },
                   {
                     user,
@@ -1941,7 +1941,7 @@ describe('Settler', () => {
                   intent = createSwapIntent(
                     {
                       settler,
-                      user,
+                      feePayer: user,
                     },
                     {
                       user,
@@ -2033,7 +2033,7 @@ describe('Settler', () => {
               intent = createTransferIntent(
                 {
                   settler,
-                  user: toAddress(from),
+                  feePayer: toAddress(from),
                   maxFees: [{ token: feeToken, amount: feeAmount }],
                 },
                 {
@@ -2045,8 +2045,8 @@ describe('Settler', () => {
             })
 
             it('executes the intent', async () => {
-              const preUserTokenBalance = await balanceOf(token, intent.user)
-              const preUserFeeTokenBalance = await balanceOf(feeToken, intent.user)
+              const preUserTokenBalance = await balanceOf(token, intent.feePayer)
+              const preUserFeeTokenBalance = await balanceOf(feeToken, intent.feePayer)
               const preRecipientBalance = await balanceOf(token, recipient)
               const preSolverBalance = await balanceOf(feeToken, solver)
 
@@ -2054,11 +2054,11 @@ describe('Settler', () => {
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const tx = await settler.execute(intent, proposal, signature)
 
-              const postUserTokenBalance = await balanceOf(token, intent.user)
+              const postUserTokenBalance = await balanceOf(token, intent.feePayer)
               if (toAddress(token) == toAddress(feeToken)) {
                 expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount + feeAmount)
               } else if (feeToken !== USD_ADDRESS) {
-                const postUserFeeTokenBalance = await balanceOf(feeToken, intent.user)
+                const postUserFeeTokenBalance = await balanceOf(feeToken, intent.feePayer)
                 expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount)
                 expect(preUserFeeTokenBalance - postUserFeeTokenBalance).to.be.eq(feeAmount)
               }
@@ -2084,7 +2084,7 @@ describe('Settler', () => {
               const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
               expect(events).to.have.lengthOf(1)
 
-              expect(events[0].args.user).to.be.equal(intent.user)
+              expect(events[0].args.user).to.be.equal(intent.operations[0].user)
               expect(events[0].args.topic).to.be.equal(eventTopic)
               expect(events[0].args.opType).to.be.equal(OpType.Transfer)
               expect(events[0].args.operation).to.not.be.undefined
@@ -2278,7 +2278,7 @@ describe('Settler', () => {
             intent = createTransferIntent(
               {
                 settler,
-                user,
+                feePayer: user,
                 maxFees: [{ token: token1, amount: feeAmount }],
               },
               {
@@ -2352,7 +2352,7 @@ describe('Settler', () => {
                   intent = createCallIntent(
                     {
                       settler,
-                      user,
+                      feePayer: user,
                       maxFees: [{ token: feeToken, amount: feeAmount }],
                     },
                     {
@@ -2396,7 +2396,7 @@ describe('Settler', () => {
                   const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
                   expect(events).to.have.lengthOf(1)
 
-                  expect(events[0].args.user).to.be.equal(intent.user)
+                  expect(events[0].args.user).to.be.equal(intent.operations[0].user)
                   expect(events[0].args.topic).to.be.equal(eventTopic)
                   expect(events[0].args.opType).to.be.equal(OpType.EvmCall)
                   expect(events[0].args.operation).to.not.be.undefined
@@ -2466,7 +2466,7 @@ describe('Settler', () => {
                 intent = createCallIntent(
                   {
                     settler,
-                    user,
+                    feePayer: user,
                     maxFees: [{ token: feeToken, amount: feeAmount }],
                   },
                   {
@@ -2509,7 +2509,7 @@ describe('Settler', () => {
               intent = createCallIntent(
                 {
                   settler,
-                  user,
+                  feePayer: user,
                 },
                 {
                   user,
@@ -2566,7 +2566,7 @@ describe('Settler', () => {
             intent = createCallIntent(
               {
                 settler,
-                user,
+                feePayer: user,
                 maxFees: [{ token: feeToken, amount: feeAmount }],
               },
               {
@@ -2688,7 +2688,7 @@ describe('Settler', () => {
 
           intent = createIntent({
             settler,
-            user,
+            feePayer: user,
             maxFees: [{ token: feeToken, amount: feeAmount }],
             operations: [callOperation, transferOperation, swapOperation],
           })

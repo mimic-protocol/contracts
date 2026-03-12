@@ -30,7 +30,7 @@ export type Operation = {
 
 export type Intent = {
   settler: Account
-  user: Account
+  feePayer: Account
   nonce: string
   deadline: BigNumberish
   maxFees: MaxFee[]
@@ -54,7 +54,7 @@ export function hashIntent(intent: Intent): string {
 
 function toRawIntent(intent: Intent): RawIntent {
   return {
-    user: toAddress(intent.user),
+    feePayer: toAddress(intent.feePayer),
     settler: toAddress(intent.settler),
     nonce: intent.nonce.toString(),
     deadline: intent.deadline.toString(),
@@ -80,10 +80,9 @@ function getOperationDefaults(): Operation {
 }
 
 function getDefaults(): Intent {
-  const user = randomEvmAddress()
   return {
     settler: randomEvmAddress(),
-    user,
+    feePayer: randomEvmAddress(),
     nonce: randomHex(32),
     deadline: MAX_UINT256,
     maxFees: [],

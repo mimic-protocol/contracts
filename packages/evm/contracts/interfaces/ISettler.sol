@@ -55,9 +55,9 @@ interface ISettler {
     error SettlerNonceZero();
 
     /**
-     * @dev The nonce has already been used for the user
+     * @dev The nonce has already been used for the feePayer
      */
-    error SettlerNonceAlreadyUsed(address user, bytes32 nonce);
+    error SettlerNonceAlreadyUsed(address feePayer, bytes32 nonce);
 
     /**
      * @dev The intent deadline is in the past

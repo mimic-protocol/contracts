@@ -56,7 +56,10 @@ describe('SmartAccount7702', () => {
             const preUserTokenBalance = await balanceOf(token, user)
             const preRecipientBalance = await balanceOf(token, recipient)
 
-            const intent = createTransferIntent({ settler, user }, { user, transfers: [{ token, amount, recipient }] })
+            const intent = createTransferIntent(
+              { settler, feePayer: user },
+              { user, transfers: [{ token, amount, recipient }] }
+            )
             const proposal = createTransferProposal()
             const signature = await signProposal(settler, intent, solver, proposal, admin)
             const options = { authorizationList: [authorization] }
@@ -69,7 +72,7 @@ describe('SmartAccount7702', () => {
             expect(userEvents[0].args.amount).to.be.equal(amount)
             expect(userEvents[0].args.recipient.toLowerCase()).to.be.equal(recipient)
 
-            const postUserTokenBalance = await balanceOf(token, intent.user)
+            const postUserTokenBalance = await balanceOf(token, intent.feePayer)
             expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount)
 
             const postRecipientBalance = await balanceOf(token, recipient)
@@ -139,7 +142,10 @@ describe('SmartAccount7702', () => {
             })
 
             it('executes the intent', async () => {
-              const intent = createCallIntent({ settler, user }, { user, calls: [{ target: target, data, value }] })
+              const intent = createCallIntent(
+                { settler, feePayer: user },
+                { user, calls: [{ target: target, data, value }] }
+              )
               const proposal = createCallProposal()
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const options = { authorizationList: [authorization] }
@@ -169,7 +175,7 @@ describe('SmartAccount7702', () => {
             })
 
             it('reverts', async () => {
-              const intent = createCallIntent({ settler, user }, { user, calls: [{ target, data, value }] })
+              const intent = createCallIntent({ settler, feePayer: user }, { user, calls: [{ target, data, value }] })
               const proposal = createCallProposal()
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const options = { authorizationList: [authorization] }

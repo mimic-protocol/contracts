@@ -198,7 +198,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         nonReentrant
     {
         _validateIntent(intent, proposal, signature, simulated);
-        getNonceBlock[intent.user][intent.nonce] = block.number;
+        getNonceBlock[intent.feePayer][intent.nonce] = block.number;
 
         uint256 lastIndex = intent.operations.length - 1;
         Operation memory lastOp = intent.operations[lastIndex];
@@ -339,13 +339,15 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     {
         if (intent.settler != address(this)) revert SettlerInvalidSettler(intent.settler);
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
-        if (getNonceBlock[intent.user][intent.nonce] != 0) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
+        if (getNonceBlock[intent.feePayer][intent.nonce] != 0) {
+            revert SettlerNonceAlreadyUsed(intent.feePayer, intent.nonce);
+        }
 
         if (intent.operations.length == 0) revert SettlerIntentOperationsEmpty();
         if (intent.operations.length != proposal.datas.length) revert SettlerProposalDataInvalidLength();
 
         if (intentsValidator != address(0)) {
-            bytes memory safeguard = _userSafeguard[intent.user];
+            bytes memory safeguard = _userSafeguard[intent.feePayer];
             if (safeguard.length > 0) IIntentsValidator(intentsValidator).validate(intent, safeguard);
         }
 
@@ -520,12 +522,12 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Pays fees from the intent user
+     * @dev Pays fees from the intent feePayer
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed
      */
     function _payFees(Intent memory intent, Proposal memory proposal) internal {
-        address from = intent.user;
+        address from = intent.feePayer;
         address to = _msgSender();
         bool isSmartAccount = smartAccountsHandler.isSmartAccount(from);
         for (uint256 i = 0; i < intent.maxFees.length; i++) {
