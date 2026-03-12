@@ -539,7 +539,7 @@ describe('Settler', () => {
 
                               beforeEach('set intent', async () => {
                                 const futureIntent = createSwapIntent(intentParams, { user: intentParams.user })
-                                intentParams.configSig = randomSig()
+                                intentParams.triggerSig = randomSig()
                                 intentParams.operations = futureIntent.operations
                                 intentParams.events = []
                               })
@@ -1152,7 +1152,7 @@ describe('Settler', () => {
 
                               beforeEach('set intent', async () => {
                                 const futureIntent = createSwapIntent(intentParams, { user: intentParams.user })
-                                intentParams.configSig = randomSig()
+                                intentParams.triggerSig = randomSig()
                                 intentParams.operations = futureIntent.operations
                                 intentParams.events = []
                               })

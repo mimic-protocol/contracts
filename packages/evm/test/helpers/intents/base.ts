@@ -34,7 +34,7 @@ export type Intent = {
   nonce: string
   deadline: BigNumberish
   maxFees: MaxFee[]
-  configSig: string
+  triggerSig: string
   minValidations: number
   validations: string[]
   operations: Operation[]
@@ -59,7 +59,7 @@ function toRawIntent(intent: Intent): RawIntent {
     nonce: intent.nonce.toString(),
     deadline: intent.deadline.toString(),
     maxFees: intent.maxFees.map(({ token, amount }) => ({ token: toAddress(token), amount: amount.toString() })),
-    configSig: intent.configSig,
+    triggerSig: intent.triggerSig,
     minValidations: intent.minValidations,
     operations: intent.operations.map(({ opType, user, data, events }) => ({
       opType,
@@ -87,7 +87,7 @@ function getDefaults(): Intent {
     nonce: randomHex(32),
     deadline: MAX_UINT256,
     maxFees: [],
-    configSig: randomSig(),
+    triggerSig: randomSig(),
     minValidations: 0,
     validations: [],
     operations: [getOperationDefaults()],

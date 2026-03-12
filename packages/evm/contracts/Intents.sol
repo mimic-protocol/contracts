@@ -29,7 +29,7 @@ struct Validation {
  * @param nonce A unique value used to prevent replay attacks and distinguish intents.
  * @param deadline The timestamp by which the intent must be executed.
  * @param maxFees List of max fees the user is willing to pay for the intent.
- * @param configSig The signature of the configuration that this intent belongs to
+ * @param triggerSig The signature of the trigger that this intent belongs to
  * @param minValidations The minimum number of validator approvals required for this intent to be considered valid.
  * @param validations The list validator signatures attesting to this intent.
  * @param operations List of operations of the intent.
@@ -40,7 +40,7 @@ struct Intent {
     bytes32 nonce;
     uint256 deadline;
     MaxFee[] maxFees;
-    bytes configSig;
+    bytes triggerSig;
     uint256 minValidations;
     bytes[] validations;
     Operation[] operations;
@@ -187,7 +187,7 @@ struct SwapProposal {
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
         keccak256(
-            'Intent(address user,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes configSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 opType,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)OperationEvent(bytes32 topic,bytes data)'
+            'Intent(address user,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes triggerSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 opType,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)OperationEvent(bytes32 topic,bytes data)'
         );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
@@ -214,7 +214,7 @@ library IntentsHelpers {
                     intent.nonce,
                     intent.deadline,
                     hash(intent.maxFees),
-                    intent.configSig,
+                    intent.triggerSig,
                     intent.minValidations,
                     hash(intent.operations, intent.nonce)
                 )
