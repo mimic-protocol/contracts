@@ -57,6 +57,24 @@ const config: HardhatUserConfig = {
       url: process.env.SONIC_RPC_URL || 'https://rpc.soniclabs.com',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
     },
+    polygon: {
+      type: 'http',
+      chainId: 137,
+      url: process.env.POLYGON_RPC_URL || 'https://polygon.drpc.org',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
+    bnb: {
+      type: 'http',
+      chainId: 56,
+      url: process.env.BNB_RPC_URL || 'https://bsc-dataseed.bnbchain.org',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
+    avalanche: {
+      type: 'http',
+      chainId: 43114,
+      url: process.env.AVALANCHE_RPC_URL || 'https://avalanche-c-chain-rpc.publicnode.com',
+      accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    },
     baseSepolia: {
       type: 'http',
       chainId: 84532,
