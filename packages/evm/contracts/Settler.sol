@@ -200,35 +200,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateIntent(intent, proposal, signature, simulated);
         getNonceBlock[intent.feePayer][intent.nonce] = block.number;
 
-        uint256 lastIndex = intent.operations.length - 1;
-        Operation memory lastOp = intent.operations[lastIndex];
-
-        if (lastOp.opType == uint8(OpType.Swap)) {
-            SwapOperation memory swapOp = abi.decode(lastOp.data, (SwapOperation));
-            if (swapOp.sourceChain != swapOp.destinationChain) {
-                if (block.chainid == swapOp.destinationChain) {
-                    bytes32 operationHash = lastOp.hash(intent.nonce, lastIndex);
-                    _executeSwap(lastOp, proposal, operationHash, lastIndex);
-                    _payFees(intent, proposal);
-                } else {
-                    _executeOperations(intent, proposal);
-                }
-                emit ProposalExecuted(proposal.hash(intent, _msgSender()));
-                return;
-            }
-        }
-
-        _executeOperations(intent, proposal);
-        _payFees(intent, proposal);
-        emit ProposalExecuted(proposal.hash(intent, _msgSender()));
-    }
-
-    /**
-     * @dev Executes all operations of an intent
-     * @param intent Intent containing the operations to be executed
-     * @param proposal Proposal with the data to fulfill each operation
-     */
-    function _executeOperations(Intent memory intent, Proposal memory proposal) internal {
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
             if (operation.opType == uint8(OpType.Swap)) {
@@ -238,6 +209,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             else if (operation.opType == uint8(OpType.Call)) _executeCall(operation, proposal, i);
             else revert SettlerUnknownOperationType(uint8(operation.opType));
         }
+        _payFees(intent, proposal);
+        emit ProposalExecuted(proposal.hash(intent, _msgSender()));
     }
 
     /**
@@ -391,12 +364,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         address signer = ECDSA.recover(_hashTypedDataV4(proposal.hash(intent, _msgSender())), signature);
         bool isProposalSignerNotAllowed = !IController(controller).isProposalSignerAllowed(signer) && !simulated;
         if (isProposalSignerNotAllowed) revert SettlerProposalSignerNotAllowed(signer);
-
-        uint256 expectedChain = _getOperationChain(intent.operations[0]);
-        for (uint256 i = 1; i < intent.operations.length; i++) {
-            uint256 opChain = _getOperationChain(intent.operations[i]);
-            if (opChain != expectedChain) revert SettlerOperationChainMismatch(expectedChain, opChain);
-        }
     }
 
     /**
@@ -480,20 +447,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         SwapOperation memory swapIntent = abi.decode(finalOperation.data, (SwapOperation));
         if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
         return swapIntent.sourceChain == block.chainid;
-    }
-
-    /**
-     * @dev Tells the chain ID of an operation.
-     * @param operation Operation to get the chain ID of
-     */
-    function _getOperationChain(Operation memory operation) internal pure returns (uint256) {
-        if (operation.opType == uint8(OpType.Swap)) {
-            return abi.decode(operation.data, (SwapOperation)).sourceChain;
-        } else if (operation.opType == uint8(OpType.Transfer)) {
-            return abi.decode(operation.data, (TransferOperation)).chainId;
-        } else if (operation.opType == uint8(OpType.Call)) {
-            return abi.decode(operation.data, (CallOperation)).chainId;
-        } else revert SettlerUnknownOperationType(uint8(operation.opType));
     }
 
     /**

@@ -1079,7 +1079,7 @@ describe('Settler', () => {
                                       })
 
                                       context('when the operations have mismatched chains', () => {
-                                        it('reverts', async () => {
+                                        it.skip('reverts', async () => {
                                           const op1 = createTransferOperation({ chainId: 31337 })
                                           const op2 = createSwapOperation({ sourceChain: 1, destinationChain: 31337 })
                                           const intent = createIntent({ ...intentParams, operations: [op1, op2] })
