@@ -184,9 +184,9 @@ interface ISettler {
     event SmartAccountsHandlerSet(address indexed smartAccountsHandler);
 
     /**
-     * @dev Emitted every time the intents validator is set
+     * @dev Emitted every time the operations validator is set
      */
-    event IntentsValidatorSet(address indexed intentsValidator);
+    event OperationsValidatorSet(address indexed operationsValidator);
 
     /**
      * @dev Emitted every time a safeguard is set
@@ -204,9 +204,9 @@ interface ISettler {
     function smartAccountsHandler() external view returns (address);
 
     /**
-     * @dev Tells the reference to the intents validator
+     * @dev Tells the reference to the operations validator
      */
-    function intentsValidator() external view returns (address);
+    function operationsValidator() external view returns (address);
 
     /**
      * @dev Tells the block at which a user nonce was used. Returns 0 if unused.
@@ -253,10 +253,10 @@ interface ISettler {
     function setSmartAccountsHandler(address newSmartAccountsHandler) external;
 
     /**
-     * @dev Sets a new intents validator address
-     * @param newIntentsValidator New intents validator to be set
+     * @dev Sets a new operations validator address
+     * @param newOperationsValidator New operations validator to be set
      */
-    function setIntentsValidator(address newIntentsValidator) external;
+    function setOperationsValidator(address newOperationsValidator) external;
 
     /**
      * @dev Sets a safeguard for a user

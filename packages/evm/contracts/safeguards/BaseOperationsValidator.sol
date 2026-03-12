@@ -10,14 +10,14 @@ import '../Intents.sol';
  */
 contract BaseOperationsValidator {
     /**
-     * @dev No intents allowed
+     * @dev No operations allowed
      */
-    error IntentsValidatorNoneAllowed();
+    error OperationsValidatorNoneAllowed();
 
     /**
      * @dev Operation type unknown
      */
-    error IntentsValidatorUnknownOperationType(uint8 opType);
+    error OperationsValidatorUnknownOperationType(uint8 opType);
 
     /**
      * @dev Invalid safeguard mode

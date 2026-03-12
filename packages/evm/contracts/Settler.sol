@@ -24,7 +24,7 @@ import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
-import './interfaces/IIntentsValidator.sol';
+import './interfaces/IOperationsValidator.sol';
 import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
 import './utils/Denominations.sol';
@@ -51,8 +51,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     // Smart accounts handler reference
     address public override smartAccountsHandler;
 
-    // Intents validator reference
-    address public override intentsValidator;
+    // Operations validator reference
+    address public override operationsValidator;
 
     // List of block numbers at which a user nonce was used
     mapping (address => mapping (bytes32 => uint256)) public override getNonceBlock;
@@ -139,11 +139,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Sets a new intents validator address
-     * @param newIntentsValidator New intents validator to be set
+     * @dev Sets a new operations validator address
+     * @param newOperationsValidator New operations validator to be set
      */
-    function setIntentsValidator(address newIntentsValidator) external override onlyOwner {
-        _setIntentsValidator(newIntentsValidator);
+    function setOperationsValidator(address newOperationsValidator) external override onlyOwner {
+        _setOperationsValidator(newOperationsValidator);
     }
 
     /**
@@ -346,9 +346,12 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (intent.operations.length == 0) revert SettlerIntentOperationsEmpty();
         if (intent.operations.length != proposal.datas.length) revert SettlerProposalDataInvalidLength();
 
-        if (intentsValidator != address(0)) {
-            bytes memory safeguard = _userSafeguard[intent.feePayer];
-            if (safeguard.length > 0) IIntentsValidator(intentsValidator).validate(intent, safeguard);
+        if (operationsValidator != address(0)) {
+            for (uint256 i = 0; i < intent.operations.length; i++) {
+                Operation memory operation = intent.operations[i];
+                bytes memory safeguard = _userSafeguard[operation.user];
+                if (safeguard.length > 0) IOperationsValidator(operationsValidator).validate(operation, safeguard);
+            }
         }
 
         bool shouldValidateDeadlines = _shouldValidateDeadlines(intent);
@@ -563,12 +566,12 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Sets the intents validator
-     * @param newIntentsValidator New intents validator to be set
+     * @dev Sets the operations validator
+     * @param newOperationsValidator New operations validator to be set
      */
-    function _setIntentsValidator(address newIntentsValidator) internal {
-        intentsValidator = newIntentsValidator;
-        emit IntentsValidatorSet(newIntentsValidator);
+    function _setOperationsValidator(address newOperationsValidator) internal {
+        operationsValidator = newOperationsValidator;
+        emit OperationsValidatorSet(newOperationsValidator);
     }
 
     /**

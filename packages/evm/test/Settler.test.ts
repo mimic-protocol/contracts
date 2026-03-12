@@ -87,7 +87,7 @@ describe('Settler', () => {
     })
 
     it('has no intents validator', async () => {
-      expect(await settler.intentsValidator()).to.be.equal(ZERO_ADDRESS)
+      expect(await settler.operationsValidator()).to.be.equal(ZERO_ADDRESS)
     })
 
     it('has a smart accounts handler', async () => {
@@ -306,7 +306,7 @@ describe('Settler', () => {
     })
   })
 
-  describe('setIntentsValidator', () => {
+  describe('setOperationsValidator', () => {
     const newValidator = randomEvmAddress()
 
     context('when the sender is the owner', () => {
@@ -314,14 +314,14 @@ describe('Settler', () => {
         settler = settler.connect(owner)
       })
 
-      it('sets the intents validator and emits an event', async () => {
-        const tx = await settler.setIntentsValidator(newValidator)
+      it('sets the operations validator and emits an event', async () => {
+        const tx = await settler.setOperationsValidator(newValidator)
 
-        expect((await settler.intentsValidator()).toLowerCase()).to.equal(newValidator)
+        expect((await settler.operationsValidator()).toLowerCase()).to.equal(newValidator)
 
-        const events = await settler.queryFilter(settler.filters.IntentsValidatorSet(), tx.blockNumber)
+        const events = await settler.queryFilter(settler.filters.OperationsValidatorSet(), tx.blockNumber)
         expect(events).to.have.lengthOf(1)
-        expect(events[0].args.intentsValidator.toLowerCase()).to.equal(newValidator)
+        expect(events[0].args.operationsValidator.toLowerCase()).to.equal(newValidator)
       })
     })
 
@@ -331,7 +331,7 @@ describe('Settler', () => {
       })
 
       it('reverts', async () => {
-        await expect(settler.setIntentsValidator(newValidator)).to.be.revertedWithCustomError(
+        await expect(settler.setOperationsValidator(newValidator)).to.be.revertedWithCustomError(
           settler,
           'OwnableUnauthorizedAccount'
         )
