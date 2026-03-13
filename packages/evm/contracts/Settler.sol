@@ -54,8 +54,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     // Operations validator reference
     address public override operationsValidator;
 
-    // List of block numbers at which a user nonce was used
-    mapping (address => mapping (bytes32 => uint256)) public override getNonceBlock;
+    // List of block numbers at which an intent was used
+    mapping (bytes32 => uint256) public override getIntentBlock;
 
     // Safeguard config per user
     mapping (address => bytes) internal _userSafeguard;
@@ -198,7 +198,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         nonReentrant
     {
         _validateIntent(intent, proposal, signature, simulated);
-        getNonceBlock[intent.feePayer][intent.nonce] = block.number;
+        getIntentBlock[intent.hash()] = block.number;
 
         for (uint256 i = 0; i < intent.operations.length; i++) {
             Operation memory operation = intent.operations[i];
@@ -312,9 +312,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     {
         if (intent.settler != address(this)) revert SettlerInvalidSettler(intent.settler);
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
-        if (getNonceBlock[intent.feePayer][intent.nonce] != 0) {
-            revert SettlerNonceAlreadyUsed(intent.feePayer, intent.nonce);
-        }
+        bytes32 intentHash = intent.hash();
+        if (getIntentBlock[intentHash] != 0) revert SettlerIntentAlreadyUsed(intentHash);
 
         if (intent.operations.length == 0) revert SettlerIntentOperationsEmpty();
         if (intent.operations.length != proposal.datas.length) revert SettlerProposalDataInvalidLength();
@@ -349,7 +348,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         address lastValidator = address(0);
-        Validation memory validation = Validation(intent.hash());
+        Validation memory validation = Validation(intentHash);
         bytes32 typedDataHash = _hashTypedDataV4(validation.hash());
         for (uint256 i = 0; i < intent.validations.length; i++) {
             address validator = ECDSA.recover(typedDataHash, intent.validations[i]);

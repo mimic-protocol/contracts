@@ -489,7 +489,7 @@ describe('Settler', () => {
               intentParams.nonce = randomHex(32)
             })
 
-            context('when the nonce has not been used', () => {
+            context('when the intent hash has not been used', () => {
               context('when the operations are not empty', () => {
                 context('when the proposal datas length matches the intent operations length', () => {
                   context('when the intent deadline has not been reached', () => {
@@ -1233,28 +1233,36 @@ describe('Settler', () => {
               })
             })
 
-            context('when the nonce has already been used', () => {
-              const nonce = ONES_BYTES32
+            context('when the intent hash has already been used', () => {
+              let intent: Intent
+              let proposal: Proposal
 
-              beforeEach('use nonce once', async () => {
+              beforeEach('use intent hash once', async () => {
                 intentParams.maxFees = []
-                intentParams.nonce = nonce
+                intentParams.nonce = ONES_BYTES32
                 intentParams.validations = []
                 intentParams.minValidations = 0
-                const intent = createSwapIntent({ ...intentParams, deadline: MAX_UINT256 })
+                intentParams.deadline = MAX_UINT256
+
+                intent = createSwapIntent(intentParams)
                 const executor = await ethers.deployContract('EmptyExecutorMock')
-                const proposal = createSwapProposal({
-                  ...proposalParams,
-                  deadline: MAX_UINT256,
-                  executor: toAddress(executor),
-                })
+
+                proposalParams.deadline = MAX_UINT256
+                proposalParams.executor = toAddress(executor)
+
+                proposal = createSwapProposal(proposalParams)
                 const signature = await signProposal(settler, intent, solver, proposal, admin)
 
                 await controller.connect(admin).setAllowedProposalSigners([admin], [true])
                 await settler.execute(intent, proposal, signature)
               })
 
-              itReverts('SettlerNonceAlreadyUsed')
+              it('reverts', async () => {
+                await expect(settler.execute(intent, proposal, '0x')).to.be.revertedWithCustomError(
+                  settler,
+                  'SettlerIntentAlreadyUsed'
+                )
+              })
             })
           })
 

@@ -55,9 +55,9 @@ interface ISettler {
     error SettlerNonceZero();
 
     /**
-     * @dev The nonce has already been used for the feePayer
+     * @dev The intent has already been used
      */
-    error SettlerNonceAlreadyUsed(address feePayer, bytes32 nonce);
+    error SettlerIntentAlreadyUsed(bytes32 hash);
 
     /**
      * @dev The intent deadline is in the past
@@ -209,11 +209,10 @@ interface ISettler {
     function operationsValidator() external view returns (address);
 
     /**
-     * @dev Tells the block at which a user nonce was used. Returns 0 if unused.
-     * @param user Address of the user being queried
-     * @param nonce Nonce being queried
+     * @dev Tells the block at which an intent was used. Returns 0 if unused.
+     * @param hash Hash of the intent being queried
      */
-    function getNonceBlock(address user, bytes32 nonce) external view returns (uint256);
+    function getIntentBlock(bytes32 hash) external view returns (uint256);
 
     /**
      * @dev Tells the safeguard set for a user
