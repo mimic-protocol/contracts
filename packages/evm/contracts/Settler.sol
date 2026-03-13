@@ -54,7 +54,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     // Operations validator reference
     address public override operationsValidator;
 
-    // List of block numbers at which an intent was used
+    // List of block numbers at which an intent was executed
     mapping (bytes32 => uint256) public override getIntentBlock;
 
     // Safeguard config per user
@@ -325,7 +325,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         if (intent.settler != address(this)) revert SettlerInvalidSettler(intent.settler);
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
         bytes32 intentHash = intent.hash();
-        if (getIntentBlock[intentHash] != 0) revert SettlerIntentAlreadyUsed(intentHash);
+        if (getIntentBlock[intentHash] != 0) revert SettlerIntentAlreadyExecuted(intentHash);
 
         if (intent.operations.length == 0) revert SettlerIntentOperationsEmpty();
         if (intent.operations.length != proposal.datas.length) revert SettlerProposalDataInvalidLength();

@@ -55,9 +55,9 @@ interface ISettler {
     error SettlerNonceZero();
 
     /**
-     * @dev The intent has already been used
+     * @dev The intent has already been executed
      */
-    error SettlerIntentAlreadyUsed(bytes32 hash);
+    error SettlerIntentAlreadyExecuted(bytes32 hash);
 
     /**
      * @dev The intent deadline is in the past
@@ -210,7 +210,7 @@ interface ISettler {
     function operationsValidator() external view returns (address);
 
     /**
-     * @dev Tells the block at which an intent was used. Returns 0 if unused.
+     * @dev Tells the block at which an intent was executed. Returns 0 if unexecuted.
      * @param hash Hash of the intent being queried
      */
     function getIntentBlock(bytes32 hash) external view returns (uint256);

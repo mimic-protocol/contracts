@@ -1233,11 +1233,11 @@ describe('Settler', () => {
               })
             })
 
-            context('when the intent hash has already been used', () => {
+            context('when the intent has already been executed', () => {
               let intent: Intent
               let proposal: Proposal
 
-              beforeEach('use intent hash once', async () => {
+              beforeEach('execute intent once', async () => {
                 intentParams.maxFees = []
                 intentParams.nonce = ONES_BYTES32
                 intentParams.validations = []
@@ -1260,7 +1260,7 @@ describe('Settler', () => {
               it('reverts', async () => {
                 await expect(settler.execute(intent, proposal, '0x')).to.be.revertedWithCustomError(
                   settler,
-                  'SettlerIntentAlreadyUsed'
+                  'SettlerIntentAlreadyExecuted'
                 )
               })
             })
