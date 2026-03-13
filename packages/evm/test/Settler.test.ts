@@ -86,7 +86,7 @@ describe('Settler', () => {
       expect(await settler.controller()).to.be.equal(controller)
     })
 
-    it('has no intents validator', async () => {
+    it('has no operations validator', async () => {
       expect(await settler.operationsValidator()).to.be.equal(ZERO_ADDRESS)
     })
 
@@ -567,7 +567,7 @@ describe('Settler', () => {
                                       })
 
                                       context('when the operations have all the same chain', () => {
-                                        context('for swap intents', () => {
+                                        context('for swap operations', () => {
                                           const swapOperationParams: Partial<SwapOperation> = {}
                                           const swapProposalParams: Partial<SwapProposal> = {}
                                           let tokenIn: TokenMock, tokenOut: TokenMock, executor: MintExecutorMock
@@ -823,7 +823,7 @@ describe('Settler', () => {
                                           })
                                         })
 
-                                        context('for transfer intents', () => {
+                                        context('for transfer operations', () => {
                                           const transferOperationParams: Partial<TransferOperation> = {}
                                           const transferProposalParams: Partial<TransferProposal> = {}
                                           let token: TokenMock
@@ -947,7 +947,7 @@ describe('Settler', () => {
                                           })
                                         })
 
-                                        context('for call intents', () => {
+                                        context('for call operations', () => {
                                           const callOperationParams: Partial<CallOperation> = {}
                                           const callProposalParams: Partial<CallProposal> = {}
                                           let token: TokenMock
@@ -2725,12 +2725,12 @@ describe('Settler', () => {
           // intent fee
           expect(preUserBalance - postUserBalance).to.be.eq(feeAmount + transferAmount + swapAmountIn)
           expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
-          // transfer intent
+          // transfer operation
           expect(postOtherBalance - preOtherBalance).to.be.eq(transferAmount)
-          // call intent
+          // call operation
           const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
           expect(postTargetBalance - preTargetBalance).to.be.equal(callValue)
-          // swap intent
+          // swap operation
           const postOtherUSDCBalance = await balanceOf(tokenOut, other)
           expect(postOtherUSDCBalance - preOtherUSDCBalance).to.be.equal(swapMinAmountOut)
         })

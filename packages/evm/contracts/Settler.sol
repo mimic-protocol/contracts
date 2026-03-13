@@ -299,7 +299,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     /**
      * @dev Validates an intent and its corresponding proposal
             The off-chain validators are assuring that:
-                - Intent.feePayer has authorization over each operations[i].user
+                - The trigger signer has authorization over the intent.feePayer and each operations[i].user
                 - If there is a cross-chain swap operation, it is the last one
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed

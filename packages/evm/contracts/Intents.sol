@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 /**
- * @dev Enum representing the type of intent operation.
+ * @dev Enum representing the operation type.
  * - Swap: Swap tokens between chains or tokens.
  * - Transfer: Transfer tokens to one or more recipients.
  * - Call: Execute arbitrary contract calls.
