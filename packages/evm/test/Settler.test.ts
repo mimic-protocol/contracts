@@ -1524,6 +1524,7 @@ describe('Settler', () => {
                   expect(events[0].args.opType).to.be.equal(OpType.Swap)
                   expect(events[0].args.operation).to.not.be.undefined
                   expect(events[0].args.proposal).to.not.be.undefined
+                  expect(events[0].args.intentHash).to.be.equal(hashIntent(intent))
                   expect(events[0].args.output).to.not.be.undefined
                   expect(events[0].args.data).to.be.equal(eventData)
                 })
@@ -2097,6 +2098,7 @@ describe('Settler', () => {
               expect(events[0].args.opType).to.be.equal(OpType.Transfer)
               expect(events[0].args.operation).to.not.be.undefined
               expect(events[0].args.proposal).to.not.be.undefined
+              expect(events[0].args.intentHash).to.be.equal(hashIntent(intent))
               expect(events[0].args.output).to.be.eq('0x')
               expect(events[0].args.data).to.be.equal(eventData)
             })
@@ -2409,6 +2411,7 @@ describe('Settler', () => {
                   expect(events[0].args.opType).to.be.equal(OpType.EvmCall)
                   expect(events[0].args.operation).to.not.be.undefined
                   expect(events[0].args.proposal).to.not.be.undefined
+                  expect(events[0].args.intentHash).to.be.equal(hashIntent(intent))
                   expect(events[0].args.output).to.not.be.undefined
                   expect(events[0].args.data).to.be.equal(eventData)
                 })
