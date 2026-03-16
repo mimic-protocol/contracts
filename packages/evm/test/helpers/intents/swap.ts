@@ -48,7 +48,7 @@ export function createSwapOperation(params?: Partial<SwapOperation>): Operation 
 
 export function createCrossChainSwapOperation(params?: Partial<SwapOperation>): Operation {
   const operation = createOperation({ ...params, opType: OpType.CrossChainSwap })
-  const swapOperation = { ...getDefaults(), ...params, ...operation } as SwapOperation
+  const swapOperation = { ...getCrossChainDefaults(), ...params, ...operation } as SwapOperation
   operation.data = encodeSwapOperation(toSwapOperationData(swapOperation))
   return operation
 }
@@ -75,5 +75,12 @@ function getDefaults(): Partial<SwapOperation> {
     destinationChain: 31337,
     tokensIn: [],
     tokensOut: [],
+  }
+}
+
+function getCrossChainDefaults(): Partial<SwapOperation> {
+  return {
+    ...getDefaults(),
+    destinationChain: 1,
   }
 }

@@ -145,7 +145,7 @@ interface ISettler {
     error SettlerTooManySafeguards(uint256 lengthRequested);
 
     /**
-     * @dev The chains of an swap operation do not match the swap type (single or cross chain)
+     * @dev The chains of a swap operation do not match the swap type (single or cross chain)
      */
     error SettlerOperationChainsMismatch();
 
