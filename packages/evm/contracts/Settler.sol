@@ -198,17 +198,14 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         nonReentrant
     {
         _validateIntent(intent, proposal, signature, simulated);
-        bytes32 intentHash = intent.hash();
-        getIntentBlock[intentHash] = block.number;
+        getIntentBlock[intent.hash()] = block.number;
 
         for (uint256 i = 0; i < intent.operations.length; i++) {
-            Operation memory operation = intent.operations[i];
-            if (operation.opType == uint8(OpType.Swap)) {
-                bytes32 operationHash = operation.hash(intent.nonce, i);
-                _executeSwap(operation, proposal, operationHash, intentHash, i);
-            } else if (operation.opType == uint8(OpType.Transfer)) _executeTransfer(operation, proposal, intentHash, i);
-            else if (operation.opType == uint8(OpType.Call)) _executeCall(operation, proposal, intentHash, i);
-            else revert SettlerUnknownOperationType(uint8(operation.opType));
+            uint8 opType = intent.operations[i].opType;
+            if (opType == uint8(OpType.Swap)) _executeSwap(intent, proposal, i);
+            else if (opType == uint8(OpType.Transfer)) _executeTransfer(intent, proposal, i);
+            else if (opType == uint8(OpType.Call)) _executeCall(intent, proposal, i);
+            else revert SettlerUnknownOperationType(uint8(opType));
         }
         _payFees(intent, proposal);
         emit ProposalExecuted(proposal.hash(intent, _msgSender()));
@@ -216,19 +213,12 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev Validates and executes a proposal to fulfill a swap operation
-     * @param operation Swap operation to be fulfilled
+     * @param intent Intent that contains swap operation to be fulfilled
      * @param proposal Proposal with swap data to be executed
-     * @param operationHash Unique hash of operation
-     * @param intentHash Hash of the intent the operation belongs to
-     * @param index Position where the swap proposal data is located on datas
+     * @param index Position where the swap proposal data and operation are located
      */
-    function _executeSwap(
-        Operation memory operation,
-        Proposal memory proposal,
-        bytes32 operationHash,
-        bytes32 intentHash,
-        uint256 index
-    ) internal {
+    function _executeSwap(Intent memory intent, Proposal memory proposal, uint256 index) internal {
+        Operation memory operation = intent.operations[index];
         SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
         SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
         _validateSwapOperation(swapOperation, swapProposal);
@@ -242,6 +232,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
+        bytes32 operationHash = operation.hash(intent.nonce, index);
         IExecutor(swapProposal.executor).execute(operation, operationHash, proposal.datas[index]);
 
         if (swapOperation.destinationChain == block.chainid) {
@@ -259,20 +250,18 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
                 ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, outputs[i]);
             }
 
-            _emitOperationEvents(operation, proposal, intentHash, index, abi.encode(outputs));
+            _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(outputs));
         }
     }
 
     /**
      * @dev Validates and executes a proposal to fulfill a transfer operation
-     * @param operation Transfer operation to be fulfilled
+     * @param intent Intent that contains transfer operation to be fulfilled
      * @param proposal Transfer proposal to be executed
-     * @param intentHash Hash of the intent the operation belongs to
-     * @param index position where the transfer proposal data is located on datas
+     * @param index Position where the trasnfer proposal data and operation are located
      */
-    function _executeTransfer(Operation memory operation, Proposal memory proposal, bytes32 intentHash, uint256 index)
-        internal
-    {
+    function _executeTransfer(Intent memory intent, Proposal memory proposal, uint256 index) internal {
+        Operation memory operation = intent.operations[index];
         TransferOperation memory transferOperation = abi.decode(operation.data, (TransferOperation));
         _validateTransferOperation(transferOperation, proposal.datas[index]);
 
@@ -282,19 +271,17 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _transferFrom(transfer.token, operation.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        _emitOperationEvents(operation, proposal, intentHash, index, new bytes(0));
+        _emitOperationEvents(operation, proposal, intent.hash(), index, new bytes(0));
     }
 
     /**
      * @dev Validates and executes a proposal to fulfill a call operation
-     * @param operation Call operation to be fulfilled
+     * @param intent Intent that contains call operation to be fulfilled
      * @param proposal Call proposal to be executed
-     * @param intentHash Hash of the intent the operation belongs to
-     * @param index position where the call proposal data is located on datas
+     * @param index Position where the call proposal data and operation are located
      */
-    function _executeCall(Operation memory operation, Proposal memory proposal, bytes32 intentHash, uint256 index)
-        internal
-    {
+    function _executeCall(Intent memory intent, Proposal memory proposal, uint256 index) internal {
+        Operation memory operation = intent.operations[index];
         CallOperation memory callOperation = abi.decode(operation.data, (CallOperation));
         _validateCallOperation(callOperation, proposal.datas[index], operation.user);
 
@@ -305,7 +292,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             outputs[i] = smartAccountsHandler.call(operation.user, call.target, call.data, call.value);
         }
 
-        _emitOperationEvents(operation, proposal, intentHash, index, abi.encode(outputs));
+        _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(outputs));
     }
 
     /**
