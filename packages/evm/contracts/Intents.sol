@@ -4,14 +4,16 @@ pragma solidity ^0.8.20;
 
 /**
  * @dev Enum representing the operation type.
- * - Swap: Swap tokens between chains or tokens.
+ * - Swap: Swap tokens in the same chain.
  * - Transfer: Transfer tokens to one or more recipients.
  * - Call: Execute arbitrary contract calls.
+ * - CrossChainSwap: Swap tokens between chains
  */
 enum OpType {
     Swap,
     Transfer,
-    Call
+    Call,
+    CrossChainSwap
 }
 
 /**

@@ -145,9 +145,14 @@ interface ISettler {
     error SettlerTooManySafeguards(uint256 lengthRequested);
 
     /**
-     * @dev The chain of an operation does not match the rest of the intent's operations
+     * @dev The chains of an swap operation do not match the swap type (single or cross chain)
      */
-    error SettlerOperationChainMismatch(uint256 expected, uint256 actual);
+    error SettlerOperationChainsMismatch();
+
+    /**
+     * @dev A CrossChainSwap operation must be the only operation in the intent
+     */
+    error SettlerCrossChainSwapMustBeOnlyOperation();
 
     /**
      * @dev The new smart accounts handler is zero
