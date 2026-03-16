@@ -14,10 +14,10 @@ contract TransferExecutorMock is IExecutor {
         // solhint-disable-previous-line no-empty-blocks
     }
 
-    function execute(Intent memory intent, Proposal memory proposal) external override {
-        require(intent.op == uint8(OpType.Swap), 'Invalid intent type');
+    function execute(Operation memory operation, bytes32, bytes memory proposalData) external override {
+        require(operation.opType == uint8(OpType.Swap), 'Invalid operation type');
 
-        SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
+        SwapProposal memory swapProposal = abi.decode(proposalData, (SwapProposal));
         (address[] memory tokens, uint256[] memory amounts) = abi.decode(swapProposal.data, (address[], uint256[]));
 
         require(tokens.length == amounts.length, 'Invalid inputs');
