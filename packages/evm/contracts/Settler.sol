@@ -222,8 +222,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         Operation memory operation = intent.operations[index];
         SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
         SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
-        if (operation.opType == uint8(OpType.Swap)) _validateSingleChainSwapOperation(swapOperation, swapProposal);
-        else _validateCrossChainSwapOperation(swapOperation, swapProposal);
+        if (operation.opType == uint8(OpType.CrossChainSwap)) {
+            if (intent.operations.length > 1) revert SettlerCrossChainSwapMustBeOnlyOperation();
+            _validateCrossChainSwapOperation(swapOperation, swapProposal);
+        } else _validateSingleChainSwapOperation(swapOperation, swapProposal);
 
         bool isSmartAccount = smartAccountsHandler.isSmartAccount(operation.user);
         if (swapOperation.sourceChain == block.chainid) {
@@ -317,17 +319,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         if (intent.operations.length == 0) revert SettlerIntentOperationsEmpty();
         if (intent.operations.length != proposal.datas.length) revert SettlerProposalDataInvalidLength();
-
-        if (intent.operations.length > 1) {
-            uint256 expectedChainId = 0;
-            for (uint256 i = 0; i < intent.operations.length; i++) {
-                Operation memory operation = intent.operations[i];
-                if (operation.opType == uint8(OpType.CrossChainSwap)) revert SettlerCrossChainSwapMustBeOnlyOperation();
-                uint256 chainId = _getOperationChainId(operation);
-                if (i == 0) expectedChainId = chainId;
-                else if (chainId != expectedChainId) revert SettlerOperationChainsMismatch();
-            }
-        }
 
         if (operationsValidator != address(0)) {
             for (uint256 i = 0; i < intent.operations.length; i++) {
@@ -469,21 +460,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Returns the chain ID associated with an operation
-     *      CrossChainSwap is not supported because it's ambiguous
-     * @param operation Operation to extract the chain ID from
-     */
-    function _getOperationChainId(Operation memory operation) internal pure returns (uint256) {
-        if (operation.opType == uint8(OpType.Swap)) {
-            return abi.decode(operation.data, (SwapOperation)).sourceChain;
-        } else if (operation.opType == uint8(OpType.Transfer)) {
-            return abi.decode(operation.data, (TransferOperation)).chainId;
-        } else if (operation.opType == uint8(OpType.Call)) {
-            return abi.decode(operation.data, (CallOperation)).chainId;
-        } else revert SettlerUnknownOperationType(uint8(operation.opType));
-    }
-
-    /**
      * @dev Tells if the intent and proposal deadlines should be validated
             In the case the intent is being executed on the destination chain of a cross-chain swap, the deadlines are ignored
      * @param intent Intent to be fulfilled
@@ -493,7 +469,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         Operation memory operation = intent.operations[0];
         if (operation.opType != uint8(OpType.CrossChainSwap)) return true;
         SwapOperation memory swapIntent = abi.decode(operation.data, (SwapOperation));
-        if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
         return swapIntent.sourceChain == block.chainid;
     }
 
