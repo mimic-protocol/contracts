@@ -8,7 +8,7 @@ import * as SettlerIDL from '../../target/idl/settler.json'
 import { Settler } from '../../target/types/settler'
 import { makeTxSignAndSend } from '../utils'
 import { PROPOSAL_DEADLINE_OFFSET, TEST_DATA_HEX_3 } from './constants'
-import { createValidatedIntent, mapIntentFeesToTokenFees } from './intents'
+import { createValidatedIntent } from './intents'
 import { getCurrentTimestamp, randomPubkey } from './misc'
 
 export type InstructionAccount = {
@@ -58,7 +58,7 @@ export async function createProposalParams(
   const program = new Program<Settler>(SettlerIDL, solverProvider)
   const intentKey = solverSdk.getIntentKey(intentHash)
   const intent = await program.account.intent.fetch(intentKey)
-  const fees = mapIntentFeesToTokenFees(intent)
+  const fees = intent.maxFees.map((maxFee) => maxFee.amount.toString())
 
   return {
     intentHash,

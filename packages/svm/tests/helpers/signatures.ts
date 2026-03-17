@@ -34,7 +34,7 @@ export async function createAxiaSignature(
     solver: proposal.creator.toString(),
     deadline: proposal.deadline.toString(),
     data: '0x', // TODO
-    fees: proposal.fees.map((fee) => fee.amount.toString()),
+    fees: proposal.fees.map((fee) => fee.toString()),
   }
 
   const signature = await axia.signTypedData(domain, PROPOSAL_712_TYPE_SVM, values)

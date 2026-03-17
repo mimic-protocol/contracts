@@ -1,9 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{
-    types::TokenFee,
-    utils::{add, mul, sub, Proposal as Eip712Proposal},
-};
+use crate::utils::{add, mul, sub, Proposal as Eip712Proposal};
 
 #[account]
 pub struct Proposal {
@@ -13,7 +10,7 @@ pub struct Proposal {
     pub is_final: bool,
     pub is_signed: bool,
     pub instructions: Vec<ProposalInstruction>,
-    pub fees: Vec<TokenFee>,
+    pub fees: Vec<u64>,
     pub bump: u8,
 }
 
@@ -43,7 +40,7 @@ impl Proposal {
     }
 
     pub fn fees_size(len: usize) -> Result<usize> {
-        add(4, mul(TokenFee::INIT_SPACE, len)?)
+        add(4, mul(8, len)?)
     }
 
     pub fn extended_size(
@@ -64,7 +61,7 @@ impl Proposal {
             solver: self.creator.to_string(),
             deadline: U256::from(self.deadline),
             data: vec![].into(),
-            fees: self.fees.iter().map(|fee| U256::from(fee.amount)).collect(),
+            fees: self.fees.iter().map(|&fee| U256::from(fee)).collect(),
         }
     }
 }

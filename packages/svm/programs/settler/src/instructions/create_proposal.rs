@@ -4,11 +4,10 @@ use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::{Intent, Proposal, ProposalInstruction},
-    types::TokenFee,
 };
 
 #[derive(Accounts)]
-#[instruction(instructions: Vec<ProposalInstruction>, fees: Vec<TokenFee>,)]
+#[instruction(instructions: Vec<ProposalInstruction>, fees: Vec<u64>,)]
 pub struct CreateProposal<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
@@ -45,7 +44,7 @@ pub struct CreateProposal<'info> {
 pub fn create_proposal(
     ctx: Context<CreateProposal>,
     instructions: Vec<ProposalInstruction>,
-    fees: Vec<TokenFee>,
+    fees: Vec<u64>,
     deadline: u64,
     is_final: bool,
 ) -> Result<()> {
@@ -70,13 +69,8 @@ pub fn create_proposal(
 
     fees.iter()
         .zip(&intent.max_fees)
-        .try_for_each(|(fee, max_fee)| {
-            require_keys_eq!(fee.token, max_fee.token, SettlerError::InvalidFeeMint);
-            require_gte!(
-                max_fee.amount,
-                fee.amount,
-                SettlerError::FeeAmountExceedsMaxFee
-            );
+        .try_for_each(|(&fee, max_fee)| {
+            require_gte!(max_fee.amount, fee, SettlerError::FeeAmountExceedsMaxFee);
             Ok(())
         })?;
 
