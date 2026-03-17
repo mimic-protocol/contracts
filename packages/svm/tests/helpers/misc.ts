@@ -17,9 +17,9 @@ export function generateNonce(): string {
 /**
  * Get current timestamp with optional offset
  */
-export function getCurrentTimestamp(client: LiteSVM, offset = 0): number {
+export function getCurrentTimestamp(client: LiteSVM, offset = 0): string {
   const now = Number(client.getClock().unixTimestamp)
-  return now + offset
+  return `${now + offset}`
 }
 
 /**

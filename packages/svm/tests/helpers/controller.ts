@@ -1,4 +1,4 @@
-import { ControllerSDK, EntityType } from '@mimicprotocol/sdk'
+import { EntityType, SvmController } from '@mimicprotocol/sdk'
 import { PublicKey } from '@solana/web3.js'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, TransactionMetadata } from 'litesvm'
@@ -11,7 +11,7 @@ import { makeTxSignAndSend } from '../utils'
  * For Validators/Axia: accepts Ethereum address Buffer (20 bytes)
  */
 export async function createAllowlistedEntity(
-  controllerSdk: ControllerSDK,
+  controllerSdk: SvmController,
   provider: LiteSVMProvider,
   entityType: EntityType,
   entityAddress: PublicKey | Buffer
@@ -26,7 +26,7 @@ export async function createAllowlistedEntity(
  * @returns Successful or failed transaction metadata
  */
 export async function removeEntityFromAllowlist(
-  controllerSdk: ControllerSDK,
+  controllerSdk: SvmController,
   provider: LiteSVMProvider,
   entityType: EntityType,
   entityAddress: PublicKey | Buffer
