@@ -397,7 +397,7 @@ describe('Settler', () => {
         })
       }
 
-      const itRevertsUnlessDestinationChain = (reason: string, operations: Operation[] = []) => {
+      const itRevertsUnlessDestinationChain = (reason: string) => {
         context('when the intent is a swap', () => {
           context('when the swap is single-chain', () => {
             beforeEach('set intent operation', async () => {
@@ -408,7 +408,7 @@ describe('Settler', () => {
                 tokensIn: [],
                 tokensOut: [],
               })
-              intentParams.operations = [...operations, operation]
+              intentParams.operations = [operation]
             })
 
             itReverts(reason)

@@ -7,7 +7,7 @@ pragma solidity ^0.8.20;
  * - Swap: Swap tokens in the same chain.
  * - Transfer: Transfer tokens to one or more recipients.
  * - Call: Execute arbitrary contract calls.
- * - CrossChainSwap: Swap tokens between chains
+ * - CrossChainSwap: Swap tokens between chains.
  */
 enum OpType {
     Swap,
