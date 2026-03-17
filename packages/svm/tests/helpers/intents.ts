@@ -123,7 +123,7 @@ export async function createValidatedIntent(
  */
 export function mapIntentFeesToTokenFees(intent: IntentAccount): SvmTokenFee[] {
   return intent.maxFees.map((maxFee) => ({
-    token: maxFee.mint,
+    token: maxFee.token,
     amount: maxFee.amount.toString(),
   }))
 }
