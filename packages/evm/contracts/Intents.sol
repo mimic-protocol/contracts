@@ -189,7 +189,7 @@ struct SwapProposal {
 library IntentsHelpers {
     bytes32 internal constant INTENT_TYPE_HASH =
         keccak256(
-            'Intent(address feePayer,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes triggerSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 opType,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)OperationEvent(bytes32 topic,bytes data)'
+            'Intent(address feePayer,address settler,bytes32 nonce,uint256 deadline,MaxFee[] maxFees,bytes triggerSig,uint256 minValidations,Operation[] operations)MaxFee(address token,uint256 amount)Operation(uint8 opType,address user,bytes data,OperationEvent[] events)OperationEvent(bytes32 topic,bytes data)'
         );
 
     bytes32 internal constant PROPOSAL_TYPE_HASH =
@@ -201,7 +201,7 @@ library IntentsHelpers {
 
     bytes32 internal constant OPERATION_TYPE_HASH =
         keccak256(
-            'Operation(uint8 opType,address user,bytes data,OperationEvent[] events,bytes32 intentNonce,uint256 index)'
+            'Operation(uint8 opType,address user,bytes data,OperationEvent[] events)'
         );
 
     bytes32 internal constant OPERATION_EVENT_TYPE_HASH = keccak256('OperationEvent(bytes32 topic,bytes data)');
@@ -218,7 +218,7 @@ library IntentsHelpers {
                     hash(intent.maxFees),
                     intent.triggerSig,
                     intent.minValidations,
-                    hash(intent.operations, intent.nonce)
+                    hash(intent.operations)
                 )
             );
     }
@@ -245,15 +245,13 @@ library IntentsHelpers {
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function hash(Operation[] memory operations, bytes32 intentNonce) internal pure returns (bytes32) {
+    function hash(Operation[] memory operations) internal pure returns (bytes32) {
         bytes32[] memory hashes = new bytes32[](operations.length);
-        for (uint256 i = 0; i < operations.length; i++) {
-            hashes[i] = hash(operations[i], intentNonce, i);
-        }
+        for (uint256 i = 0; i < operations.length; i++) hashes[i] = hash(operations[i]);
         return keccak256(abi.encodePacked(hashes));
     }
 
-    function hash(Operation memory operation, bytes32 intentNonce, uint256 index) internal pure returns (bytes32) {
+    function hash(Operation memory operation) internal pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(
@@ -261,9 +259,7 @@ library IntentsHelpers {
                     operation.opType,
                     operation.user,
                     keccak256(operation.data),
-                    hash(operation.events),
-                    intentNonce,
-                    index
+                    hash(operation.events)
                 )
             );
     }

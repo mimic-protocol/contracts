@@ -40,7 +40,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
-    using IntentsHelpers for Operation;
     using IntentsHelpers for Validation;
     using SmartAccountsHandlerHelpers for address;
 
@@ -236,8 +235,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
-        bytes32 operationHash = operation.hash(intent.nonce, index);
-        IExecutor(swapProposal.executor).execute(operation, operationHash, proposal.datas[index]);
+        IExecutor(swapProposal.executor).execute(intent, proposal, index);
 
         if (swapOperation.destinationChain == block.chainid) {
             uint256[] memory outputs = new uint256[](swapOperation.tokensOut.length);
