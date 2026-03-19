@@ -73,7 +73,7 @@ pub mod settler {
     pub fn create_proposal(
         ctx: Context<CreateProposal>,
         instructions: Vec<ProposalInstruction>,
-        fees: Vec<TokenFee>,
+        fees: Vec<u64>,
         deadline: u64,
         is_final: bool,
     ) -> Result<()> {

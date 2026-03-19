@@ -18,7 +18,6 @@ import {
   SolanaEip712Domain,
   SvmController,
   SvmSettler,
-  SvmTokenFee,
   ValidatorSigner,
 } from '@mimicprotocol/sdk'
 import {
@@ -403,7 +402,7 @@ describe('Settler', () => {
             const nonceArray = Array.from(hexToBytes(nonce))
             const dataArray = hexToBytes(data)
             const maxFeesBn = maxFees.map((tokenFee) => ({
-              mint: translateAddress(tokenFee.token),
+              token: translateAddress(tokenFee.token),
               amount: new BN(tokenFee.amount),
             }))
             const eventsArray = events.map((eventHex) => ({
@@ -532,7 +531,7 @@ describe('Settler', () => {
                   const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.maxFees.length).to.be.eq(2)
                   expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
-                  expect(intent.maxFees[1].mint.toString()).to.be.eq(extendParams.moreMaxFees![0].token.toString())
+                  expect(intent.maxFees[1].token.toString()).to.be.eq(extendParams.moreMaxFees![0].token.toString())
                   expect(intent.maxFees[1].amount.toString()).to.be.eq(extendParams.moreMaxFees![0].amount)
                 })
               })
@@ -1071,7 +1070,7 @@ describe('Settler', () => {
 
                 params = await createProposalParams(solverSdk, solverProvider, client, {
                   intentHash,
-                  proposalParams: { fees: testMaxFees },
+                  proposalParams: { fees: testMaxFees.map((fee) => fee.amount) },
                 })
               })
 
@@ -1082,10 +1081,8 @@ describe('Settler', () => {
                   sdk.getProposalKey(params.intentHash, solver.publicKey)
                 )
                 expect(proposal.fees.length).to.be.eq(2)
-                expect(proposal.fees[0].mint.toString()).to.be.eq(testMaxFees[0].token.toString())
-                expect(proposal.fees[0].amount.toString()).to.be.eq(testMaxFees[0].amount.toString())
-                expect(proposal.fees[1].mint.toString()).to.be.eq(testMaxFees[1].token.toString())
-                expect(proposal.fees[1].amount.toString()).to.be.eq(testMaxFees[1].amount.toString())
+                expect(proposal.fees[0].toString()).to.be.eq(testMaxFees[0].amount)
+                expect(proposal.fees[1].toString()).to.be.eq(testMaxFees[1].amount)
               })
             })
           })
@@ -1153,40 +1150,11 @@ describe('Settler', () => {
 
                   params = await createProposalParams(solverSdk, solverProvider, client, {
                     intentHash,
-                    proposalParams: { fees: largerMaxFees },
+                    proposalParams: { fees: largerMaxFees.map((fee) => fee.amount) },
                   })
                 })
 
                 itThrowsAnErrorWhenCreatingProposalFromParams('FeeAmountExceedsMaxFee')
-              })
-
-              context('when fees have wrong mint', () => {
-                const testMaxFees = [
-                  {
-                    token: randomPubkey(),
-                    amount: `${DEFAULT_MAX_FEE}`,
-                  },
-                ]
-
-                const otherMaxFees = [
-                  {
-                    token: randomPubkey(),
-                    amount: `${DEFAULT_MAX_FEE}`,
-                  },
-                ]
-
-                beforeEach('create intent and proposal params', async () => {
-                  const intentHash = await createValidatedIntent(solverSdk, solverProvider, client, {
-                    maxFees: testMaxFees,
-                  })
-
-                  params = await createProposalParams(solverSdk, solverProvider, client, {
-                    intentHash,
-                    proposalParams: { fees: otherMaxFees },
-                  })
-                })
-
-                itThrowsAnErrorWhenCreatingProposalFromParams('InvalidFeeMint')
               })
             })
 
@@ -1276,7 +1244,7 @@ describe('Settler', () => {
         let intentHash: string
         let deadline: string
         let instructions: ProposalInstruction[]
-        let fees: SvmTokenFee[]
+        let fees: string[]
 
         beforeEach('generate non-existent intent hash and proposal params', async () => {
           intentHash = generateIntentHash()

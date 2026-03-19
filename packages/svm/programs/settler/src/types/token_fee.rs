@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
 pub struct TokenFee {
-    pub mint: Pubkey,
+    pub token: Pubkey,
     pub amount: u64,
 }
 
