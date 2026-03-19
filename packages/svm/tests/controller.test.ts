@@ -213,7 +213,7 @@ describe('Controller', () => {
         const ix = await maliciousSdk.resizeSettings()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-        expect(res, 'Only admin can call this instruction')
+        expectTransactionError(res, 'Only admin can call this instruction')
       })
     })
 
