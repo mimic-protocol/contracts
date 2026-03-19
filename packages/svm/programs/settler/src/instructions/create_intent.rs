@@ -1,7 +1,11 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    controller::{self, accounts::EntityRegistry, types::EntityType},
+    controller::{
+        self,
+        accounts::{ControllerSettings, EntityRegistry},
+        types::EntityType,
+    },
     errors::SettlerError,
     state::Intent,
     types::{IntentEvent, OpType, TokenFee},
@@ -26,7 +30,7 @@ pub struct CreateIntent<'info> {
         seeds = [b"intent", intent_hash.as_ref()],
         bump,
         payer = solver,
-        space = Intent::total_size(data.len(), max_fees.len(), &events, min_validations)?
+        space = Intent::total_size(data.len(), max_fees.len(), &events, min_validations.max(controller_settings.min_validations))?
     )]
     // TODO: change to AccountLoader?
     // TODO: init within the handler body to save compute?
@@ -38,6 +42,13 @@ pub struct CreateIntent<'info> {
     )]
     /// This PDA must be uninitialized
     pub fulfilled_intent: SystemAccount<'info>,
+
+    #[account(
+        seeds = [b"controller-settings"],
+        bump = controller_settings.bump,
+        seeds::program = controller::ID,
+    )]
+    pub controller_settings: Box<Account<'info, ControllerSettings>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -62,6 +73,7 @@ pub fn create_intent(
     // TODO: check hash
 
     let intent = &mut ctx.accounts.intent;
+    let controller_min_validations = ctx.accounts.controller_settings.min_validations;
 
     intent.op = op;
     intent.user = user;
@@ -69,7 +81,7 @@ pub fn create_intent(
     intent.hash = intent_hash;
     intent.nonce = nonce;
     intent.deadline = deadline;
-    intent.min_validations = min_validations;
+    intent.min_validations = min_validations.max(controller_min_validations);
     intent.is_final = is_final;
     intent.data = data;
     intent.max_fees = max_fees;
