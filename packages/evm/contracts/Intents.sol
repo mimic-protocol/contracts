@@ -200,9 +200,7 @@ library IntentsHelpers {
     bytes32 internal constant MAX_FEE_TYPE_HASH = keccak256('MaxFee(address token,uint256 amount)');
 
     bytes32 internal constant OPERATION_TYPE_HASH =
-        keccak256(
-            'Operation(uint8 opType,address user,bytes data,OperationEvent[] events)'
-        );
+        keccak256('Operation(uint8 opType,address user,bytes data,OperationEvent[] events)');
 
     bytes32 internal constant OPERATION_EVENT_TYPE_HASH = keccak256('OperationEvent(bytes32 topic,bytes data)');
 
