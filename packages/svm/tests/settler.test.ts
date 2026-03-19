@@ -129,7 +129,7 @@ describe('Settler', () => {
 
     // Initialize Controller and add Solver to allowlist
     controllerSdk = new SvmController(provider)
-    await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
+    await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey, 1))
     await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
 

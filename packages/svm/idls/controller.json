@@ -142,8 +142,69 @@
         {
           "name": "admin",
           "type": "pubkey"
+        },
+        {
+          "name": "min_validations",
+          "type": "u16"
         }
       ]
+    },
+    {
+      "name": "resize_settings",
+      "discriminator": [
+        188,
+        179,
+        131,
+        221,
+        130,
+        249,
+        4,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "controller_settings",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  116,
+                  114,
+                  111,
+                  108,
+                  108,
+                  101,
+                  114,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "set_admin",
@@ -281,6 +342,67 @@
           "type": "bytes"
         }
       ]
+    },
+    {
+      "name": "set_min_validations",
+      "discriminator": [
+        178,
+        16,
+        7,
+        47,
+        149,
+        251,
+        165,
+        147
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "controller_settings"
+          ]
+        },
+        {
+          "name": "controller_settings",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  116,
+                  114,
+                  111,
+                  108,
+                  108,
+                  101,
+                  114,
+                  45,
+                  115,
+                  101,
+                  116,
+                  116,
+                  105,
+                  110,
+                  103,
+                  115
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_min_validations",
+          "type": "u16"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -337,6 +459,19 @@
         132,
         94
       ]
+    },
+    {
+      "name": "SetMinValidationsEvent",
+      "discriminator": [
+        56,
+        201,
+        119,
+        139,
+        82,
+        184,
+        16,
+        153
+      ]
     }
   ],
   "errors": [
@@ -354,6 +489,11 @@
       "code": 6002,
       "name": "EntityAddressHasWrongSize",
       "msg": "Entity address can only be Solana (32 bytes) or Ethereum (20 bytes)"
+    },
+    {
+      "code": 6003,
+      "name": "MinValidationsCannotBeZero",
+      "msg": "Min validations cannot be zero"
     }
   ],
   "types": [
@@ -393,6 +533,10 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "min_validations",
+            "type": "u16"
           }
         ]
       }
@@ -449,6 +593,22 @@
           {
             "name": "new_admin",
             "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetMinValidationsEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "new_min_validations",
+            "type": "u16"
           },
           {
             "name": "timestamp",

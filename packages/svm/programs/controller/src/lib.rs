@@ -7,6 +7,7 @@ pub mod errors;
 pub mod instructions;
 pub mod state;
 pub mod types;
+pub mod utils;
 
 use crate::{instructions::*, types::*};
 
@@ -14,12 +15,23 @@ use crate::{instructions::*, types::*};
 pub mod controller {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>, admin: Pubkey) -> Result<()> {
-        instructions::initialize(ctx, admin)
+    pub fn initialize(ctx: Context<Initialize>, admin: Pubkey, min_validations: u16) -> Result<()> {
+        instructions::initialize(ctx, admin, min_validations)
+    }
+
+    pub fn resize_settings(ctx: Context<ResizeSettings>) -> Result<()> {
+        instructions::resize_settings(ctx)
     }
 
     pub fn set_admin(ctx: Context<SetAdmin>, new_admin: Pubkey) -> Result<()> {
         instructions::set_admin(ctx, new_admin)
+    }
+
+    pub fn set_min_validations(
+        ctx: Context<SetMinValidations>,
+        new_min_validations: u16,
+    ) -> Result<()> {
+        instructions::set_min_validations(ctx, new_min_validations)
     }
 
     pub fn set_allowed_entity(
