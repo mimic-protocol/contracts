@@ -5,6 +5,7 @@ use crate::{
     errors::SettlerError,
     state::{FulfilledIntent, Intent, Proposal},
     types::IntentEvent,
+    utils::{handle_intent_execution, pay_solver_fees},
 };
 
 #[derive(Accounts)]
@@ -59,18 +60,15 @@ pub struct ExecuteProposal<'info> {
 pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
     let intent = &ctx.accounts.intent;
 
-    // TODO: Execute proposal
+    handle_intent_execution(&intent.op)?;
 
-    // TODO: Validate execution
-
-    // TODO: Emit events
     intent.events.iter().for_each(|event| {
         emit!(IntentEventEvent {
             event: event.clone()
         })
     });
 
-    // TODO: Pay fees to Solver
+    pay_solver_fees()?;
 
     Ok(())
 }

@@ -86,6 +86,9 @@ pub enum SettlerError {
     #[msg("Fee amount exceeds max fee")]
     FeeAmountExceedsMaxFee,
 
+    #[msg("Unsupported intent op")]
+    UnsupportedIntentOp,
+
     #[msg("Math Error")]
     MathError,
 }
