@@ -40,7 +40,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
-    using IntentsHelpers for Operation;
     using IntentsHelpers for Validation;
     using SmartAccountsHandlerHelpers for address;
 
@@ -202,8 +201,9 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
         for (uint256 i = 0; i < intent.operations.length; i++) {
             uint8 opType = intent.operations[i].opType;
-            if (opType == uint8(OpType.Swap)) _executeSwap(intent, proposal, i);
-            else if (opType == uint8(OpType.Transfer)) _executeTransfer(intent, proposal, i);
+            if (opType == uint8(OpType.Swap) || opType == uint8(OpType.CrossChainSwap)) {
+                _executeSwap(intent, proposal, i);
+            } else if (opType == uint8(OpType.Transfer)) _executeTransfer(intent, proposal, i);
             else if (opType == uint8(OpType.Call)) _executeCall(intent, proposal, i);
             else revert SettlerUnknownOperationType(uint8(opType));
         }
@@ -221,7 +221,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         Operation memory operation = intent.operations[index];
         SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
         SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
-        _validateSwapOperation(swapOperation, swapProposal);
+        if (operation.opType == uint8(OpType.CrossChainSwap)) {
+            if (intent.operations.length > 1) revert SettlerCrossChainSwapMustBeOnlyOperation();
+            _validateCrossChainSwapOperation(swapOperation, swapProposal);
+        } else _validateSingleChainSwapOperation(swapOperation, swapProposal);
 
         bool isSmartAccount = smartAccountsHandler.isSmartAccount(operation.user);
         if (swapOperation.sourceChain == block.chainid) {
@@ -232,8 +235,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
-        bytes32 operationHash = operation.hash(intent.nonce, index);
-        IExecutor(swapProposal.executor).execute(operation, operationHash, proposal.datas[index]);
+        IExecutor(swapProposal.executor).execute(intent, proposal, index);
 
         if (swapOperation.destinationChain == block.chainid) {
             uint256[] memory outputs = new uint256[](swapOperation.tokensOut.length);
@@ -299,7 +301,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Validates an intent and its corresponding proposal
             The off-chain validators are assuring that:
                 - The trigger signer has authorization over the intent.feePayer and each operations[i].user
-                - If there is a cross-chain swap operation, it is the last one
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed
      * @param signature Proposal signature
@@ -370,9 +371,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param proposal Proposal to be executed
      */
     function _validateSwapOperation(SwapOperation memory operation, SwapProposal memory proposal) internal view {
-        bool isChainInvalid = operation.sourceChain != block.chainid && operation.destinationChain != block.chainid;
-        if (isChainInvalid) revert SettlerInvalidChain(block.chainid);
-
         if (proposal.amountsOut.length != operation.tokensOut.length) revert SettlerInvalidProposedAmounts();
 
         for (uint256 i = 0; i < operation.tokensOut.length; i++) {
@@ -384,11 +382,20 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             uint256 proposedAmount = proposal.amountsOut[i];
             if (proposedAmount < minAmount) revert SettlerProposedAmountLtMinAmount(i, proposedAmount, minAmount);
         }
+    }
 
-        if (operation.sourceChain != operation.destinationChain) {
-            bool isExecutorInvalid = !IController(controller).isExecutorAllowed(proposal.executor);
-            if (isExecutorInvalid) revert SettlerExecutorNotAllowed(proposal.executor);
-        }
+    /**
+     * @dev Validates a single-chain swap operation and its corresponding proposal
+     * @param operation Swap operation to be fulfilled
+     * @param proposal Proposal to be executed
+     */
+    function _validateSingleChainSwapOperation(SwapOperation memory operation, SwapProposal memory proposal)
+        internal
+        view
+    {
+        if (operation.sourceChain != operation.destinationChain) revert SettlerOperationChainsMismatch();
+        if (operation.sourceChain != block.chainid) revert SettlerInvalidChain(block.chainid);
+        _validateSwapOperation(operation, proposal);
     }
 
     /**
@@ -421,6 +428,23 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
+     * @dev Validates a cross-chain swap operation and its corresponding proposal
+     * @param operation Swap operation to be fulfilled
+     * @param proposal Proposal to be executed
+     */
+    function _validateCrossChainSwapOperation(SwapOperation memory operation, SwapProposal memory proposal)
+        internal
+        view
+    {
+        if (operation.sourceChain == operation.destinationChain) revert SettlerOperationChainsMismatch();
+        bool isChainInvalid = operation.sourceChain != block.chainid && operation.destinationChain != block.chainid;
+        if (isChainInvalid) revert SettlerInvalidChain(block.chainid);
+        _validateSwapOperation(operation, proposal);
+        bool isExecutorInvalid = !IController(controller).isExecutorAllowed(proposal.executor);
+        if (isExecutorInvalid) revert SettlerExecutorNotAllowed(proposal.executor);
+    }
+
+    /**
      * @dev Tells the contract balance for each token out of a swap operation
      * @param operation Swap operation containing the list of tokens out
      */
@@ -439,11 +463,10 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param intent Intent to be fulfilled
      */
     function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
-        // Validators ensure off-chain that a cross-chain operation can only be the last operation
-        Operation memory finalOperation = intent.operations[intent.operations.length - 1];
-        if (finalOperation.opType != uint8(OpType.Swap)) return true;
-        SwapOperation memory swapIntent = abi.decode(finalOperation.data, (SwapOperation));
-        if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
+        // Cross-chain operation can only be the first (and only) operation
+        Operation memory operation = intent.operations[0];
+        if (operation.opType != uint8(OpType.CrossChainSwap)) return true;
+        SwapOperation memory swapIntent = abi.decode(operation.data, (SwapOperation));
         return swapIntent.sourceChain == block.chainid;
     }
 
@@ -484,6 +507,11 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param proposal Proposal to be executed
      */
     function _payFees(Intent memory intent, Proposal memory proposal) internal {
+        // A CrossChainSwap only pays fees on destination chain and must be the only operation
+        if (intent.operations[0].opType == uint8(OpType.CrossChainSwap)) {
+            SwapOperation memory swapOperation = abi.decode(intent.operations[0].data, (SwapOperation));
+            if (swapOperation.sourceChain == block.chainid) return;
+        }
         address from = intent.feePayer;
         address to = _msgSender();
         bool isSmartAccount = smartAccountsHandler.isSmartAccount(from);

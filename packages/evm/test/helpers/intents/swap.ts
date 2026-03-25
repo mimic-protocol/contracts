@@ -29,9 +29,26 @@ export function createSwapIntent(intentParams?: Partial<Intent>, operationParams
   return intent
 }
 
+export function createCrossChainSwapIntent(
+  intentParams?: Partial<Intent>,
+  operationParams?: Partial<SwapOperation>
+): Intent {
+  const intent = createIntent({ ...intentParams })
+  const operation = createCrossChainSwapOperation({ ...operationParams })
+  intent.operations = [operation]
+  return intent
+}
+
 export function createSwapOperation(params?: Partial<SwapOperation>): Operation {
   const operation = createOperation({ ...params, opType: OpType.Swap })
   const swapOperation = { ...getDefaults(), ...params, ...operation } as SwapOperation
+  operation.data = encodeSwapOperation(toSwapOperationData(swapOperation))
+  return operation
+}
+
+export function createCrossChainSwapOperation(params?: Partial<SwapOperation>): Operation {
+  const operation = createOperation({ ...params, opType: OpType.CrossChainSwap })
+  const swapOperation = { ...getCrossChainDefaults(), ...params, ...operation } as SwapOperation
   operation.data = encodeSwapOperation(toSwapOperationData(swapOperation))
   return operation
 }
@@ -58,5 +75,12 @@ function getDefaults(): Partial<SwapOperation> {
     destinationChain: 31337,
     tokensIn: [],
     tokensOut: [],
+  }
+}
+
+function getCrossChainDefaults(): Partial<SwapOperation> {
+  return {
+    ...getDefaults(),
+    destinationChain: 1,
   }
 }
