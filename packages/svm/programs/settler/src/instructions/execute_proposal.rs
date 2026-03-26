@@ -54,13 +54,25 @@ pub struct ExecuteProposal<'info> {
     )]
     pub fulfilled_intent: Box<Account<'info, FulfilledIntent>>,
 
+    #[account(seeds = [b"delegate", intent.user.key().as_ref()], bump)]
+    pub delegate: SystemAccount<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
-pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
+pub fn execute_proposal<'info>(
+    ctx: Context<'_, '_, '_, 'info, ExecuteProposal<'info>>,
+) -> Result<()> {
     let intent = &ctx.accounts.intent;
+    let proposal = &ctx.accounts.proposal;
 
-    handle_intent_execution(&intent.op)?;
+    handle_intent_execution(
+        &intent,
+        &proposal,
+        &ctx.accounts.delegate.clone(),
+        ctx.remaining_accounts,
+        ctx.bumps.delegate,
+    )?;
 
     intent.events.iter().for_each(|event| {
         emit!(IntentEventEvent {

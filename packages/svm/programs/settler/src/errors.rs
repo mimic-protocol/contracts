@@ -89,6 +89,15 @@ pub enum SettlerError {
     #[msg("Unsupported intent op")]
     UnsupportedIntentOp,
 
+    #[msg("Incorrect intent chain id")]
+    IncorrectChainId,
+
+    #[msg("Invalid transfer recipient")]
+    InvalidTransferRecipient,
+
+    #[msg("Invalid transfer token")]
+    InvalidTransferToken,
+
     #[msg("Math Error")]
     MathError,
 }
