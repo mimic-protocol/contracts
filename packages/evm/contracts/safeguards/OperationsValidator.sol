@@ -134,7 +134,9 @@ contract OperationsValidator is
      */
     function _isSafeguardValid(Operation memory operation, Safeguard memory safeguard) internal pure returns (bool) {
         if (safeguard.mode == uint8(0)) revert OperationsValidatorNoneAllowed();
-        if (operation.opType == uint8(OpType.Swap)) return _isSwapOperationValid(operation, safeguard);
+        if (operation.opType == uint8(OpType.Swap) || operation.opType == uint8(OpType.CrossChainSwap)) {
+            return _isSwapOperationValid(operation, safeguard);
+        }
         if (operation.opType == uint8(OpType.Transfer)) return _isTransferOperationValid(operation, safeguard);
         if (operation.opType == uint8(OpType.Call)) return _isCallOperationValid(operation, safeguard);
         revert OperationsValidatorUnknownOperationType(uint8(operation.opType));
