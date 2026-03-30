@@ -6,6 +6,7 @@ import { OperationsValidator } from '../../types/ethers-contracts/index.js'
 import {
   CallSafeguardMode,
   createCallOperation,
+  createCrossChainSwapOperation,
   createDeniedAccountSafeguard,
   createDeniedChainSafeguard,
   createDeniedSelectorSafeguard,
@@ -122,7 +123,7 @@ describe('OperationsValidator', () => {
       })
 
       context('TokenIn', () => {
-        const operation = createSwapOperation({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
+        const operation = createCrossChainSwapOperation({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
 
         context('when the token in is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
