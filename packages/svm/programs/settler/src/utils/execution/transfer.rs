@@ -35,6 +35,32 @@ pub fn handle_transfer<'info>(
     Ok(())
 }
 
+/// Deserializes and checks the following remaining_accounts:
+/// 
+/// #[account(
+///     address = transfer.token,
+/// )]
+/// pub token: Account<'info, Mint>,
+/// 
+/// #[account(
+///     address = transfer.recipient,
+/// )]
+/// pub recipient: AccountInfo<'info>,
+/// 
+/// #[account(
+///     mut,
+///     token::authority = recipient,
+///     token::mint = token,
+/// )]
+/// pub recipient_token_account: Account<'info, TokenAccount>,
+/// 
+/// #[account(
+///     mut,
+///     token::authority = user,
+///     token::mint = token,
+/// )]
+/// pub user_token_account: Account<'info, TokenAccount>,
+/// 
 fn execute_transfer<'info>(
     transfer: &SvmTransfer,
     delegate: &AccountInfo<'info>,
