@@ -37,6 +37,42 @@ pub fn handle_transfer<'info>(
 
 /// Deserializes and checks the following remaining_accounts:
 /// 
+/// pub token_program: Program<'info, Token>,
+/// 
+/// pub token_2022_program: Program<'info, Token2022>,
+/// 
+fn execute_transfers<'info>(
+    user: Pubkey,
+    delegate: &AccountInfo<'info>,
+    remaining_accounts: &[AccountInfo<'info>],
+    intent_data: &SvmTransferIntentData,
+    delegate_seeds: &[&[&[u8]]],
+) -> Result<()> {
+    let mut remaining_accounts_iter = remaining_accounts.iter();
+
+    let token_program = next_account_info(&mut remaining_accounts_iter)?;
+    let token_2022_program = next_account_info(&mut remaining_accounts_iter)?;
+
+    require_keys_eq!(token_program.key(), anchor_spl::token::ID);
+    require_keys_eq!(token_2022_program.key(), anchor_spl::token_2022::ID);
+
+    for transfer in &intent_data.transfers {
+        execute_transfer(
+            transfer,
+            delegate,
+            &mut remaining_accounts_iter,
+            delegate_seeds,
+            user,
+            token_program,
+            token_2022_program,
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Deserializes and checks the following remaining_accounts:
+/// 
 /// #[account(
 ///     address = transfer.token,
 /// )]
@@ -59,6 +95,7 @@ pub fn handle_transfer<'info>(
 ///     token::authority = user,
 ///     token::mint = token,
 /// )]
+/// NOTE: must have PDA delegate approved and amount at least transfer.amount
 /// pub user_token_account: Account<'info, TokenAccount>,
 /// 
 fn execute_transfer<'info>(
@@ -74,6 +111,11 @@ fn execute_transfer<'info>(
     let recipient_account_info = next_account_info(remaining_accounts_iter)?;
     let recipient_ta_account_info = next_account_info(remaining_accounts_iter)?;
     let user_ta_account_info = next_account_info(remaining_accounts_iter)?;
+
+    // TODO: validate account ownership
+    // token_account_info.owner = token or token2022
+    // recipient_ta_account_info = token or token2022
+    // user_ta_account_info = token or token2022
 
     let mut token_data: &[u8] = &token_account_info.try_borrow_data()?;
     let token_mint = IMint::try_deserialize(&mut token_data)?;
@@ -107,41 +149,12 @@ fn execute_transfer<'info>(
     let cpi_program = if *token_account_info.owner == anchor_spl::token::ID {
         token_program.clone()
     } else {
+        // TODO: validate that it is token2022, otherwise err
         token_2022_program.clone()
     };
 
     let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, delegate_seeds);
     token_interface::transfer_checked(cpi_ctx, transfer.amount, token_mint.decimals)
-}
-
-fn execute_transfers<'info>(
-    user: Pubkey,
-    delegate: &AccountInfo<'info>,
-    remaining_accounts: &[AccountInfo<'info>],
-    intent_data: &SvmTransferIntentData,
-    delegate_seeds: &[&[&[u8]]],
-) -> Result<()> {
-    let mut remaining_accounts_iter = remaining_accounts.iter();
-
-    let token_program = next_account_info(&mut remaining_accounts_iter)?;
-    let token_2022_program = next_account_info(&mut remaining_accounts_iter)?;
-
-    require_keys_eq!(token_program.key(), anchor_spl::token::ID);
-    require_keys_eq!(token_2022_program.key(), anchor_spl::token_2022::ID);
-
-    for transfer in &intent_data.transfers {
-        execute_transfer(
-            transfer,
-            delegate,
-            &mut remaining_accounts_iter,
-            delegate_seeds,
-            user,
-            token_program,
-            token_2022_program,
-        )?;
-    }
-
-    Ok(())
 }
 
 fn validate_transfer(proposal: &Proposal, intent_data: &SvmTransferIntentData) -> Result<()> {
@@ -150,3 +163,5 @@ fn validate_transfer(proposal: &Proposal, intent_data: &SvmTransferIntentData) -
 
     Ok(())
 }
+
+// TODO: better error names for requires

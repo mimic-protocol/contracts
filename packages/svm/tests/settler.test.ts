@@ -2292,4 +2292,136 @@ describe('Settler', () => {
       itThrowsAnError('AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
     })
   })
+
+  describe('execute_proposal', () => {
+    context('when intent is transfer', () => {
+      const itThrowsAnError = () => {
+        it('throws an error', async () => {
+          // TODO
+        })
+      }
+
+      const itWorksAsExpected = () => {
+        context('when remaining accounts are correct', () => {
+          context('when transfer/s is/are valid', () => {
+            context('when protocol has approval', () => {
+              context('when user has sufficient funds', () => {
+                it('executes transfer', async () => {})
+              })
+
+              context('when user does not have sufficient funds', () => {
+                itThrowsAnError()
+              })
+            })
+
+            context('when protocol does not have approval', () => {
+              itThrowsAnError()
+            })
+          })
+
+          context('when proposal is not valid', () => {
+            context('when proposal intent is not for chain Solana', () => {
+              itThrowsAnError()
+            })
+
+            context('when proposal has data/instructions', () => {
+              itThrowsAnError()
+            })
+          })
+        })
+
+        context('when remaining accounts are not correct', () => {
+          context('when remaining accounts number is correct', () => {
+            context('when token programs are passed correctly', () => {
+              context('when token is incorrect', () => {
+                itThrowsAnError()
+              })
+
+              context('when recipient is incorrect', () => {
+                itThrowsAnError()
+              })
+
+              context('when recipient token account is incorrect', () => {
+                context('when authority is incorrect', () => {
+                  itThrowsAnError()
+                })
+
+                context('when token mint is incorrect', () => {
+                  itThrowsAnError()
+                })
+              })
+
+              context('when user token account is incorrect', () => {
+                context('when authority is incorrect', () => {
+                  itThrowsAnError()
+                })
+
+                context('when token mint is incorrect', () => {
+                  itThrowsAnError()
+                })
+              })
+            })
+
+            context('when token programs are not passed correctly', () => {
+              itThrowsAnError()
+            })
+          })
+
+          context('when remaining accounts number is not correct', () => {
+            itThrowsAnError()
+          })
+        })
+      }
+
+      context('when caller is allowlisted solver', () => {
+        context('when intent exists', () => {
+          context('when intent is correct', () => {
+            context('when proposal exists', () => {
+              context('when proposal is correct', () => {
+                context('when intent has one transfer', () => {
+                  itWorksAsExpected()
+                })
+
+                context('when intent has more than one transfer', () => {
+                  itWorksAsExpected()
+                })
+              })
+
+              context('when proposal is not correct', () => {
+                context('when proposal is for another intent', () => {
+                  itThrowsAnError()
+                })
+
+                context('when proposal is from another solver', () => {
+                  itThrowsAnError()
+                })
+
+                context('when proposal is not signed', () => {
+                  itThrowsAnError()
+                })
+
+                context('when proposal is expired', () => {
+                  itThrowsAnError()
+                })
+              })
+            })
+          })
+
+          context('when intent is not correct', () => {
+            context('when intent_creator is not correct', () => {
+              itThrowsAnError()
+            })
+          })
+        })
+      })
+
+      context('when caller is not allowlisted solver', () => {
+        it('throws an error', async () => {})
+      })
+    })
+
+    context('when intent is not transfer', () => {
+      it('throws an error', async () => {})
+    })
+  })
 })
