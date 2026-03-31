@@ -59,6 +59,9 @@ pub enum SettlerError {
     #[msg("Proposal deadline can't be after the Intent's deadline")]
     ProposalDeadlineExceedsIntentDeadline,
 
+    #[msg("Incorrect proposal data")]
+    IncorrectProposalData,
+
     #[msg("Intent has insufficient validations")]
     InsufficientIntentValidations,
 
@@ -92,11 +95,29 @@ pub enum SettlerError {
     #[msg("Incorrect intent chain id")]
     IncorrectChainId,
 
-    #[msg("Invalid transfer recipient")]
+    #[msg("Invalid transfer recipient: malformed pubkey")]
     InvalidTransferRecipient,
 
-    #[msg("Invalid transfer token")]
+    #[msg("Incorrect transfer recipient account")]
+    IncorrectTransferRecipient,
+
+    #[msg("Invalid transfer token: malformed pubkey")]
     InvalidTransferToken,
+
+    #[msg("Incorrect transfer token mint account")]
+    IncorrectTransferToken,
+
+    #[msg("Account not owned by TokenKeg or Token2022 programs")]
+    AccountNotOwnedByTokenProgram,
+
+    #[msg("Incorrect recipient token account: mint or authority do not match expected")]
+    IncorrectRecipientTokenAccount,
+
+    #[msg("Incorrect user token account: mint or authority do not match expected")]
+    IncorrectUserTokenAccount,
+
+    #[msg("Incorrect token program account provided")]
+    IncorrectTokenProgram,
 
     #[msg("Math Error")]
     MathError,

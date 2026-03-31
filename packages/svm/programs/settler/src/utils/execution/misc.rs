@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::{token, token_2022};
 
 use crate::{
     errors::SettlerError,
@@ -30,5 +31,13 @@ pub fn handle_intent_execution<'info>(
 
 pub fn pay_solver_fees() -> Result<()> {
     // TODO
+    Ok(())
+}
+
+pub fn check_owner_is_token_program<'info>(account_info: &AccountInfo<'info>) -> Result<()> {
+    if *account_info.owner != token::ID && *account_info.owner != token_2022::ID {
+        err!(SettlerError::AccountNotOwnedByTokenProgram)?;
+    }
+
     Ok(())
 }

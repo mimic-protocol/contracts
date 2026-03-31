@@ -10,6 +10,7 @@ use crate::{
     errors::SettlerError,
     state::{Intent, Proposal},
     types::{SvmTransfer, SvmTransferIntentData},
+    utils::check_owner_is_token_program,
 };
 
 pub fn handle_transfer<'info>(
@@ -36,11 +37,11 @@ pub fn handle_transfer<'info>(
 }
 
 /// Deserializes and checks the following remaining_accounts:
-/// 
+///
 /// pub token_program: Program<'info, Token>,
-/// 
+///
 /// pub token_2022_program: Program<'info, Token2022>,
-/// 
+///
 fn execute_transfers<'info>(
     user: Pubkey,
     delegate: &AccountInfo<'info>,
@@ -53,8 +54,16 @@ fn execute_transfers<'info>(
     let token_program = next_account_info(&mut remaining_accounts_iter)?;
     let token_2022_program = next_account_info(&mut remaining_accounts_iter)?;
 
-    require_keys_eq!(token_program.key(), anchor_spl::token::ID);
-    require_keys_eq!(token_2022_program.key(), anchor_spl::token_2022::ID);
+    require_keys_eq!(
+        token_program.key(),
+        anchor_spl::token::ID,
+        SettlerError::IncorrectTokenProgram
+    );
+    require_keys_eq!(
+        token_2022_program.key(),
+        anchor_spl::token_2022::ID,
+        SettlerError::IncorrectTokenProgram
+    );
 
     for transfer in &intent_data.transfers {
         execute_transfer(
@@ -72,24 +81,24 @@ fn execute_transfers<'info>(
 }
 
 /// Deserializes and checks the following remaining_accounts:
-/// 
+///
 /// #[account(
 ///     address = transfer.token,
 /// )]
 /// pub token: Account<'info, Mint>,
-/// 
+///
 /// #[account(
 ///     address = transfer.recipient,
 /// )]
 /// pub recipient: AccountInfo<'info>,
-/// 
+///
 /// #[account(
 ///     mut,
 ///     token::authority = recipient,
 ///     token::mint = token,
 /// )]
 /// pub recipient_token_account: Account<'info, TokenAccount>,
-/// 
+///
 /// #[account(
 ///     mut,
 ///     token::authority = user,
@@ -97,7 +106,7 @@ fn execute_transfers<'info>(
 /// )]
 /// NOTE: must have PDA delegate approved and amount at least transfer.amount
 /// pub user_token_account: Account<'info, TokenAccount>,
-/// 
+///
 fn execute_transfer<'info>(
     transfer: &SvmTransfer,
     delegate: &AccountInfo<'info>,
@@ -112,10 +121,8 @@ fn execute_transfer<'info>(
     let recipient_ta_account_info = next_account_info(remaining_accounts_iter)?;
     let user_ta_account_info = next_account_info(remaining_accounts_iter)?;
 
-    // TODO: validate account ownership
-    // token_account_info.owner = token or token2022
-    // recipient_ta_account_info = token or token2022
-    // user_ta_account_info = token or token2022
+    check_owner_is_token_program(recipient_ta_account_info)?;
+    check_owner_is_token_program(user_ta_account_info)?;
 
     let mut token_data: &[u8] = &token_account_info.try_borrow_data()?;
     let token_mint = IMint::try_deserialize(&mut token_data)?;
@@ -132,12 +139,32 @@ fn execute_transfer<'info>(
     let transfer_token = Pubkey::try_from(transfer.token.as_slice())
         .map_err(|_| error!(SettlerError::InvalidTransferToken))?;
 
-    require_keys_eq!(transfer_recipient, recipient_account_info.key());
-    require_keys_eq!(transfer_token, token_account_info.key());
-    require_keys_eq!(recipient_ta.owner, recipient_account_info.key());
-    require_keys_eq!(recipient_ta.mint, token_account_info.key());
-    require_keys_eq!(user_ta.owner, user);
-    require_keys_eq!(user_ta.mint, token_account_info.key());
+    require_keys_eq!(
+        transfer_recipient,
+        recipient_account_info.key(),
+        SettlerError::IncorrectTransferRecipient
+    );
+    require_keys_eq!(
+        transfer_token,
+        token_account_info.key(),
+        SettlerError::IncorrectTransferToken
+    );
+    require_keys_eq!(
+        recipient_ta.owner,
+        recipient_account_info.key(),
+        SettlerError::IncorrectRecipientTokenAccount
+    );
+    require_keys_eq!(
+        recipient_ta.mint,
+        token_account_info.key(),
+        SettlerError::IncorrectRecipientTokenAccount
+    );
+    require_keys_eq!(user_ta.owner, user, SettlerError::IncorrectUserTokenAccount);
+    require_keys_eq!(
+        user_ta.mint,
+        token_account_info.key(),
+        SettlerError::IncorrectUserTokenAccount
+    );
 
     let cpi_accounts = TransferChecked {
         authority: delegate.clone(),
@@ -146,11 +173,10 @@ fn execute_transfer<'info>(
         to: recipient_ta_account_info.clone(),
     };
 
-    let cpi_program = if *token_account_info.owner == anchor_spl::token::ID {
-        token_program.clone()
-    } else {
-        // TODO: validate that it is token2022, otherwise err
-        token_2022_program.clone()
+    let cpi_program = match *token_account_info.owner {
+        anchor_spl::token::ID => token_program.clone(),
+        anchor_spl::token_2022::ID => token_2022_program.clone(),
+        _ => err!(SettlerError::AccountNotOwnedByTokenProgram)?,
     };
 
     let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, delegate_seeds);
@@ -159,9 +185,11 @@ fn execute_transfer<'info>(
 
 fn validate_transfer(proposal: &Proposal, intent_data: &SvmTransferIntentData) -> Result<()> {
     require_eq!(intent_data.chain_id, 507424, SettlerError::IncorrectChainId);
-    require_eq!(proposal.instructions.len(), 0);
+    require_eq!(
+        proposal.instructions.len(),
+        0,
+        SettlerError::IncorrectProposalData
+    );
 
     Ok(())
 }
-
-// TODO: better error names for requires
