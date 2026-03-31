@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import { Address, Program, translateAddress, Wallet } from '@coral-xyz/anchor'
+import { Address, Program, translateAddress, Wallet, web3 } from '@coral-xyz/anchor'
 import {
   bytesToHex,
   Chains,
@@ -10,7 +10,9 @@ import {
   EthersSigner,
   ExtendIntentParams,
   hexToBytes,
+  Intent,
   OpType,
+  Proposal,
   ProposalInstruction,
   ProposalSigner,
   randomHex,
@@ -18,9 +20,20 @@ import {
   SolanaEip712Domain,
   SvmController,
   SvmSettler,
+  TransferIntentData,
   ValidatorSigner,
 } from '@mimicprotocol/sdk'
+import { svmEncodeTransferIntent } from '@mimicprotocol/sdk/dist/shared/codec/chains/svm'
 import {
+  createAssociatedTokenAccountInstruction,
+  createInitializeMintInstruction,
+  createMintToInstruction,
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token'
+import {
+  AccountMeta,
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
   PublicKey,
@@ -2294,11 +2307,153 @@ describe('Settler', () => {
   })
 
   describe('execute_proposal', () => {
-    context('when intent is transfer', () => {
-      const itThrowsAnError = () => {
-        it('throws an error', async () => {
-          // TODO
+    let ix: TransactionInstruction
+    let intentHash: string
+    let intent: Intent
+    let proposal: Proposal
+    let remainingAccounts: AccountMeta[]
+
+    const user = randomKeypair()
+    const usdc = randomKeypair()
+    const recipient = randomPubkey()
+
+    let userAta: web3.PublicKey
+    let recipientAta: web3.PublicKey
+
+    const validator = ethers.Wallet.createRandom()
+    const axia = ethers.Wallet.createRandom()
+
+    const createIx = async (
+      sdk: SvmSettler,
+      accountsPartial: Partial<{
+        solver: web3.PublicKey
+        proposalCreator: web3.PublicKey
+        proposal: web3.PublicKey
+        intentCreator: web3.PublicKey
+        intent: web3.PublicKey
+        delegate: web3.PublicKey
+      }> = {}
+    ) => {
+      const ix = await settler.methods
+        .executeProposal()
+        .accountsPartial({
+          solver: sdk.getSignerKey(),
+          solverRegistry: sdk.getEntityRegistryKey(EntityType.Solver, sdk.getSignerKey()),
+          proposalCreator: translateAddress(proposal.solver),
+          proposal: sdk.getProposalKey(intentHash, proposal.solver),
+          intentCreator: proposal.solver,
+          intent: sdk.getIntentKey(intentHash),
+          fulfilledIntent: sdk.getFulfilledIntentKey(intentHash),
+          delegate: sdk.getDelegateKey(intent.user),
+          ...accountsPartial,
         })
+        .remainingAccounts(remainingAccounts)
+        .instruction()
+      return ix
+    }
+
+    const itThrowsAnError = async (error: string) => {
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expectTransactionError(res.toString(), error)
+      })
+    }
+
+    const createTestIntent = (data: string): Intent => ({
+      configSig: randomHex(32),
+      data,
+      deadline: (Date.now() + 1000).toString(),
+      events: [{ topic: randomHex(32), data: randomHex(50) }],
+      maxFees: [{ token: usdc.publicKey.toString(), amount: '100' }],
+      minValidations: 1,
+      nonce: randomHex(32),
+      op: 1,
+      settler: settler.programId.toString(),
+      user: user.publicKey.toString(),
+    })
+
+    const createTestProposal = (
+      intent: Intent,
+      data = '0x',
+      solver: PublicKey = solverSdk.getSignerKey()
+    ): Proposal => ({
+      data,
+      deadline: intent.deadline,
+      fees: intent.maxFees.map((mf) => mf.amount),
+      solver: solver.toString(),
+    })
+
+    const prepareIntentAndProposal = async (sdk: SvmSettler = solverSdk) => {
+      await makeTxSignAndSend(solverProvider, await sdk.createIntentIx(intentHash, intent, true))
+
+      const validatorSig = await new ValidatorSigner(EthersSigner.fromPrivateKey(validator.privateKey)).signIntentHash({
+        hash: intentHash,
+        settler: settler.programId.toString(),
+        chainId: Chains.Solana,
+      })
+
+      await makeTxSignAndSend(
+        solverProvider,
+        ...(await sdk.addValidatorSigIxs(intentHash, validator.address, validatorSig))
+      )
+
+      await makeTxSignAndSend(
+        solverProvider,
+        await sdk.createProposalIx(intentHash, {
+          instructions: [],
+          ...proposal,
+          isFinal: true,
+        })
+      )
+
+      const axiaSig = await new ProposalSigner(EthersSigner.fromPrivateKey(axia.privateKey)).signProposal(
+        { ...proposal, intent: intentHash },
+        {
+          address: settler.programId.toString(),
+          chainId: Chains.Solana,
+        }
+      )
+
+      await makeTxSignAndSend(solverProvider, ...(await sdk.addAxiaSigIxs(intentHash, proposal, axia.address, axiaSig)))
+    }
+
+    before('Create validator, Axia, USDC and fund user', async () => {
+      await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Validator, hexToBytes(validator.address))
+      await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Axia, hexToBytes(axia.address))
+
+      adminProvider.client.airdrop(admin.publicKey, toLamports(100))
+      userAta = getAssociatedTokenAddressSync(usdc.publicKey, user.publicKey)
+      recipientAta = getAssociatedTokenAddressSync(usdc.publicKey, recipient)
+
+      const createUsdcIx = createInitializeMintInstruction(usdc.publicKey, 9, admin.publicKey, null)
+      const createAtaIxs = [
+        createAssociatedTokenAccountInstruction(admin.publicKey, userAta, user.publicKey, usdc.publicKey),
+        createAssociatedTokenAccountInstruction(admin.publicKey, recipientAta, recipient, usdc.publicKey),
+      ]
+      const mintTokensIx = createMintToInstruction(usdc.publicKey, userAta, admin.publicKey, 100_000_000_000)
+
+      // TODO: fix this part too
+      await makeTxSignAndSend(adminProvider, createUsdcIx, ...createAtaIxs, mintTokensIx)
+    })
+
+    context('when intent is transfer', () => {
+      const createTestIntentData = (transfers?: TransferIntentData['transfers']): TransferIntentData => ({
+        chainId: Chains.Solana,
+        transfers: transfers ?? [],
+      })
+
+      const getRemainingAccounts = (transfers: TransferIntentData['transfers']): AccountMeta[] => {
+        const tokenProgram: AccountMeta = { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }
+        const token2022Program: AccountMeta = { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false }
+
+        const transferAccounts = transfers.flatMap((transfer) => [
+          { pubkey: translateAddress(transfer.token), isSigner: false, isWritable: false },
+          { pubkey: translateAddress(transfer.recipient), isSigner: false, isWritable: false },
+          { pubkey: recipientAta, isSigner: false, isWritable: true },
+          { pubkey: userAta, isSigner: false, isWritable: true },
+        ])
+
+        return [tokenProgram, token2022Program, ...transferAccounts]
       }
 
       const itWorksAsExpected = () => {
@@ -2306,26 +2461,55 @@ describe('Settler', () => {
           context('when transfer/s is/are valid', () => {
             context('when protocol has approval', () => {
               context('when user has sufficient funds', () => {
-                it('executes transfer', async () => {})
+                const transfers = [
+                  {
+                    amount: '1000000000',
+                    token: usdc.publicKey.toString(),
+                    recipient: recipient.toString(),
+                  },
+                ]
+
+                const testIntentData = createTestIntentData(transfers)
+
+                beforeEach(async () => {
+                  intentHash = randomHex(32)
+                  intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                  proposal = createTestProposal(intent)
+                  remainingAccounts = getRemainingAccounts(transfers)
+
+                  await prepareIntentAndProposal()
+
+                  ix = await createIx(solverSdk)
+                })
+
+                it('executes transfer', async () => {
+                  const res = await makeTxSignAndSend(solverProvider, ix)
+                  console.log(res.toString())
+
+                  // Check intent is closed
+                  // Check proposal is closed
+                  // Check fulfilled intent is initialized
+                  // Check tokens were sent correctly
+                })
               })
 
               context('when user does not have sufficient funds', () => {
-                itThrowsAnError()
+                itThrowsAnError('Insufficient funds')
               })
             })
 
             context('when protocol does not have approval', () => {
-              itThrowsAnError()
+              itThrowsAnError('Delegate mismatch')
             })
           })
 
           context('when proposal is not valid', () => {
             context('when proposal intent is not for chain Solana', () => {
-              itThrowsAnError()
+              itThrowsAnError('Incorrect chain id')
             })
 
             context('when proposal has data/instructions', () => {
-              itThrowsAnError()
+              itThrowsAnError('Incorrect proposal data')
             })
           })
         })
@@ -2334,41 +2518,41 @@ describe('Settler', () => {
           context('when remaining accounts number is correct', () => {
             context('when token programs are passed correctly', () => {
               context('when token is incorrect', () => {
-                itThrowsAnError()
+                itThrowsAnError('Incorrect token mint')
               })
 
               context('when recipient is incorrect', () => {
-                itThrowsAnError()
+                itThrowsAnError('Incorrect recipient')
               })
 
               context('when recipient token account is incorrect', () => {
                 context('when authority is incorrect', () => {
-                  itThrowsAnError()
+                  itThrowsAnError('Incorrect recipient token account authority')
                 })
 
                 context('when token mint is incorrect', () => {
-                  itThrowsAnError()
+                  itThrowsAnError('Incorrect recipient token account mint')
                 })
               })
 
               context('when user token account is incorrect', () => {
                 context('when authority is incorrect', () => {
-                  itThrowsAnError()
+                  itThrowsAnError('Incorrect user token account authority')
                 })
 
                 context('when token mint is incorrect', () => {
-                  itThrowsAnError()
+                  itThrowsAnError('Incorrect user token account mint')
                 })
               })
             })
 
             context('when token programs are not passed correctly', () => {
-              itThrowsAnError()
+              itThrowsAnError('Incorrect token program account')
             })
           })
 
           context('when remaining accounts number is not correct', () => {
-            itThrowsAnError()
+            itThrowsAnError('ProgramError')
           })
         })
       }
@@ -2389,19 +2573,19 @@ describe('Settler', () => {
 
               context('when proposal is not correct', () => {
                 context('when proposal is for another intent', () => {
-                  itThrowsAnError()
+                  itThrowsAnError('Incorrect intent for proposal')
                 })
 
-                context('when proposal is from another solver', () => {
-                  itThrowsAnError()
+                context('when proposal is from another proposal creator', () => {
+                  itThrowsAnError('Incorrect proposal creator')
                 })
 
                 context('when proposal is not signed', () => {
-                  itThrowsAnError()
+                  itThrowsAnError('Proposal is not signed')
                 })
 
                 context('when proposal is expired', () => {
-                  itThrowsAnError()
+                  itThrowsAnError('Proposal is expired')
                 })
               })
             })
@@ -2409,7 +2593,7 @@ describe('Settler', () => {
 
           context('when intent is not correct', () => {
             context('when intent_creator is not correct', () => {
-              itThrowsAnError()
+              itThrowsAnError('Incorrect intent creator')
             })
           })
         })
