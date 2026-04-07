@@ -10,13 +10,13 @@ import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { Contract } from 'ethers'
 import { network } from 'hardhat'
 
-import { Account, toAddress } from '../addresses'
-import { toArray } from '../arrays'
+import { Account, toAddress } from '../addresses.js'
+import { toArray } from '../arrays.js'
 import { hashIntent, Intent } from '../intents'
 
 export type Proposal = {
   deadline: BigNumberish
-  data: string
+  datas: string[]
   fees: BigNumberish[]
 }
 
@@ -34,7 +34,7 @@ export async function signProposal(
     intent: hashIntent(intent),
     solver: toAddress(solver),
     deadline: proposal.deadline,
-    data: proposal.data,
+    datas: proposal.datas,
     fees: proposal.fees,
   })
 }
@@ -51,7 +51,7 @@ export function toRawProposal(proposal: Proposal, solver: Account): RawProposal 
   return {
     solver: toAddress(solver),
     deadline: proposal.deadline.toString(),
-    data: proposal.data,
+    datas: proposal.datas,
     fees: toArray(proposal.fees).map((fee) => fee.toString()),
   }
 }
@@ -59,7 +59,7 @@ export function toRawProposal(proposal: Proposal, solver: Account): RawProposal 
 function getDefaults(): Proposal {
   return {
     deadline: MAX_UINT256,
-    data: '0x',
+    datas: ['0x'],
     fees: [],
   }
 }

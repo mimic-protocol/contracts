@@ -10,10 +10,14 @@ import '../../interfaces/IExecutor.sol';
 contract MintExecutorMock is IExecutor {
     event Minted();
 
-    function execute(Intent memory intent, Proposal memory proposal) external override {
-        require(intent.op == uint8(OpType.Swap), 'Invalid intent type');
+    function execute(Intent memory intent, Proposal memory proposal, uint256 index) external override {
+        Operation memory operation = intent.operations[index];
+        require(
+            operation.opType == uint8(OpType.Swap) || operation.opType == uint8(OpType.CrossChainSwap),
+            'Invalid operation type'
+        );
 
-        SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
+        SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
         (address[] memory tokens, uint256[] memory amounts) = abi.decode(swapProposal.data, (address[], uint256[]));
 
         require(tokens.length == amounts.length, 'Invalid inputs');

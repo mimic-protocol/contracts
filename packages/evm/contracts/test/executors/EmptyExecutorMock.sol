@@ -7,7 +7,7 @@ import '../../interfaces/IExecutor.sol';
 contract EmptyExecutorMock is IExecutor {
     event Executed();
 
-    function execute(Intent memory, Proposal memory) external override {
+    function execute(Intent memory, Proposal memory, uint256) external override {
         emit Executed();
     }
 }

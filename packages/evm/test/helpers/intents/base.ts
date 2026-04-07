@@ -16,27 +16,36 @@ export type MaxFee = {
   amount: BigNumberish
 }
 
-export type IntentEvent = {
+export type OperationEvent = {
   topic: string
   data?: string
 }
 
-export type Intent = {
-  op: OpType
-  settler: Account
+export type Operation = {
+  opType: OpType
   user: Account
+  data: string
+  events: OperationEvent[]
+}
+
+export type Intent = {
+  settler: Account
+  feePayer: Account
   nonce: string
   deadline: BigNumberish
-  data: string
   maxFees: MaxFee[]
-  events: IntentEvent[]
-  configSig: string
+  triggerSig: string
   minValidations: number
   validations: string[]
+  operations: Operation[]
 }
 
 export function createIntent(params?: Partial<Intent>): Intent {
   return { ...getDefaults(), ...params }
+}
+
+export function createOperation(params?: Partial<Operation>): Operation {
+  return { ...getOperationDefaults(), ...params }
 }
 
 export function hashIntent(intent: Intent): string {
@@ -45,31 +54,41 @@ export function hashIntent(intent: Intent): string {
 
 function toRawIntent(intent: Intent): RawIntent {
   return {
-    op: intent.op,
-    user: toAddress(intent.user),
+    feePayer: toAddress(intent.feePayer),
     settler: toAddress(intent.settler),
     nonce: intent.nonce.toString(),
     deadline: intent.deadline.toString(),
-    data: intent.data,
     maxFees: intent.maxFees.map(({ token, amount }) => ({ token: toAddress(token), amount: amount.toString() })),
-    events: intent.events.map(({ topic, data }) => ({ topic, data: data || '0x' })),
-    configSig: intent.configSig,
+    triggerSig: intent.triggerSig,
     minValidations: intent.minValidations,
+    operations: intent.operations.map(({ opType, user, data, events }) => ({
+      opType,
+      user: toAddress(user),
+      data,
+      events: events.map(({ topic, data }) => ({ topic, data: data || '0x' })),
+    })),
+  }
+}
+
+function getOperationDefaults(): Operation {
+  return {
+    opType: OpType.Transfer,
+    user: randomEvmAddress(),
+    data: '0x',
+    events: [],
   }
 }
 
 function getDefaults(): Intent {
   return {
-    op: OpType.Transfer,
     settler: randomEvmAddress(),
-    user: randomEvmAddress(),
+    feePayer: randomEvmAddress(),
     nonce: randomHex(32),
     deadline: MAX_UINT256,
-    data: '0x',
     maxFees: [],
-    events: [],
-    configSig: randomSig(),
+    triggerSig: randomSig(),
     minValidations: 0,
     validations: [],
+    operations: [getOperationDefaults()],
   }
 }

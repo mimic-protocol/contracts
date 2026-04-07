@@ -9,9 +9,10 @@ import '../Intents.sol';
  */
 interface IExecutor {
     /**
-     * @dev Executes an intent proposal
-     * @param intent Intent to be executed
-     * @param proposal Proposal to be executed to fulfill the intent
+     * @dev Executes an operation proposal
+     * @param intent Intent that contains swap operation to be executed
+     * @param proposal Proposal with swap data to be executed
+     * @param index Position where the swap proposal data and operation are located
      */
-    function execute(Intent memory intent, Proposal memory proposal) external;
+    function execute(Intent memory intent, Proposal memory proposal, uint256 index) external;
 }

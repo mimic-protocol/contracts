@@ -1,10 +1,10 @@
-import { BigNumberish, encodeSwapIntent, OpType, SwapIntentData } from '@mimicprotocol/sdk'
+import { BigNumberish, encodeSwapOperation, OpType, SwapOperationData } from '@mimicprotocol/sdk'
 
-import { Account, toAddress } from '../addresses'
-import { NAry, toArray } from '../arrays'
-import { createIntent, Intent } from './base'
+import { Account, toAddress } from '../addresses.js'
+import { NAry, toArray } from '../arrays.js'
+import { createIntent, createOperation, Intent, Operation } from './base.js'
 
-export type SwapIntent = Intent & {
+export type SwapOperation = Operation & {
   sourceChain: number
   destinationChain: number
   tokensIn: NAry<TokenIn>
@@ -22,22 +22,46 @@ export interface TokenOut {
   recipient: Account
 }
 
-export function createSwapIntent(params?: Partial<SwapIntent>): Intent {
-  const intent = createIntent({ ...params, op: OpType.Swap })
-  const swapIntent = { ...getDefaults(), ...params, ...intent } as SwapIntent
-  intent.data = encodeSwapIntent(toSwapIntentData(swapIntent))
+export function createSwapIntent(intentParams?: Partial<Intent>, operationParams?: Partial<SwapOperation>): Intent {
+  const intent = createIntent({ ...intentParams })
+  const operation = createSwapOperation({ ...operationParams })
+  intent.operations = [operation]
   return intent
 }
 
-function toSwapIntentData(intent: SwapIntent): SwapIntentData {
+export function createCrossChainSwapIntent(
+  intentParams?: Partial<Intent>,
+  operationParams?: Partial<SwapOperation>
+): Intent {
+  const intent = createIntent({ ...intentParams })
+  const operation = createCrossChainSwapOperation({ ...operationParams })
+  intent.operations = [operation]
+  return intent
+}
+
+export function createSwapOperation(params?: Partial<SwapOperation>): Operation {
+  const operation = createOperation({ ...params, opType: OpType.Swap })
+  const swapOperation = { ...getDefaults(), ...params, ...operation } as SwapOperation
+  operation.data = encodeSwapOperation(toSwapOperationData(swapOperation))
+  return operation
+}
+
+export function createCrossChainSwapOperation(params?: Partial<SwapOperation>): Operation {
+  const operation = createOperation({ ...params, opType: OpType.CrossChainSwap })
+  const swapOperation = { ...getCrossChainDefaults(), ...params, ...operation } as SwapOperation
+  operation.data = encodeSwapOperation(toSwapOperationData(swapOperation))
+  return operation
+}
+
+function toSwapOperationData(operation: SwapOperation): SwapOperationData {
   return {
-    sourceChain: intent.sourceChain.toString(),
-    destinationChain: intent.destinationChain.toString(),
-    tokensIn: toArray(intent.tokensIn).map(({ token, amount }) => ({
+    sourceChain: operation.sourceChain,
+    destinationChain: operation.destinationChain,
+    tokensIn: toArray(operation.tokensIn).map(({ token, amount }) => ({
       token: toAddress(token),
       amount: amount.toString(),
     })),
-    tokensOut: toArray(intent.tokensOut).map(({ token, minAmount, recipient }) => ({
+    tokensOut: toArray(operation.tokensOut).map(({ token, minAmount, recipient }) => ({
       token: toAddress(token),
       minAmount: minAmount.toString(),
       recipient: toAddress(recipient),
@@ -45,11 +69,18 @@ function toSwapIntentData(intent: SwapIntent): SwapIntentData {
   }
 }
 
-function getDefaults(): Partial<SwapIntent> {
+function getDefaults(): Partial<SwapOperation> {
   return {
     sourceChain: 31337,
     destinationChain: 31337,
     tokensIn: [],
     tokensOut: [],
+  }
+}
+
+function getCrossChainDefaults(): Partial<SwapOperation> {
+  return {
+    ...getDefaults(),
+    destinationChain: 1,
   }
 }
