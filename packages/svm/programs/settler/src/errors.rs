@@ -23,10 +23,10 @@ pub enum SettlerError {
     #[msg("Validator is not allowlisted")]
     ValidatorNotAllowlisted,
 
-    #[msg("Signer must be intent creator")]
+    #[msg("Incorrect intent creator")]
     IncorrectIntentCreator,
 
-    #[msg("Signer must be proposal creator")]
+    #[msg("Incorrect proposal creator")]
     IncorrectProposalCreator,
 
     #[msg("Intent is already final")]

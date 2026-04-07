@@ -74,6 +74,7 @@ import {
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   PROPOSAL_DEADLINE_OFFSET,
+  ProposalAccount,
   randomKeypair,
   randomPubkey,
   removeEntityFromAllowlist,
@@ -179,7 +180,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('update_eip712_domain', () => {
+  describe('update_eip712_domain', () => {
     context('when caller is controller admin', () => {
       context('when domain is valid', () => {
         const itUpdatesDomainCorrectly = (testCase: string, domain: SolanaEip712Domain) => {
@@ -240,7 +241,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('create_intent', () => {
+  describe('create_intent', () => {
     let intentHash: string
     let intentOptions: CreateIntentOptions = {}
 
@@ -518,7 +519,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('extend_intent', () => {
+  describe('extend_intent', () => {
     let intentHash: string
     let intentKey: PublicKey
     let extendParams: ExtendIntentParams = {}
@@ -816,12 +817,12 @@ describe('Settler', () => {
         const ix = await maliciousSdk.extendIntentIx(intentHash, extendParams, false)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-        expectTransactionError(res, `Signer must be intent creator`)
+        expectTransactionError(res, `Incorrect intent creator`)
       })
     })
   })
 
-  describe.skip('claim_stale_intent', () => {
+  describe('claim_stale_intent', () => {
     let intentHash: string
 
     context('when caller is intent creator', () => {
@@ -962,12 +963,12 @@ describe('Settler', () => {
       it('throws an error', async () => {
         const ix = await maliciousSdk.claimStaleIntentIx(intentHash)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
-        expectTransactionError(res, `Signer must be intent creator`)
+        expectTransactionError(res, `Incorrect intent creator`)
       })
     })
   })
 
-  describe.skip('create_proposal', () => {
+  describe('create_proposal', () => {
     let params: CreateProposalParams & { intentHash: string }
 
     const createProposalFromParams = async () => {
@@ -1310,7 +1311,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('add_instructions_to_proposal', () => {
+  describe('add_instructions_to_proposal', () => {
     const createTestProposal = async (options?: CreateProposalOptions): Promise<string> => {
       const params = await createProposalParams(solverSdk, solverProvider, client, options)
       const ix = await solverSdk.createProposalIx(params.intentHash, params)
@@ -1530,12 +1531,12 @@ describe('Settler', () => {
           .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-        expectTransactionError(res, `Signer must be proposal creator`)
+        expectTransactionError(res, `Incorrect proposal creator`)
       })
     })
   })
 
-  describe.skip('claim_stale_proposal', () => {
+  describe('claim_stale_proposal', () => {
     const createTestProposal = async (options?: CreateProposalOptions): Promise<string> => {
       const params = await createProposalParams(solverSdk, solverProvider, client, options)
       const ix = await solverSdk.createProposalIx(params.intentHash, params)
@@ -1651,12 +1652,12 @@ describe('Settler', () => {
           .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-        expectTransactionError(res, `Signer must be proposal creator`)
+        expectTransactionError(res, `Incorrect proposal creator`)
       })
     })
   })
 
-  describe.skip('add_validator_sigs', () => {
+  describe('add_validator_sigs', () => {
     const createAllowlistedValidator = async () => {
       const validator = ethers.Wallet.createRandom()
       await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Validator, hexToBytes(validator.address))
@@ -1990,7 +1991,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('add_axia_sig', () => {
+  describe('add_axia_sig', () => {
     const createAllowlistedAxia = async () => {
       const axia = ethers.Wallet.createRandom()
       await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Axia, hexToBytes(axia.address))
@@ -2328,6 +2329,7 @@ describe('Settler', () => {
         proposal: web3.PublicKey
         intentCreator: web3.PublicKey
         intent: web3.PublicKey
+        fulfilledIntent: web3.PublicKey
         delegate: web3.PublicKey
       }> = {}
     ) => {
@@ -2359,7 +2361,7 @@ describe('Settler', () => {
     const createTestIntent = (data: string): Intent => ({
       configSig: randomHex(32),
       data,
-      deadline: (Date.now() + 1000).toString(),
+      deadline: (Number(client.getClock().unixTimestamp) + 1000).toString(),
       events: [{ topic: randomHex(32), data: randomHex(50) }],
       maxFees: [{ token: usdc.toString(), amount: '100' }],
       minValidations: 1,
@@ -2440,6 +2442,17 @@ describe('Settler', () => {
     })
 
     context('when intent is transfer', () => {
+      let transfers: TransferIntentData['transfers']
+      let testIntentData: TransferIntentData
+
+      const testTransfers = () => [
+        {
+          amount: '1000000000',
+          token: usdc.toString(),
+          recipient: recipient.toString(),
+        },
+      ]
+
       const createTestIntentData = (transfers?: TransferIntentData['transfers']): TransferIntentData => ({
         chainId: Chains.Solana,
         transfers: transfers ?? [],
@@ -2459,18 +2472,24 @@ describe('Settler', () => {
         return [tokenProgram, token2022Program, ...transferAccounts]
       }
 
+      const editProposal = async (proposalKey: web3.PublicKey, editedProposal: Partial<ProposalAccount>) => {
+        const proposalAccount = await settler.account.proposal.fetch(proposalKey)
+        const proposalInfo = client.getAccount(proposalKey)!
+
+        const modifiedProposal = {
+          ...proposalAccount,
+          ...editedProposal,
+        }
+
+        const serializedProposal = await settler.coder.accounts.encode('proposal', modifiedProposal)
+
+        client.setAccount(proposalKey, {
+          ...proposalInfo,
+          data: serializedProposal,
+        })
+      }
+
       const itWorksAsExpected = () => {
-        let transfers: TransferIntentData['transfers']
-        let testIntentData: TransferIntentData
-
-        const testTransfers = () => [
-          {
-            amount: '1000000000',
-            token: usdc.toString(),
-            recipient: recipient.toString(),
-          },
-        ]
-
         context('when remaining accounts are correct', () => {
           context('when transfer/s is/are valid', () => {
             context('when protocol has approval', () => {
@@ -2622,30 +2641,6 @@ describe('Settler', () => {
             })
 
             context('when proposal has data/instructions', () => {
-              const editProposal = async () => {
-                const proposalKey = sdk.getProposalKey(intentHash, proposal.solver)
-                const proposalAccount = await settler.account.proposal.fetch(proposalKey)
-                const proposalInfo = client.getAccount(proposalKey)!
-
-                const modifiedProposal = {
-                  ...proposalAccount,
-                  instructions: [
-                    {
-                      programId: randomPubkey(),
-                      accounts: [],
-                      data: Buffer.from('deadbeef', 'hex'),
-                    },
-                  ],
-                }
-
-                const serializedProposal = await settler.coder.accounts.encode('proposal', modifiedProposal)
-
-                client.setAccount(proposalKey, {
-                  ...proposalInfo,
-                  data: serializedProposal,
-                })
-              }
-
               beforeEach('Create Proposal and manually edit bytes to add data on-chain', async () => {
                 transfers = testTransfers()
                 testIntentData = createTestIntentData(transfers)
@@ -2655,7 +2650,15 @@ describe('Settler', () => {
                 remainingAccounts = getRemainingAccounts(transfers)
 
                 await prepareIntentAndProposal()
-                editProposal()
+                editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), {
+                  instructions: [
+                    {
+                      programId: randomPubkey(),
+                      accounts: [],
+                      data: Buffer.from('deadbeef', 'hex'),
+                    },
+                  ],
+                })
 
                 ix = await createIx(solverSdk)
               })
@@ -2833,20 +2836,62 @@ describe('Settler', () => {
               })
 
               context('when proposal is not correct', () => {
+                beforeEach('Setup base data', async () => {
+                  transfers = testTransfers()
+                  testIntentData = createTestIntentData(transfers)
+                  intentHash = randomHex(32)
+                  intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                  proposal = createTestProposal(intent)
+                  remainingAccounts = getRemainingAccounts(transfers)
+                })
+
                 context('when proposal is for another intent', () => {
+                  beforeEach(async () => {
+                    const otherIntentHash = randomHex(32)
+                    const otherIntent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                    const otherIntentKey = solverSdk.getIntentKey(otherIntentHash)
+                    const otherFulfilledIntentKey = solverSdk.getFulfilledIntentKey(otherIntentHash)
+                    await makeTxSignAndSend(
+                      solverProvider,
+                      await solverSdk.createIntentIx(otherIntentHash, otherIntent, true)
+                    )
+
+                    await prepareIntentAndProposal()
+                    ix = await createIx(solverSdk, { intent: otherIntentKey, fulfilledIntent: otherFulfilledIntentKey })
+                  })
+
                   itThrowsAnError('Incorrect intent for proposal')
                 })
 
                 context('when proposal is from another proposal creator', () => {
+                  beforeEach(async () => {
+                    await prepareIntentAndProposal()
+                    ix = await createIx(solverSdk, { proposalCreator: randomPubkey() })
+                  })
+
                   itThrowsAnError('Incorrect proposal creator')
                 })
 
                 context('when proposal is not signed', () => {
+                  beforeEach(async () => {
+                    await prepareIntentAndProposal()
+                    editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), { isSigned: false })
+                    ix = await createIx(solverSdk)
+                  })
+
                   itThrowsAnError('Proposal is not signed')
                 })
 
                 context('when proposal is expired', () => {
-                  itThrowsAnError('Proposal is expired')
+                  beforeEach(async () => {
+                    await prepareIntentAndProposal()
+                    ix = await createIx(solverSdk)
+
+                    const delta = Number(proposal.deadline) - Number(client.getClock().unixTimestamp)
+                    warpSeconds(solverProvider, delta * 2)
+                  })
+
+                  itThrowsAnError('Proposal has already expired')
                 })
               })
             })
@@ -2854,6 +2899,18 @@ describe('Settler', () => {
 
           context('when intent is not correct', () => {
             context('when intent_creator is not correct', () => {
+              beforeEach(async () => {
+                transfers = testTransfers()
+                testIntentData = createTestIntentData(transfers)
+                intentHash = randomHex(32)
+                intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                proposal = createTestProposal(intent)
+                remainingAccounts = getRemainingAccounts(transfers)
+
+                await prepareIntentAndProposal()
+                ix = await createIx(solverSdk, { intentCreator: randomPubkey() })
+              })
+
               itThrowsAnError('Incorrect intent creator')
             })
           })
@@ -2861,12 +2918,41 @@ describe('Settler', () => {
       })
 
       context('when caller is not allowlisted solver', () => {
-        it('throws an error', async () => {})
+        beforeEach(async () => {
+          transfers = testTransfers()
+          testIntentData = createTestIntentData(transfers)
+          intentHash = randomHex(32)
+          intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+          proposal = createTestProposal(intent)
+          remainingAccounts = getRemainingAccounts(transfers)
+
+          await prepareIntentAndProposal()
+          ix = await createIx(maliciousSdk)
+        })
+
+        it('throws an error', async () => {
+          const res = await makeTxSignAndSend(maliciousProvider, ix)
+          expect(res.toString()).to.include(
+            'AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized'
+          )
+        })
       })
     })
 
     context('when intent is not transfer', () => {
-      it('throws an error', async () => {})
+      beforeEach(async () => {
+        intentHash = randomHex(32)
+        intent = { ...createTestIntent('0xdeadbeef'), op: 2 }
+        proposal = createTestProposal(intent)
+
+        await prepareIntentAndProposal()
+        ix = await createIx(solverSdk)
+      })
+
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expect(res.toString()).to.include('Unsupported intent op')
+      })
     })
   })
 })
