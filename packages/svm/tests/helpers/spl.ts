@@ -35,7 +35,7 @@ const DEFAULT_CREATE_MINT_PARAMS: CreateMintParams = {
 export function createMint(
   client: LiteSVM,
   mintAuthority: web3.Keypair,
-  params: Partial<CreateMintParams>
+  params: Partial<CreateMintParams> = {}
 ): CreateMintResult {
   const mint = randomKeypair()
   const { decimals, freezeAuthority, programId } = { ...DEFAULT_CREATE_MINT_PARAMS, ...params }

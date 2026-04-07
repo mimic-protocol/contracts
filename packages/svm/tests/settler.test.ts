@@ -2352,7 +2352,6 @@ describe('Settler', () => {
     const itThrowsAnError = async (error: string) => {
       it('throws an error', async () => {
         const res = await makeTxSignAndSend(solverProvider, ix)
-        console.log(res.toString())
         expectTransactionError(res.toString(), error)
       })
     }
@@ -2667,44 +2666,154 @@ describe('Settler', () => {
         })
 
         context('when remaining accounts are not correct', () => {
+          beforeEach('Set up base data', async () => {
+            transfers = testTransfers()
+            testIntentData = createTestIntentData(transfers)
+            intentHash = randomHex(32)
+            intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+            proposal = createTestProposal(intent)
+            remainingAccounts = getRemainingAccounts(transfers)
+          })
+
           context('when remaining accounts number is correct', () => {
             context('when token programs are passed correctly', () => {
               context('when token is incorrect', () => {
-                itThrowsAnError('Incorrect token mint')
+                beforeEach(async () => {
+                  remainingAccounts[2].pubkey = createMint(client, admin).mint
+                  await prepareIntentAndProposal()
+                  ix = await createIx(solverSdk)
+                })
+
+                itThrowsAnError('Incorrect transfer token mint account')
               })
 
               context('when recipient is incorrect', () => {
-                itThrowsAnError('Incorrect recipient')
+                beforeEach(async () => {
+                  remainingAccounts[3].pubkey = randomPubkey()
+                  await prepareIntentAndProposal()
+                  ix = await createIx(solverSdk)
+                })
+
+                itThrowsAnError('Incorrect transfer recipient account')
               })
 
               context('when recipient token account is incorrect', () => {
                 context('when authority is incorrect', () => {
-                  itThrowsAnError('Incorrect recipient token account authority')
+                  beforeEach(async () => {
+                    remainingAccounts[4].pubkey = userAta
+                    await prepareIntentAndProposal()
+                    ix = await createIx(solverSdk)
+                  })
+
+                  itThrowsAnError('Incorrect recipient token account: mint or authority do not match expected')
                 })
 
                 context('when token mint is incorrect', () => {
-                  itThrowsAnError('Incorrect recipient token account mint')
+                  beforeEach(async () => {
+                    remainingAccounts[4].pubkey = (
+                      await createFundedAta(adminProvider, admin, recipient, createMint(client, admin).mint, 0)
+                    ).ata
+
+                    await prepareIntentAndProposal()
+                    ix = await createIx(solverSdk)
+                  })
+
+                  itThrowsAnError('Incorrect recipient token account: mint or authority do not match expected')
                 })
               })
 
               context('when user token account is incorrect', () => {
                 context('when authority is incorrect', () => {
-                  itThrowsAnError('Incorrect user token account authority')
+                  beforeEach(async () => {
+                    remainingAccounts[5].pubkey = recipientAta
+                    await prepareIntentAndProposal()
+                    ix = await createIx(solverSdk)
+                  })
+
+                  itThrowsAnError('Incorrect user token account: mint or authority do not match expected')
                 })
 
                 context('when token mint is incorrect', () => {
-                  itThrowsAnError('Incorrect user token account mint')
+                  beforeEach(async () => {
+                    remainingAccounts[5].pubkey = (
+                      await createFundedAta(adminProvider, admin, user.publicKey, createMint(client, admin).mint, 0)
+                    ).ata
+
+                    await prepareIntentAndProposal()
+                    ix = await createIx(solverSdk)
+                  })
+
+                  itThrowsAnError('Incorrect user token account: mint or authority do not match expected')
                 })
               })
             })
 
             context('when token programs are not passed correctly', () => {
-              itThrowsAnError('Incorrect token program account')
+              context('when first program is wrong', () => {
+                beforeEach(async () => {
+                  remainingAccounts[0].pubkey = randomPubkey()
+                  await prepareIntentAndProposal()
+                  ix = await createIx(solverSdk)
+                })
+
+                itThrowsAnError('Incorrect token program account')
+              })
+
+              context('when second program is wrong', () => {
+                beforeEach(async () => {
+                  remainingAccounts[1].pubkey = randomPubkey()
+                  await prepareIntentAndProposal()
+                  ix = await createIx(solverSdk)
+                })
+
+                itThrowsAnError('Incorrect token program account')
+              })
+
+              context('when both programs are wrong', () => {
+                beforeEach(async () => {
+                  remainingAccounts[0].pubkey = randomPubkey()
+                  remainingAccounts[1].pubkey = randomPubkey()
+                  await prepareIntentAndProposal()
+                  ix = await createIx(solverSdk)
+                })
+
+                itThrowsAnError('Incorrect token program account')
+              })
             })
           })
 
           context('when remaining accounts number is not correct', () => {
-            itThrowsAnError('ProgramError')
+            context('when there are less remaining accounts than expected', () => {
+              beforeEach(async () => {
+                remainingAccounts.pop()
+                await prepareIntentAndProposal()
+                ix = await createIx(solverSdk)
+              })
+
+              itThrowsAnError('ProgramError')
+            })
+
+            context('when there are more remaining accounts than expected', () => {
+              beforeEach(async () => {
+                // Re-approve Delegate for test
+                await approveDelegate(
+                  userProvider,
+                  userAta,
+                  solverSdk.getDelegateKey(user.publicKey),
+                  user,
+                  Number(transfers[0].amount)
+                )
+
+                remainingAccounts.push({ pubkey: randomPubkey(), isWritable: true, isSigner: false })
+                await prepareIntentAndProposal()
+                ix = await createIx(solverSdk)
+              })
+
+              it('works normally', async () => {
+                const res = await makeTxSignAndSend(solverProvider, ix)
+                expect(res.toString()).not.to.include('FailedTransactionMetadata')
+              })
+            })
           })
         })
       }
