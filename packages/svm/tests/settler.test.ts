@@ -87,7 +87,7 @@ import {
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
 } from './helpers'
-import { approveDelegate, createFundedAta, createMint, getAtaBalance } from './helpers/spl'
+import { approveDelegate, createFundedAta, createMint, getAtaBalance, revokeDelegate } from './helpers/spl'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
@@ -2352,6 +2352,7 @@ describe('Settler', () => {
     const itThrowsAnError = async (error: string) => {
       it('throws an error', async () => {
         const res = await makeTxSignAndSend(solverProvider, ix)
+        console.log(res.toString())
         expectTransactionError(res.toString(), error)
       })
     }
@@ -2460,21 +2461,23 @@ describe('Settler', () => {
       }
 
       const itWorksAsExpected = () => {
+        let transfers: TransferIntentData['transfers']
+        let testIntentData: TransferIntentData
+
+        const testTransfers = () => [
+          {
+            amount: '1000000000',
+            token: usdc.toString(),
+            recipient: recipient.toString(),
+          },
+        ]
+
         context('when remaining accounts are correct', () => {
           context('when transfer/s is/are valid', () => {
             context('when protocol has approval', () => {
               context('when user has sufficient funds', () => {
-                let transfers: TransferIntentData['transfers']
-                let testIntentData: TransferIntentData
-
                 beforeEach('Create data and approve delegate', async () => {
-                  transfers = [
-                    {
-                      amount: '1000000000',
-                      token: usdc.toString(),
-                      recipient: recipient.toString(),
-                    },
-                  ]
+                  transfers = testTransfers()
 
                   await approveDelegate(
                     userProvider,
@@ -2485,7 +2488,6 @@ describe('Settler', () => {
                   )
 
                   testIntentData = createTestIntentData(transfers)
-
                   intentHash = randomHex(32)
                   intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
                   proposal = createTestProposal(intent)
@@ -2550,21 +2552,115 @@ describe('Settler', () => {
               })
 
               context('when user does not have sufficient funds', () => {
-                itThrowsAnError('Insufficient funds')
+                beforeEach('Create data and approve delegate', async () => {
+                  transfers = [
+                    {
+                      amount: '1000000000000',
+                      token: usdc.toString(),
+                      recipient: recipient.toString(),
+                    },
+                  ]
+
+                  await approveDelegate(
+                    userProvider,
+                    userAta,
+                    solverSdk.getDelegateKey(user.publicKey),
+                    user,
+                    Number(transfers[0].amount)
+                  )
+
+                  testIntentData = createTestIntentData(transfers)
+                  intentHash = randomHex(32)
+                  intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                  proposal = createTestProposal(intent)
+                  remainingAccounts = getRemainingAccounts(transfers)
+
+                  await prepareIntentAndProposal()
+
+                  ix = await createIx(solverSdk)
+                })
+
+                itThrowsAnError('insufficient funds')
               })
             })
 
             context('when protocol does not have approval', () => {
-              itThrowsAnError('Delegate mismatch')
+              beforeEach('Create data and remove delegate', async () => {
+                await revokeDelegate(userProvider, userAta, user)
+
+                transfers = testTransfers()
+                testIntentData = createTestIntentData(transfers)
+                intentHash = randomHex(32)
+                intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                proposal = createTestProposal(intent)
+                remainingAccounts = getRemainingAccounts(transfers)
+
+                await prepareIntentAndProposal()
+
+                ix = await createIx(solverSdk)
+              })
+
+              itThrowsAnError('owner does not match')
             })
           })
 
           context('when proposal is not valid', () => {
             context('when proposal intent is not for chain Solana', () => {
-              itThrowsAnError('Incorrect chain id')
+              beforeEach('Create data for Optimism', async () => {
+                transfers = testTransfers()
+                testIntentData = { ...createTestIntentData(transfers), chainId: Chains.Optimism }
+                intentHash = randomHex(32)
+                intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                proposal = createTestProposal(intent)
+                remainingAccounts = getRemainingAccounts(transfers)
+
+                await prepareIntentAndProposal()
+
+                ix = await createIx(solverSdk)
+              })
+
+              itThrowsAnError('Incorrect intent chain id')
             })
 
             context('when proposal has data/instructions', () => {
+              const editProposal = async () => {
+                const proposalKey = sdk.getProposalKey(intentHash, proposal.solver)
+                const proposalAccount = await settler.account.proposal.fetch(proposalKey)
+                const proposalInfo = client.getAccount(proposalKey)!
+
+                const modifiedProposal = {
+                  ...proposalAccount,
+                  instructions: [
+                    {
+                      programId: randomPubkey(),
+                      accounts: [],
+                      data: Buffer.from('deadbeef', 'hex'),
+                    },
+                  ],
+                }
+
+                const serializedProposal = await settler.coder.accounts.encode('proposal', modifiedProposal)
+
+                client.setAccount(proposalKey, {
+                  ...proposalInfo,
+                  data: serializedProposal,
+                })
+              }
+
+              beforeEach('Create Proposal and manually edit bytes to add data on-chain', async () => {
+                transfers = testTransfers()
+                testIntentData = createTestIntentData(transfers)
+                intentHash = randomHex(32)
+                intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                proposal = createTestProposal(intent)
+                remainingAccounts = getRemainingAccounts(transfers)
+
+                await prepareIntentAndProposal()
+                editProposal()
+
+                ix = await createIx(solverSdk)
+              })
+
               itThrowsAnError('Incorrect proposal data')
             })
           })

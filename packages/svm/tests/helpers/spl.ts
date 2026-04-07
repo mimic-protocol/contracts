@@ -4,6 +4,7 @@ import {
   createAssociatedTokenAccountInstruction,
   createInitializeMint2Instruction,
   createMintToInstruction,
+  createRevokeInstruction,
   getAssociatedTokenAddressSync,
   MINT_SIZE,
   TOKEN_PROGRAM_ID,
@@ -102,6 +103,15 @@ export async function approveDelegate(
   amount: number
 ): Promise<TransactionMetadata | FailedTransactionMetadata> {
   const ix = createApproveInstruction(translateAddress(ata), translateAddress(delegate), owner.publicKey, amount)
+  return makeTxSignAndSend(provider, ix)
+}
+
+export async function revokeDelegate(
+  provider: LiteSVMProvider,
+  ata: Address,
+  owner: web3.Keypair
+): Promise<TransactionMetadata | FailedTransactionMetadata> {
+  const ix = createRevokeInstruction(translateAddress(ata), owner.publicKey)
   return makeTxSignAndSend(provider, ix)
 }
 
