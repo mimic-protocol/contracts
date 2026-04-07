@@ -124,14 +124,23 @@ fn execute_transfer<'info>(
     check_owner_is_token_program(recipient_ta_account_info)?;
     check_owner_is_token_program(user_ta_account_info)?;
 
-    let mut token_data: &[u8] = &token_account_info.try_borrow_data()?;
-    let token_mint = IMint::try_deserialize(&mut token_data)?;
+    let token_mint = {
+        let token_data: &[u8] = &token_account_info.try_borrow_data()?;
+        let mut token_data_ref: &[u8] = &token_data;
+        IMint::try_deserialize(&mut token_data_ref)?
+    };
 
-    let mut recipient_ta_data: &[u8] = &recipient_ta_account_info.try_borrow_data()?;
-    let recipient_ta = ITokenAccount::try_deserialize(&mut recipient_ta_data)?;
+    let recipient_ta = {
+        let recipient_ta_data = recipient_ta_account_info.try_borrow_data()?;
+        let mut recipient_ta_data_ref: &[u8] = &recipient_ta_data;
+        ITokenAccount::try_deserialize(&mut recipient_ta_data_ref)?
+    };
 
-    let mut user_ta_data: &[u8] = &user_ta_account_info.try_borrow_data()?;
-    let user_ta = ITokenAccount::try_deserialize(&mut user_ta_data)?;
+    let user_ta = {
+        let user_ta_data = user_ta_account_info.try_borrow_data()?;
+        let mut user_ta_data_ref: &[u8] = &user_ta_data;
+        ITokenAccount::try_deserialize(&mut user_ta_data_ref)?
+    };
 
     let transfer_recipient = Pubkey::try_from(transfer.recipient.as_slice())
         .map_err(|_| error!(SettlerError::InvalidTransferRecipient))?;
