@@ -87,7 +87,7 @@ import {
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
 } from './helpers'
-import { approveDelegate, createFundedAta, createMint } from './helpers/spl'
+import { approveDelegate, createFundedAta, createMint, getAtaBalance } from './helpers/spl'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
@@ -2464,8 +2464,8 @@ describe('Settler', () => {
           context('when transfer/s is/are valid', () => {
             context('when protocol has approval', () => {
               context('when user has sufficient funds', () => {
-                let transfers
-                let testIntentData
+                let transfers: TransferIntentData['transfers']
+                let testIntentData: TransferIntentData
 
                 beforeEach('Create data and approve delegate', async () => {
                   transfers = [
@@ -2497,13 +2497,55 @@ describe('Settler', () => {
                 })
 
                 it('executes transfer', async () => {
-                  const res = await makeTxSignAndSend(solverProvider, ix)
-                  console.log(res.toString())
+                  const proposalKey = sdk.getProposalKey(intentHash, proposal.solver)
+                  const intentKey = sdk.getIntentKey(intentHash)
+                  const fulfilledIntentKey = sdk.getFulfilledIntentKey(intentHash)
 
-                  // Check intent is closed
-                  // Check proposal is closed
-                  // Check fulfilled intent is initialized
-                  // Check tokens were sent correctly
+                  const proposalBalanceBefore = Number(adminProvider.client.getBalance(proposalKey)) || 0
+                  const intentBalanceBefore = Number(adminProvider.client.getBalance(intentKey)) || 0
+                  const solverBalanceBefore =
+                    Number(adminProvider.client.getBalance(translateAddress(proposal.solver))) || 0
+
+                  const recipientBalanceBefore = getAtaBalance(client, recipientAta)
+                  const userBalanceBefore = getAtaBalance(client, userAta)
+
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const recipientBalanceAfter = getAtaBalance(client, recipientAta)
+                  const userBalanceAfter = getAtaBalance(client, userAta)
+
+                  const proposalBalanceAfter = Number(adminProvider.client.getBalance(proposalKey)) || 0
+                  const intentBalanceAfter = Number(adminProvider.client.getBalance(intentKey)) || 0
+                  const solverBalanceAfter =
+                    Number(adminProvider.client.getBalance(translateAddress(proposal.solver))) || 0
+                  const fulfilledIntentBalanceAfter = Number(adminProvider.client.getBalance(fulfilledIntentKey)) || 0
+
+                  try {
+                    await settler.account.intent.fetch(intentKey)
+                    expect.fail('Intent account should be closed')
+                  } catch (error: any) {
+                    expect(error.message).to.include('Account does not exist')
+                  }
+
+                  try {
+                    await settler.account.proposal.fetch(proposalKey)
+                    expect.fail('Proposal account should be closed')
+                  } catch (error: any) {
+                    expect(error.message).to.include('Account does not exist')
+                  }
+
+                  expect(client.getAccount(fulfilledIntentKey)?.owner.toString()).to.be.eq(settler.programId.toString())
+                  expect(recipientBalanceAfter).to.be.eq(recipientBalanceBefore + Number(transfers[0].amount))
+                  expect(userBalanceAfter).to.be.eq(userBalanceBefore - Number(transfers[0].amount))
+                  expect(solverBalanceAfter).to.be.eq(
+                    solverBalanceBefore +
+                      intentBalanceBefore +
+                      proposalBalanceBefore -
+                      fulfilledIntentBalanceAfter -
+                      5000
+                  )
+                  expect(proposalBalanceAfter).to.be.eq(0)
+                  expect(intentBalanceAfter).to.be.eq(0)
                 })
               })
 

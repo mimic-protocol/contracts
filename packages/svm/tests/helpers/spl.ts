@@ -7,6 +7,7 @@ import {
   getAssociatedTokenAddressSync,
   MINT_SIZE,
   TOKEN_PROGRAM_ID,
+  unpackAccount,
 } from '@solana/spl-token'
 import { LiteSVMProvider } from 'anchor-litesvm'
 import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
@@ -102,4 +103,15 @@ export async function approveDelegate(
 ): Promise<TransactionMetadata | FailedTransactionMetadata> {
   const ix = createApproveInstruction(translateAddress(ata), translateAddress(delegate), owner.publicKey, amount)
   return makeTxSignAndSend(provider, ix)
+}
+
+export function getAtaBalance(client: LiteSVM, ata: Address, programId: Address = TOKEN_PROGRAM_ID): number {
+  const ataKey = translateAddress(ata)
+  const ataAccount = client.getAccount(ataKey)
+
+  if (!ataAccount) return 0
+
+  return Number(
+    unpackAccount(ataKey, { ...ataAccount, data: Buffer.from(ataAccount.data) }, translateAddress(programId)).amount
+  )
 }
