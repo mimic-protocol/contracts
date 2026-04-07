@@ -44,10 +44,10 @@ library SmartAccountsHandlerHelpers {
         internal
         returns (bytes memory)
     {
-        return
-            Address.functionDelegateCall(
-                handler,
-                abi.encodeWithSelector(ISmartAccountsHandler.call.selector, account, target, data, value)
-            );
+        bytes memory result = Address.functionDelegateCall(
+            handler,
+            abi.encodeWithSelector(ISmartAccountsHandler.call.selector, account, target, data, value)
+        );
+        return abi.decode(result, (bytes));
     }
 }
