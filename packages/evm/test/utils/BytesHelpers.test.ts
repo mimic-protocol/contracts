@@ -1,13 +1,15 @@
 import { expect } from 'chai'
-import { AbiCoder, Contract } from 'ethers'
+import { AbiCoder } from 'ethers'
 import { network } from 'hardhat'
+
+import { BytesHelpersMock } from '../../types/ethers-contracts/index.js'
 
 const { ethers } = await network.connect()
 
 /* eslint-disable no-secrets/no-secrets */
 
 describe('BytesHelpers', () => {
-  let library: Contract
+  let library: BytesHelpersMock
 
   beforeEach('deploy helpers mock', async () => {
     library = await ethers.deployContract('BytesHelpersMock')
@@ -55,7 +57,7 @@ describe('BytesHelpers', () => {
     })
   })
 
-  describe('slice', () => {
+  describe('slice(bytes)', () => {
     const data = '0x00112233445566778899aabbccddeeff'
 
     context('when slicing the full range', () => {
@@ -130,6 +132,53 @@ describe('BytesHelpers', () => {
       it('reverts', async () => {
         const len = (data.length - 2) / 2
         await expect(library.sliceFrom(data, len + 1)).to.be.revertedWithCustomError(
+          library,
+          'BytesLibSliceOutOfBounds'
+        )
+      })
+    })
+  })
+
+  describe('slice(bytes[])', () => {
+    const data = ['0x11', '0x2233', '0x445566']
+
+    context('when slicing a prefix', () => {
+      it('returns the expected items', async () => {
+        const out = await library.sliceArray(data, 0, 2)
+        expect(out).to.deep.equal(['0x11', '0x2233'])
+      })
+    })
+
+    context('when slicing a middle range', () => {
+      it('returns the expected items', async () => {
+        const out = await library.sliceArray(data, 1, 3)
+        expect(out).to.deep.equal(['0x2233', '0x445566'])
+      })
+    })
+
+    context('when slicing the full array', () => {
+      it('returns all items', async () => {
+        const out = await library.sliceArray(data, 0, data.length)
+        expect(out).to.deep.equal(data)
+      })
+    })
+
+    context('when slicing an empty range', () => {
+      it('returns an empty array', async () => {
+        const out = await library.sliceArray(data, 1, 1)
+        expect(out).to.deep.equal([])
+      })
+    })
+
+    context('when end is smaller than start', () => {
+      it('reverts', async () => {
+        await expect(library.sliceArray(data, 2, 1)).to.be.revertedWithCustomError(library, 'BytesLibSliceOutOfBounds')
+      })
+    })
+
+    context('when end is out of bounds', () => {
+      it('reverts', async () => {
+        await expect(library.sliceArray(data, 0, data.length + 1)).to.be.revertedWithCustomError(
           library,
           'BytesLibSliceOutOfBounds'
         )

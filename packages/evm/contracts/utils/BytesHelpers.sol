@@ -81,4 +81,22 @@ library BytesHelpers {
     function sliceFrom(bytes memory data, uint256 start) internal pure returns (bytes memory out) {
         return slice(data, start, data.length);
     }
+
+    /**
+     * @dev Returns a slice of a bytes array from `start` (inclusive) to `end` (exclusive)
+     * @param data Bytes array to slice
+     * @param start Starting item index (inclusive)
+     * @param end Ending item index (exclusive)
+     */
+    function slice(bytes[] memory data, uint256 start, uint256 end) internal pure returns (bytes[] memory out) {
+        if (end < start) revert BytesLibSliceOutOfBounds();
+        if (end > data.length) revert BytesLibSliceOutOfBounds();
+
+        uint256 len = end - start;
+        out = new bytes[](len);
+        for (uint256 i = 0; i < len; i++) {
+            bytes memory item = data[start + i];
+            out[i] = slice(item, 0, item.length);
+        }
+    }
 }
