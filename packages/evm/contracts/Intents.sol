@@ -167,11 +167,11 @@ struct CallData {
 }
 
 /**
- * @dev Represents a generic dynamic call intent consisting of one or more dynamic contract calls.
+ * @dev Represents a generic dynamic call operation consisting of one or more dynamic contract calls.
  * @param chainId Chain ID where the calls should be executed.
  * @param calls List of low-level dynamic contract calls to be executed.
  */
-struct DynamicCallIntent {
+struct DynamicCallOperation {
     uint256 chainId;
     DynamicCall[] calls;
 }
