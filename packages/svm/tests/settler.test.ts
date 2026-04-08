@@ -23,8 +23,8 @@ import {
   TransferIntentData,
   ValidatorSigner,
 } from '@mimicprotocol/sdk'
-import { svmEncodeTransferIntent } from '@mimicprotocol/sdk/dist/shared/codec/chains/svm'
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import { svmDecodeTransferIntent, svmEncodeTransferIntent } from '@mimicprotocol/sdk/dist/shared/codec/chains/svm'
+import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import {
   AccountMeta,
   CreateSecp256k1InstructionWithEthAddressParams,
@@ -2363,7 +2363,7 @@ describe('Settler', () => {
       data,
       deadline: (Number(client.getClock().unixTimestamp) + 1000).toString(),
       events: [{ topic: randomHex(32), data: randomHex(50) }],
-      maxFees: [{ token: usdc.toString(), amount: '100' }],
+      maxFees: [{ token: usdc.toString(), amount: '10000000' }],
       minValidations: 1,
       nonce: randomHex(32),
       op: 1,
@@ -2439,13 +2439,14 @@ describe('Settler', () => {
 
       userAta = (await createFundedAta(adminProvider, admin, user.publicKey, usdc, 100_000_000_000)).ata
       recipientAta = (await createFundedAta(adminProvider, admin, recipient, usdc, 0)).ata
+      await createFundedAta(adminProvider, admin, solver.publicKey, usdc, 0)
     })
 
     context('when intent is transfer', () => {
       let transfers: TransferIntentData['transfers']
       let testIntentData: TransferIntentData
 
-      const testTransfers = () => [
+      const createTestTransfers = () => [
         {
           amount: '1000000000',
           token: usdc.toString(),
@@ -2458,7 +2459,10 @@ describe('Settler', () => {
         transfers: transfers ?? [],
       })
 
-      const getRemainingAccounts = (transfers: TransferIntentData['transfers']): AccountMeta[] => {
+      const getRemainingAccounts = (intent: Intent, proposal: Proposal): AccountMeta[] => {
+        const decodedIntent = svmDecodeTransferIntent(intent)
+        const { transfers } = decodedIntent
+
         const tokenProgram: AccountMeta = { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }
         const token2022Program: AccountMeta = { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false }
 
@@ -2467,10 +2471,21 @@ describe('Settler', () => {
           { pubkey: translateAddress(transfer.recipient), isSigner: false, isWritable: false },
           { pubkey: recipientAta, isSigner: false, isWritable: true },
           { pubkey: userAta, isSigner: false, isWritable: true },
-          // TODO: add pay_solver_fees accounts
         ])
 
-        return [tokenProgram, token2022Program, ...transferAccounts]
+        const solverFeeAccounts = intent.maxFees.flatMap((maxFee) => {
+          const feeToken = translateAddress(maxFee.token)
+          const solverAta = getAssociatedTokenAddressSync(feeToken, translateAddress(proposal.solver))
+          const userAta = getAssociatedTokenAddressSync(feeToken, translateAddress(intent.user))
+
+          return [
+            { pubkey: feeToken, isSigner: false, isWritable: false },
+            { pubkey: solverAta, isSigner: false, isWritable: true },
+            { pubkey: userAta, isSigner: false, isWritable: true },
+          ]
+        })
+
+        return [tokenProgram, token2022Program, ...transferAccounts, ...solverFeeAccounts]
       }
 
       const editProposal = async (proposalKey: web3.PublicKey, editedProposal: Partial<ProposalAccount>) => {
@@ -2496,21 +2511,20 @@ describe('Settler', () => {
             context('when protocol has approval', () => {
               context('when user has sufficient funds', () => {
                 beforeEach('Create data and approve delegate', async () => {
-                  transfers = testTransfers()
+                  transfers = createTestTransfers()
+                  testIntentData = createTestIntentData(transfers)
+                  intentHash = randomHex(32)
+                  intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                  proposal = createTestProposal(intent)
+                  remainingAccounts = getRemainingAccounts(intent, proposal)
 
                   await approveDelegate(
                     userProvider,
                     userAta,
                     solverSdk.getDelegateKey(user.publicKey),
                     user,
-                    Number(transfers[0].amount)
+                    Number(transfers[0].amount) + Number(proposal.fees[0])
                   )
-
-                  testIntentData = createTestIntentData(transfers)
-                  intentHash = randomHex(32)
-                  intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
-                  proposal = createTestProposal(intent)
-                  remainingAccounts = getRemainingAccounts(transfers)
 
                   await prepareIntentAndProposal()
 
@@ -2518,6 +2532,7 @@ describe('Settler', () => {
                 })
 
                 it('executes transfer', async () => {
+                  const solverAta = getAssociatedTokenAddressSync(usdc, solver.publicKey)
                   const proposalKey = sdk.getProposalKey(intentHash, proposal.solver)
                   const intentKey = sdk.getIntentKey(intentHash)
                   const fulfilledIntentKey = sdk.getFulfilledIntentKey(intentHash)
@@ -2529,11 +2544,13 @@ describe('Settler', () => {
 
                   const recipientBalanceBefore = getAtaBalance(client, recipientAta)
                   const userBalanceBefore = getAtaBalance(client, userAta)
+                  const solverAtaBalanceBefore = getAtaBalance(client, solverAta)
 
                   await makeTxSignAndSend(solverProvider, ix)
 
                   const recipientBalanceAfter = getAtaBalance(client, recipientAta)
                   const userBalanceAfter = getAtaBalance(client, userAta)
+                  const solverAtaBalanceAfter = getAtaBalance(client, solverAta)
 
                   const proposalBalanceAfter = Number(adminProvider.client.getBalance(proposalKey)) || 0
                   const intentBalanceAfter = Number(adminProvider.client.getBalance(intentKey)) || 0
@@ -2557,7 +2574,9 @@ describe('Settler', () => {
 
                   expect(client.getAccount(fulfilledIntentKey)?.owner.toString()).to.be.eq(settler.programId.toString())
                   expect(recipientBalanceAfter).to.be.eq(recipientBalanceBefore + Number(transfers[0].amount))
-                  expect(userBalanceAfter).to.be.eq(userBalanceBefore - Number(transfers[0].amount))
+                  expect(userBalanceAfter).to.be.eq(
+                    userBalanceBefore - Number(transfers[0].amount) - Number(proposal.fees[0])
+                  )
                   expect(solverBalanceAfter).to.be.eq(
                     solverBalanceBefore +
                       intentBalanceBefore +
@@ -2567,8 +2586,7 @@ describe('Settler', () => {
                   )
                   expect(proposalBalanceAfter).to.be.eq(0)
                   expect(intentBalanceAfter).to.be.eq(0)
-
-                  // TODO: check solver fees are paid
+                  expect(solverAtaBalanceAfter).to.be.eq(solverAtaBalanceBefore + Number(proposal.fees[0]))
                 })
               })
 
@@ -2595,7 +2613,7 @@ describe('Settler', () => {
                     intentHash = randomHex(32)
                     intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
                     proposal = createTestProposal(intent)
-                    remainingAccounts = getRemainingAccounts(transfers)
+                    remainingAccounts = getRemainingAccounts(intent, proposal)
 
                     await prepareIntentAndProposal()
 
@@ -2616,12 +2634,12 @@ describe('Settler', () => {
                 beforeEach('Create data and remove delegate', async () => {
                   await revokeDelegate(userProvider, userAta, user)
 
-                  transfers = testTransfers()
+                  transfers = createTestTransfers()
                   testIntentData = createTestIntentData(transfers)
                   intentHash = randomHex(32)
                   intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
                   proposal = createTestProposal(intent)
-                  remainingAccounts = getRemainingAccounts(transfers)
+                  remainingAccounts = getRemainingAccounts(intent, proposal)
 
                   await prepareIntentAndProposal()
 
@@ -2640,12 +2658,12 @@ describe('Settler', () => {
           context('when proposal is not valid', () => {
             context('when proposal intent is not for chain Solana', () => {
               beforeEach('Create data for Optimism', async () => {
-                transfers = testTransfers()
+                transfers = createTestTransfers()
                 testIntentData = { ...createTestIntentData(transfers), chainId: Chains.Optimism }
                 intentHash = randomHex(32)
                 intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
                 proposal = createTestProposal(intent)
-                remainingAccounts = getRemainingAccounts(transfers)
+                remainingAccounts = getRemainingAccounts(intent, proposal)
 
                 await prepareIntentAndProposal()
 
@@ -2657,12 +2675,12 @@ describe('Settler', () => {
 
             context('when proposal has data/instructions', () => {
               beforeEach('Create Proposal and manually edit bytes to add data on-chain', async () => {
-                transfers = testTransfers()
+                transfers = createTestTransfers()
                 testIntentData = createTestIntentData(transfers)
                 intentHash = randomHex(32)
                 intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
                 proposal = createTestProposal(intent)
-                remainingAccounts = getRemainingAccounts(transfers)
+                remainingAccounts = getRemainingAccounts(intent, proposal)
 
                 await prepareIntentAndProposal()
                 editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), {
@@ -2684,13 +2702,22 @@ describe('Settler', () => {
         })
 
         context('when remaining accounts are not correct', () => {
-          beforeEach('Set up base data', async () => {
-            transfers = testTransfers()
+          beforeEach('Set up base data and re-approve', async () => {
+            transfers = createTestTransfers()
             testIntentData = createTestIntentData(transfers)
             intentHash = randomHex(32)
             intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
             proposal = createTestProposal(intent)
-            remainingAccounts = getRemainingAccounts(transfers)
+            remainingAccounts = getRemainingAccounts(intent, proposal)
+
+            // Re-approve Delegate for test
+            await approveDelegate(
+              userProvider,
+              userAta,
+              solverSdk.getDelegateKey(user.publicKey),
+              user,
+              Number(transfers[0].amount) + Number(proposal.fees[0])
+            )
           })
 
           context('when remaining accounts number is correct', () => {
@@ -2831,15 +2858,6 @@ describe('Settler', () => {
 
             context('when there are more remaining accounts than expected', () => {
               beforeEach(async () => {
-                // Re-approve Delegate for test
-                await approveDelegate(
-                  userProvider,
-                  userAta,
-                  solverSdk.getDelegateKey(user.publicKey),
-                  user,
-                  Number(transfers[0].amount)
-                )
-
                 remainingAccounts.push({ pubkey: randomPubkey(), isWritable: true, isSigner: false })
                 await prepareIntentAndProposal()
                 ix = await createIx(solverSdk)
@@ -2870,12 +2888,12 @@ describe('Settler', () => {
 
               context('when proposal is not correct', () => {
                 beforeEach('Setup base data', async () => {
-                  transfers = testTransfers()
+                  transfers = createTestTransfers()
                   testIntentData = createTestIntentData(transfers)
                   intentHash = randomHex(32)
                   intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
                   proposal = createTestProposal(intent)
-                  remainingAccounts = getRemainingAccounts(transfers)
+                  remainingAccounts = getRemainingAccounts(intent, proposal)
                 })
 
                 context('when proposal is for another intent', () => {
@@ -2933,12 +2951,12 @@ describe('Settler', () => {
           context('when intent is not correct', () => {
             context('when intent_creator is not correct', () => {
               beforeEach(async () => {
-                transfers = testTransfers()
+                transfers = createTestTransfers()
                 testIntentData = createTestIntentData(transfers)
                 intentHash = randomHex(32)
                 intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
                 proposal = createTestProposal(intent)
-                remainingAccounts = getRemainingAccounts(transfers)
+                remainingAccounts = getRemainingAccounts(intent, proposal)
 
                 await prepareIntentAndProposal()
                 ix = await createIx(solverSdk, { intentCreator: randomPubkey() })
@@ -2952,12 +2970,12 @@ describe('Settler', () => {
 
       context('when caller is not allowlisted solver', () => {
         beforeEach(async () => {
-          transfers = testTransfers()
+          transfers = createTestTransfers()
           testIntentData = createTestIntentData(transfers)
           intentHash = randomHex(32)
           intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
           proposal = createTestProposal(intent)
-          remainingAccounts = getRemainingAccounts(transfers)
+          remainingAccounts = getRemainingAccounts(intent, proposal)
 
           await prepareIntentAndProposal()
           ix = await createIx(maliciousSdk)

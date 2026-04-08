@@ -43,7 +43,6 @@ pub fn handle_intent_execution<'info>(
 ///
 /// For each fee_token:
 ///
-/// #[account(mut)]
 /// pub fee_token: Account<'info, IMint>,
 ///
 /// #[account(
@@ -96,6 +95,7 @@ pub fn pay_solver_fees<'info>(
             ITokenAccount::try_deserialize(&mut solver_ta_data)?
         };
 
+        require_keys_eq!(token_account_info.key(), max_fee.token);
         require_keys_eq!(user_ta.owner, intent.user);
         require_keys_eq!(user_ta.mint, max_fee.token);
         require_keys_eq!(solver_ta.owner, proposal.creator);
