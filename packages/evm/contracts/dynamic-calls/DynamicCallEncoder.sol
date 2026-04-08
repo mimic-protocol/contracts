@@ -15,6 +15,7 @@
 pragma solidity ^0.8.20;
 
 import './DynamicCallTypes.sol';
+import '../interfaces/IDynamicCallEncoder.sol';
 import '../utils/BytesHelpers.sol';
 
 /**
@@ -29,38 +30,8 @@ import '../utils/BytesHelpers.sol';
  * The encoder follows standard ABI encoding rules, reconstructing
  * the calldata heads and tails dynamically based on argument types.
  */
-contract DynamicCallEncoder {
+contract DynamicCallEncoder is IDynamicCallEncoder {
     using BytesHelpers for bytes;
-
-    /// @dev Thrown when an argument is not word-aligned
-    error DynamicCallEncoderBadLength();
-
-    /// @dev Thrown when a dynamic value resolves to empty data
-    error DynamicCallEncoderEmptyDynamic();
-
-    /// @dev Thrown when a static literal has an invalid size prefix
-    error DynamicCallEncoderBadStaticSize();
-
-    /// @dev Thrown when a static literal does not end with a zero word
-    error DynamicCallEncoderBadStaticTrailer();
-
-    /// @dev Thrown when a static literal is too short to be valid
-    error DynamicCallEncoderTooShortStatic();
-
-    /// @dev Thrown when a variable reference is not exactly one word
-    error DynamicCallEncoderVariableRefBadLength();
-
-    /// @dev Thrown when a variable index is outside the variables array
-    error DynamicCallEncoderVariableOutOfBounds();
-
-    /// @dev Thrown when a variable value is too short to be interpreted
-    error DynamicCallEncoderVariableTooShort();
-
-    /// @dev Thrown when a static call argument cannot be decoded
-    error DynamicCallEncoderStaticCallBadSpec();
-
-    /// @dev Thrown when a staticcall execution fails
-    error DynamicCallEncoderStaticCallFailed(address target);
 
     /**
      * @dev Internal representation of a fully-encoded argument
@@ -78,12 +49,17 @@ contract DynamicCallEncoder {
 
     /**
      * @dev Encodes a dynamic call into calldata
-     * @param call_ Dynamic call specification
+     * @param dynamicCall Dynamic call specification
      * @param variables List of resolved variable values
      * @return data Fully ABI-encoded calldata
      */
-    function encode(DynamicCall memory call_, bytes[] memory variables) external view returns (bytes memory data) {
-        data = _buildCalldata(call_.selector, call_.arguments, variables);
+    function encode(DynamicCall memory dynamicCall, bytes[] memory variables)
+        external
+        view
+        override
+        returns (bytes memory data)
+    {
+        data = _buildCalldata(dynamicCall.selector, dynamicCall.arguments, variables);
     }
 
     /**
