@@ -43,10 +43,7 @@ impl Proposal {
         add(4, mul(8, len)?)
     }
 
-    pub fn extended_size(
-        size: usize,
-        more_instructions: &[ProposalInstruction],
-    ) -> Result<usize> {
+    pub fn extended_size(size: usize, more_instructions: &[ProposalInstruction]) -> Result<usize> {
         sub(
             add(size, Proposal::instructions_size(more_instructions)?)?,
             4,
