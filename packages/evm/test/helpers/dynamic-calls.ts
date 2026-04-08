@@ -7,8 +7,8 @@ export function literal(types: string[], values: any[]): DynamicArg {
   return { kind: 0, data }
 }
 
-export function variable(index: number): DynamicArg {
-  const data = AbiCoder.defaultAbiCoder().encode(['uint256'], [index])
+export function variable(opIndex: number, subIndex: number): DynamicArg {
+  const data = AbiCoder.defaultAbiCoder().encode(['uint256', 'uint256'], [opIndex, subIndex])
   return { kind: 1, data }
 }
 

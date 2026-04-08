@@ -19,9 +19,14 @@ import '../../utils/BytesHelpers.sol';
 contract BytesHelpersMock {
     using BytesHelpers for bytes;
     using BytesHelpers for bytes[];
+    using BytesHelpers for bytes[][];
 
     function readWord0(bytes memory data) external pure returns (uint256) {
         return data.readWord0();
+    }
+
+    function readWord1(bytes memory data) external pure returns (uint256) {
+        return data.readWord1();
     }
 
     function lastWordIsZero(bytes memory data) external pure returns (bool) {
@@ -37,6 +42,10 @@ contract BytesHelpersMock {
     }
 
     function sliceArray(bytes[] memory data, uint256 start, uint256 end) external pure returns (bytes[] memory) {
+        return data.slice(start, end);
+    }
+
+    function sliceMatrix(bytes[][] memory data, uint256 start, uint256 end) external pure returns (bytes[][] memory) {
         return data.slice(start, end);
     }
 }

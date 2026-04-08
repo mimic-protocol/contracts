@@ -33,7 +33,7 @@ describe('DynamicCallEncoder', () => {
 
   describe('encode', () => {
     context('with literal arguments', () => {
-      const variables: string[] = []
+      const variables: string[][] = []
 
       context('with a single argument', () => {
         const owner = randomEvmAddress()
@@ -73,14 +73,17 @@ describe('DynamicCallEncoder', () => {
         const var1 = randomEvmAddress()
         const var2 = [1, 2, 3, 4, 5, 6, 7]
 
+        // variables[opIndex][subIndex]
         const variables = [
-          ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [var0]),
-          ethers.AbiCoder.defaultAbiCoder().encode(['address'], [var1]),
-          ethers.AbiCoder.defaultAbiCoder().encode(['uint256[]'], [var2]),
+          [
+            ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [var0]),
+            ethers.AbiCoder.defaultAbiCoder().encode(['address'], [var1]),
+          ],
+          [ethers.AbiCoder.defaultAbiCoder().encode(['uint256[]'], [var2])],
         ]
 
         context('with a single argument', () => {
-          const call = dynamicCall('balanceOf', [variable(1)])
+          const call = dynamicCall('balanceOf', [variable(0, 1)])
 
           it('encodes arguments properly', async () => {
             const encoded = await encoder.encode(call, variables)
@@ -90,7 +93,7 @@ describe('DynamicCallEncoder', () => {
 
         context('with multiple arguments', () => {
           const to = randomEvmAddress()
-          const call = dynamicCall('transfer', [literal(['address'], [to]), variable(0)])
+          const call = dynamicCall('transfer', [literal(['address'], [to]), variable(0, 0)])
 
           it('encodes arguments properly', async () => {
             const encoded = await encoder.encode(call, variables)
@@ -99,7 +102,7 @@ describe('DynamicCallEncoder', () => {
         })
 
         context('with arbitrary-length arguments', () => {
-          const call = dynamicCall('foo', [variable(2)])
+          const call = dynamicCall('foo', [variable(1, 0)])
 
           it('encodes arguments properly', async () => {
             const encoded = await encoder.encode(call, variables)
@@ -109,7 +112,7 @@ describe('DynamicCallEncoder', () => {
       })
 
       context('when the variable spec is invalid', () => {
-        context('when variable ref is not 32 bytes', () => {
+        context('when variable ref is not 64 bytes', () => {
           const call = dynamicCall('foo', [{ kind: 1, data: '0x11' }])
 
           it('reverts with DynamicCallEncoderVariableRefBadLength', async () => {
@@ -120,8 +123,8 @@ describe('DynamicCallEncoder', () => {
           })
         })
 
-        context('when variable index is out of bounds', () => {
-          const call = dynamicCall('foo', [variable(0)])
+        context('when operation index is out of bounds', () => {
+          const call = dynamicCall('foo', [variable(0, 0)])
 
           it('reverts with DynamicCallEncoderVariableOutOfBounds', async () => {
             await expect(encoder.encode(call, [])).to.be.revertedWithCustomError(
@@ -131,9 +134,21 @@ describe('DynamicCallEncoder', () => {
           })
         })
 
+        context('when sub-index is out of bounds', () => {
+          const variables = [[ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [1n])]]
+          const call = dynamicCall('foo', [variable(0, 1)])
+
+          it('reverts with DynamicCallEncoderVariableOutOfBounds', async () => {
+            await expect(encoder.encode(call, variables)).to.be.revertedWithCustomError(
+              encoder,
+              'DynamicCallEncoderVariableOutOfBounds'
+            )
+          })
+        })
+
         context('when variable bytes are too short to be static', () => {
-          const variables = ['0x1234']
-          const call = dynamicCall('transfer', [literal(['address'], [randomEvmAddress()]), variable(0)])
+          const variables = [['0x1234']]
+          const call = dynamicCall('transfer', [literal(['address'], [randomEvmAddress()]), variable(0, 0)])
 
           it('reverts with DynamicCallEncoderVariableTooShort', async () => {
             await expect(encoder.encode(call, variables)).to.be.revertedWithCustomError(
@@ -188,10 +203,10 @@ describe('DynamicCallEncoder', () => {
       context('when the staticcall receives a variable', () => {
         it('encodes arguments properly', async () => {
           const owner = randomEvmAddress()
-          const variables = [ethers.AbiCoder.defaultAbiCoder().encode(['address'], [owner])]
+          const variables = [[ethers.AbiCoder.defaultAbiCoder().encode(['address'], [owner])]]
 
           const call = dynamicCall('balanceOf', [
-            staticCall(mock.target, mock.interface.getFunction('returnAddress')!.selector, [variable(0)]),
+            staticCall(mock.target, mock.interface.getFunction('returnAddress')!.selector, [variable(0, 0)]),
           ])
 
           const encoded = await encoder.encode(call, variables)

@@ -72,5 +72,5 @@ interface IDynamicCallEncoder {
      * @param dynamicCall Dynamic call specification.
      * @param variables Resolved outputs from previous operations.
      */
-    function encode(DynamicCall memory dynamicCall, bytes[] memory variables) external view returns (bytes memory);
+    function encode(DynamicCall memory dynamicCall, bytes[][] memory variables) external view returns (bytes memory);
 }

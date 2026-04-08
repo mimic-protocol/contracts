@@ -7,7 +7,7 @@ contract StaticCallMock {
         return value;
     }
 
-    function returnAddress(address value) external pure returns (address) {
+    function returnAddress(address value) external payable returns (address) {
         return value;
     }
 

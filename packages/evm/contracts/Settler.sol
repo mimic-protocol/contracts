@@ -41,7 +41,7 @@ import './smart-accounts/SmartAccountsHandlerHelpers.sol';
  */
 contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
-    using BytesHelpers for bytes[];
+    using BytesHelpers for bytes[][];
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
     using IntentsHelpers for Validation;
@@ -207,9 +207,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         _validateIntent(intent, proposal, signature, simulated);
         getIntentBlock[intent.hash()] = block.number;
 
-        bytes[] memory outputs = new bytes[](intent.operations.length);
+        bytes[][] memory outputs = new bytes[][](intent.operations.length);
         for (uint256 i = 0; i < intent.operations.length; i++) {
-            // TODO: support multiple outputs
             outputs[i] = _executeOperation(intent, proposal, i, outputs);
         }
 
@@ -224,9 +223,9 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param index Position where the operation and its corresponding proposal data are located
      * @param outputs List of operations outputs
      */
-    function _executeOperation(Intent memory intent, Proposal memory proposal, uint256 index, bytes[] memory outputs)
+    function _executeOperation(Intent memory intent, Proposal memory proposal, uint256 index, bytes[][] memory outputs)
         internal
-        returns (bytes memory)
+        returns (bytes[] memory)
     {
         uint8 opType = intent.operations[index].opType;
         if (opType == uint8(OpType.Swap) || opType == uint8(OpType.CrossChainSwap)) {
@@ -248,7 +247,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeSwap(Intent memory intent, Proposal memory proposal, uint256 index)
         internal
-        returns (bytes memory)
+        returns (bytes[] memory outputs)
     {
         Operation memory operation = intent.operations[index];
         SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
@@ -269,25 +268,25 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
         IExecutor(swapProposal.executor).execute(intent, proposal, index);
 
-        uint256[] memory outputs = new uint256[](swapOperation.tokensOut.length);
+        outputs = new bytes[](swapOperation.tokensOut.length);
         if (swapOperation.destinationChain == block.chainid) {
+            uint256[] memory amounts = new uint256[](swapOperation.tokensOut.length);
             for (uint256 i = 0; i < swapOperation.tokensOut.length; i++) {
                 TokenOut memory tokenOut = swapOperation.tokensOut[i];
                 uint256 postBalanceOut = ERC20Helpers.balanceOf(tokenOut.token, address(this));
                 uint256 preBalanceOut = preBalancesOut[i];
                 if (postBalanceOut < preBalanceOut) revert SettlerPostBalanceOutLtPre(i, postBalanceOut, preBalanceOut);
 
-                outputs[i] = postBalanceOut - preBalanceOut;
+                amounts[i] = postBalanceOut - preBalanceOut;
                 uint256 proposedAmount = swapProposal.amountsOut[i];
-                if (outputs[i] < proposedAmount) revert SettlerAmountOutLtProposed(i, outputs[i], proposedAmount);
+                if (amounts[i] < proposedAmount) revert SettlerAmountOutLtProposed(i, amounts[i], proposedAmount);
 
-                ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, outputs[i]);
+                ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, amounts[i]);
+                outputs[i] = abi.encode(amounts[i]);
             }
 
-            _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(outputs));
+            _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(amounts));
         }
-
-        return outputs.length > 0 ? abi.encode(outputs[0]) : new bytes(0);
     }
 
     /**
@@ -298,7 +297,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeTransfer(Intent memory intent, Proposal memory proposal, uint256 index)
         internal
-        returns (bytes memory)
+        returns (bytes[] memory outputs)
     {
         Operation memory operation = intent.operations[index];
         TransferOperation memory transferOperation = abi.decode(operation.data, (TransferOperation));
@@ -310,9 +309,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             _transferFrom(transfer.token, operation.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        bytes memory output = new bytes(0);
-        _emitOperationEvents(operation, proposal, intent.hash(), index, output);
-        return output;
+        outputs = new bytes[](0);
+        _emitOperationEvents(operation, proposal, intent.hash(), index, new bytes(0));
     }
 
     /**
@@ -323,13 +321,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      */
     function _executeCall(Intent memory intent, Proposal memory proposal, uint256 index)
         internal
-        returns (bytes memory)
+        returns (bytes[] memory outputs)
     {
         Operation memory operation = intent.operations[index];
         CallOperation memory callOperation = abi.decode(operation.data, (CallOperation));
         _validateCallOperation(callOperation, proposal.datas[index], operation.user);
 
-        bytes[] memory outputs = new bytes[](callOperation.calls.length);
+        outputs = new bytes[](callOperation.calls.length);
         for (uint256 i = 0; i < callOperation.calls.length; i++) {
             CallData memory call = callOperation.calls[i];
             // solhint-disable-next-line avoid-low-level-calls
@@ -337,7 +335,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(outputs));
-        return outputs.length > 0 ? outputs[0] : new bytes(0);
     }
 
     /**
@@ -351,13 +348,13 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         Intent memory intent,
         Proposal memory proposal,
         uint256 index,
-        bytes[] memory variables
-    ) internal returns (bytes memory) {
+        bytes[][] memory variables
+    ) internal returns (bytes[] memory outputs) {
         Operation memory operation = intent.operations[index];
         DynamicCallOperation memory dynamicCallOperation = abi.decode(operation.data, (DynamicCallOperation));
         _validateDynamicCallOperation(dynamicCallOperation, proposal.datas[index], operation.user);
 
-        bytes[] memory outputs = new bytes[](dynamicCallOperation.calls.length);
+        outputs = new bytes[](dynamicCallOperation.calls.length);
         for (uint256 i = 0; i < dynamicCallOperation.calls.length; i++) {
             DynamicCall memory dynamicCall = abi.decode(dynamicCallOperation.calls[i], (DynamicCall));
             bytes memory data = IDynamicCallEncoder(dynamicCallEncoder).encode(dynamicCall, variables);
@@ -366,7 +363,6 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(outputs));
-        return outputs.length > 0 ? outputs[0] : new bytes(0);
     }
 
     /**

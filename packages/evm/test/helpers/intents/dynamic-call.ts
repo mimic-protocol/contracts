@@ -4,7 +4,7 @@ import { Account, toAddress } from '../addresses.js'
 import { DynamicArg } from '../dynamic-calls.js'
 import { createIntent, createOperation, Intent, Operation } from './base.js'
 
-const DYNAMIC_CALL_OP_TYPE = 4
+export const DYNAMIC_CALL_OP_TYPE = 4
 
 export type DynamicCallOperation = Operation & {
   chainId: BigNumberish

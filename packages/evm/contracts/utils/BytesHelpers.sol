@@ -34,6 +34,17 @@ library BytesHelpers {
     }
 
     /**
+     * @dev Reads the second 32-byte word of a bytes array
+     * @param data Bytes array to read from
+     * @return result Second ABI word of `data`
+     */
+    function readWord1(bytes memory data) internal pure returns (uint256 result) {
+        assembly {
+            result := mload(add(data, 64))
+        }
+    }
+
+    /**
      * @dev Checks whether the last 32-byte word of a bytes array is zero
      *
      * Commonly used to validate ABI-encoded static values, which must
@@ -96,6 +107,24 @@ library BytesHelpers {
         out = new bytes[](len);
         for (uint256 i = 0; i < len; i++) {
             bytes memory item = data[start + i];
+            out[i] = slice(item, 0, item.length);
+        }
+    }
+
+    /**
+     * @dev Returns a slice of a nested bytes array from `start` (inclusive) to `end` (exclusive)
+     * @param data Nested bytes array to slice
+     * @param start Starting item index (inclusive)
+     * @param end Ending item index (exclusive)
+     */
+    function slice(bytes[][] memory data, uint256 start, uint256 end) internal pure returns (bytes[][] memory out) {
+        if (end < start) revert BytesLibSliceOutOfBounds();
+        if (end > data.length) revert BytesLibSliceOutOfBounds();
+
+        uint256 len = end - start;
+        out = new bytes[][](len);
+        for (uint256 i = 0; i < len; i++) {
+            bytes[] memory item = data[start + i];
             out[i] = slice(item, 0, item.length);
         }
     }

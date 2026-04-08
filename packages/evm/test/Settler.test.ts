@@ -20,11 +20,12 @@ import { network } from 'hardhat'
 
 import {
   Controller,
+  DynamicCallEncoder,
   EmptyExecutorMock,
   MintExecutorMock,
   ReentrantExecutorMock,
   Settler,
-  SmartAccount,
+  SmartAccountBase as SmartAccount,
   TokenMock,
   TransferExecutorMock,
 } from '../types/ethers-contracts/index.js'
@@ -50,6 +51,7 @@ import {
   createTransferOperation,
   createTransferProposal,
   currentTimestamp,
+  DYNAMIC_CALL_OP_TYPE,
   DynamicCallOperation,
   hashIntent,
   hashProposal,
@@ -104,7 +106,7 @@ describe('Settler', () => {
       expect(await settler.smartAccountsHandler()).to.not.be.equal(ZERO_ADDRESS)
     })
 
-    it.skip('has a dynamic call decoder', async () => {
+    it('has a dynamic call decoder', async () => {
       expect(await settler.dynamicCallEncoder()).to.not.be.equal(ZERO_ADDRESS)
     })
   })
@@ -3031,8 +3033,10 @@ describe('Settler', () => {
         let target: Account
         let feeToken: TokenMock
         let proposal: Proposal
+        let dynamicCallEncoder: DynamicCallEncoder
 
         const argument = randomEvmAddress()
+        const value = fp(0.00001)
         const feeAmount = fp(0.01)
         const eventTopic = randomHex(32)
         const eventData = randomHex(120)
@@ -3045,6 +3049,10 @@ describe('Settler', () => {
 
         beforeEach('mint tokens', async () => {
           await feeToken.mint(user, feeAmount)
+        })
+
+        beforeEach('fund smart account', async () => {
+          await owner.sendTransaction({ to: user, value })
         })
 
         beforeEach('create intent', async () => {
@@ -3061,6 +3069,7 @@ describe('Settler', () => {
                   target,
                   selector: target.interface.getFunction('returnAddress')!.selector,
                   arguments: [literal(['address'], [argument])],
+                  value,
                 },
                 {
                   target,
@@ -3077,9 +3086,14 @@ describe('Settler', () => {
           proposal = createDynamicCallProposal({ fees: [feeAmount] })
         })
 
+        beforeEach('set dynamic call encoder', async () => {
+          dynamicCallEncoder = await ethers.deployContract('DynamicCallEncoder', [])
+        })
+
         it('executes the intent', async () => {
           const preUserBalance = await balanceOf(feeToken, user)
           const preSolverBalance = await balanceOf(feeToken, solver)
+          const preTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
 
           const signature = await signProposal(settler, intent, solver, proposal, admin)
           await settler.execute(intent, proposal, signature)
@@ -3089,6 +3103,9 @@ describe('Settler', () => {
 
           const postSolverBalance = await balanceOf(feeToken, solver)
           expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+
+          const postTargetBalance = await balanceOf(NATIVE_TOKEN_ADDRESS, target)
+          expect(postTargetBalance - preTargetBalance).to.be.eq(value)
         })
 
         it('logs the intent events correctly', async () => {
@@ -3100,7 +3117,7 @@ describe('Settler', () => {
 
           expect(events[0].args.user).to.be.equal(intent.operations[0].user)
           expect(events[0].args.topic).to.be.equal(eventTopic)
-          expect(events[0].args.opType).to.be.equal(4)
+          expect(events[0].args.opType).to.be.equal(DYNAMIC_CALL_OP_TYPE)
           expect(events[0].args.intentHash).to.be.equal(hashIntent(intent))
           expect(events[0].args.data).to.be.equal(eventData)
 
@@ -3112,6 +3129,33 @@ describe('Settler', () => {
 
           const [decodedB] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[1])
           expect(decodedB).to.be.equal(18)
+        })
+
+        it('reverts if the dynamic call references a later operation output', async () => {
+          intent.operations = [
+            createDynamicCallOperation({
+              user,
+              calls: [
+                {
+                  target,
+                  selector: target.interface.getFunction('returnUint')!.selector,
+                  arguments: [variable(1, 0)],
+                },
+              ],
+              events: [{ topic: eventTopic, data: eventData }],
+            }),
+            createCallOperation({
+              user,
+              calls: [{ target, data: target.interface.encodeFunctionData('returnUint', [1n]) }],
+            }),
+          ]
+          proposal.datas = ['0x', '0x']
+
+          const signature = await signProposal(settler, intent, solver, proposal, admin)
+          await expect(settler.execute(intent, proposal, signature)).to.be.revertedWithCustomError(
+            dynamicCallEncoder,
+            'DynamicCallEncoderVariableOutOfBounds'
+          )
         })
       })
 
@@ -3165,7 +3209,7 @@ describe('Settler', () => {
               {
                 target,
                 selector: target.interface.getFunction('returnUint')!.selector,
-                arguments: [variable(0)],
+                arguments: [variable(0, 1)],
               },
             ],
             events: [{ topic: eventTopic, data: eventData }],
@@ -3203,7 +3247,7 @@ describe('Settler', () => {
           const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
           expect(events).to.have.lengthOf(1)
 
-          expect(events[0].args.opType).to.be.equal(4)
+          expect(events[0].args.opType).to.be.equal(DYNAMIC_CALL_OP_TYPE)
           expect(events[0].args.topic).to.be.equal(eventTopic)
           expect(events[0].args.data).to.be.equal(eventData)
 
@@ -3211,12 +3255,12 @@ describe('Settler', () => {
           expect(outputs).to.have.lengthOf(1)
 
           const [decoded] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[0])
-          expect(decoded).to.be.equal(swapAmountOutA)
+          expect(decoded).to.be.equal(swapAmountOutB)
 
           const callEvents = await smartAccount.queryFilter(smartAccount.filters.Called(), tx.blockNumber)
           expect(callEvents).to.have.lengthOf(1)
           expect(callEvents[0].args.data).to.be.equal(
-            target.interface.encodeFunctionData('returnUint', [swapAmountOutA])
+            target.interface.encodeFunctionData('returnUint', [swapAmountOutB])
           )
         })
       })

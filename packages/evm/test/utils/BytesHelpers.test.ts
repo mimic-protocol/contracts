@@ -36,6 +36,29 @@ describe('BytesHelpers', () => {
     })
   })
 
+  describe('readWord1', () => {
+    context('when data is 64 bytes', () => {
+      const a = 999n
+      const b = 555n
+      const data = AbiCoder.defaultAbiCoder().encode(['uint256', 'uint256'], [a, b])
+
+      it('returns the second word', async () => {
+        expect(await library.readWord1(data)).to.equal(b)
+      })
+    })
+
+    context('when data is longer than 64 bytes', () => {
+      const a = 999n
+      const b = 555n
+      const c = 111n
+      const data = AbiCoder.defaultAbiCoder().encode(['uint256', 'uint256', 'uint256'], [a, b, c])
+
+      it('returns the second word', async () => {
+        expect(await library.readWord1(data)).to.equal(b)
+      })
+    })
+  })
+
   describe('lastWordIsZero', () => {
     context('when the last word is zero', () => {
       const data = ethers.concat([AbiCoder.defaultAbiCoder().encode(['uint256'], [1n]), ethers.ZeroHash])
@@ -179,6 +202,46 @@ describe('BytesHelpers', () => {
     context('when end is out of bounds', () => {
       it('reverts', async () => {
         await expect(library.sliceArray(data, 0, data.length + 1)).to.be.revertedWithCustomError(
+          library,
+          'BytesLibSliceOutOfBounds'
+        )
+      })
+    })
+  })
+
+  describe('slice(bytes[][])', () => {
+    const data = [['0x11'], ['0x2233', '0x445566'], ['0x778899aa']]
+
+    context('when slicing a prefix', () => {
+      it('returns the expected rows', async () => {
+        const out = await library.sliceMatrix(data, 0, 2)
+        expect(out).to.deep.equal([['0x11'], ['0x2233', '0x445566']])
+      })
+    })
+
+    context('when slicing a middle range', () => {
+      it('returns the expected rows', async () => {
+        const out = await library.sliceMatrix(data, 1, 3)
+        expect(out).to.deep.equal([['0x2233', '0x445566'], ['0x778899aa']])
+      })
+    })
+
+    context('when slicing an empty range', () => {
+      it('returns an empty array', async () => {
+        const out = await library.sliceMatrix(data, 1, 1)
+        expect(out).to.deep.equal([])
+      })
+    })
+
+    context('when end is smaller than start', () => {
+      it('reverts', async () => {
+        await expect(library.sliceMatrix(data, 2, 1)).to.be.revertedWithCustomError(library, 'BytesLibSliceOutOfBounds')
+      })
+    })
+
+    context('when end is out of bounds', () => {
+      it('reverts', async () => {
+        await expect(library.sliceMatrix(data, 0, data.length + 1)).to.be.revertedWithCustomError(
           library,
           'BytesLibSliceOutOfBounds'
         )
