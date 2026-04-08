@@ -66,11 +66,28 @@ pub fn execute_proposal<'info>(
     let intent = &ctx.accounts.intent;
     let proposal = &ctx.accounts.proposal;
 
+    let mut remaining_accounts_iter = ctx.remaining_accounts.iter();
+    let token_program = next_account_info(&mut remaining_accounts_iter)?;
+    let token_2022_program = next_account_info(&mut remaining_accounts_iter)?;
+
+    require_keys_eq!(
+        token_program.key(),
+        anchor_spl::token::ID,
+        SettlerError::IncorrectTokenProgram
+    );
+    require_keys_eq!(
+        token_2022_program.key(),
+        anchor_spl::token_2022::ID,
+        SettlerError::IncorrectTokenProgram
+    );
+
     handle_intent_execution(
         intent,
         proposal,
         &ctx.accounts.delegate.clone(),
-        ctx.remaining_accounts,
+        &mut remaining_accounts_iter,
+        token_program,
+        token_2022_program,
         ctx.bumps.delegate,
     )?;
 
@@ -80,7 +97,15 @@ pub fn execute_proposal<'info>(
         })
     });
 
-    pay_solver_fees()?;
+    pay_solver_fees(
+        &mut remaining_accounts_iter,
+        intent,
+        proposal,
+        token_program,
+        token_2022_program,
+        &ctx.accounts.delegate.clone(),
+        ctx.bumps.delegate,
+    )?;
 
     Ok(())
 }

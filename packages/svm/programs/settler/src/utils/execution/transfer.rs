@@ -17,7 +17,9 @@ pub fn handle_transfer<'info>(
     intent: &Intent,
     proposal: &Proposal,
     delegate: &AccountInfo<'info>,
-    remaining_accounts: &[AccountInfo<'info>],
+    remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
+    token_program: &AccountInfo<'info>,
+    token_2022_program: &AccountInfo<'info>,
     delegate_bump: u8,
 ) -> Result<()> {
     let decoded_intent_data = SvmTransferIntentData::try_from_slice(&intent.data)?;
@@ -28,8 +30,10 @@ pub fn handle_transfer<'info>(
     execute_transfers(
         intent.user,
         delegate,
-        remaining_accounts,
+        remaining_accounts_iter,
         &decoded_intent_data,
+        token_program,
+        token_2022_program,
         &[delegate_seeds],
     )?;
 
@@ -45,31 +49,17 @@ pub fn handle_transfer<'info>(
 fn execute_transfers<'info>(
     user: Pubkey,
     delegate: &AccountInfo<'info>,
-    remaining_accounts: &[AccountInfo<'info>],
+    remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
     intent_data: &SvmTransferIntentData,
+    token_program: &AccountInfo<'info>,
+    token_2022_program: &AccountInfo<'info>,
     delegate_seeds: &[&[&[u8]]],
 ) -> Result<()> {
-    let mut remaining_accounts_iter = remaining_accounts.iter();
-
-    let token_program = next_account_info(&mut remaining_accounts_iter)?;
-    let token_2022_program = next_account_info(&mut remaining_accounts_iter)?;
-
-    require_keys_eq!(
-        token_program.key(),
-        anchor_spl::token::ID,
-        SettlerError::IncorrectTokenProgram
-    );
-    require_keys_eq!(
-        token_2022_program.key(),
-        anchor_spl::token_2022::ID,
-        SettlerError::IncorrectTokenProgram
-    );
-
     for transfer in &intent_data.transfers {
         execute_transfer(
             transfer,
             delegate,
-            &mut remaining_accounts_iter,
+            remaining_accounts_iter,
             delegate_seeds,
             user,
             token_program,
@@ -123,6 +113,7 @@ fn execute_transfer<'info>(
     let user_ta_account_info = next_account_info(remaining_accounts_iter)?;
 
     // Check account ownership
+    check_owner_is_token_program(token_account_info)?;
     check_owner_is_token_program(recipient_ta_account_info)?;
     check_owner_is_token_program(user_ta_account_info)?;
 
