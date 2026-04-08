@@ -48,17 +48,17 @@ pub fn handle_intent_execution<'info>(
 ///
 /// #[account(
 ///     mut,
-///     token::owner = user,
-///     token::mint = fee_token,
-/// )]
-/// pub user_ta: Account<'info, ITokenAccount>,
-///
-/// #[account(
-///     mut,
 ///     token::owner = solver,
 ///     token::mint = fee_token
 /// )]
 /// pub solver_ta: Account<'info, ITokenAccount>,
+/// 
+/// #[account(
+///     mut,
+///     token::owner = user,
+///     token::mint = fee_token,
+/// )]
+/// pub user_ta: Account<'info, ITokenAccount>,
 ///
 pub fn pay_solver_fees<'info>(
     remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
@@ -74,8 +74,8 @@ pub fn pay_solver_fees<'info>(
 
     for (fee, max_fee) in proposal.fees.iter().zip(&intent.max_fees) {
         let token_account_info = next_account_info(remaining_accounts_iter)?;
-        let user_ta_account_info = next_account_info(remaining_accounts_iter)?;
         let solver_ta_account_info = next_account_info(remaining_accounts_iter)?;
+        let user_ta_account_info = next_account_info(remaining_accounts_iter)?;
 
         check_owner_is_token_program(token_account_info)?;
         check_owner_is_token_program(user_ta_account_info)?;
