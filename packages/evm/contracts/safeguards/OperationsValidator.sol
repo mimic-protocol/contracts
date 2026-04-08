@@ -3,6 +3,7 @@
 pragma solidity ^0.8.20;
 
 import './CallOperationsValidator.sol';
+import './DynamicCallOperationsValidator.sol';
 import './TransferOperationsValidator.sol';
 import './Safeguards.sol';
 import './SwapOperationsValidator.sol';
@@ -17,7 +18,8 @@ contract OperationsValidator is
     IOperationsValidator,
     SwapOperationsValidator,
     TransferOperationsValidator,
-    CallOperationsValidator
+    CallOperationsValidator,
+    DynamicCallOperationsValidator
 {
     /**
      * @dev Safeguard validation failed
@@ -139,7 +141,7 @@ contract OperationsValidator is
         }
         if (operation.opType == uint8(OpType.Transfer)) return _isTransferOperationValid(operation, safeguard);
         if (operation.opType == uint8(OpType.Call)) return _isCallOperationValid(operation, safeguard);
-        if (operation.opType == uint8(OpType.DynamicCall)) return true; // TODO: implement
+        if (operation.opType == uint8(OpType.DynamicCall)) return _isDynamicCallOperationValid(operation, safeguard);
         revert OperationsValidatorUnknownOperationType(uint8(operation.opType));
     }
 
