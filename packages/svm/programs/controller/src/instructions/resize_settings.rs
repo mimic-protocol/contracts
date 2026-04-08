@@ -21,7 +21,7 @@ pub struct ResizeSettings<'info> {
 }
 
 fn check_settings_data(data: &[u8], expected_admin: Pubkey) -> Result<()> {
-    if !data.starts_with(&ControllerSettings::DISCRIMINATOR) {
+    if !data.starts_with(ControllerSettings::DISCRIMINATOR) {
         return Err(ProgramError::InvalidAccountData.into());
     }
 

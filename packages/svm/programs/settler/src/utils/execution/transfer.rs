@@ -116,65 +116,44 @@ fn execute_transfer<'info>(
     token_program: &AccountInfo<'info>,
     token_2022_program: &AccountInfo<'info>,
 ) -> Result<()> {
+    // Read remaining accounts
     let token_account_info = next_account_info(remaining_accounts_iter)?;
     let recipient_account_info = next_account_info(remaining_accounts_iter)?;
     let recipient_ta_account_info = next_account_info(remaining_accounts_iter)?;
     let user_ta_account_info = next_account_info(remaining_accounts_iter)?;
 
+    // Check account ownership
     check_owner_is_token_program(recipient_ta_account_info)?;
     check_owner_is_token_program(user_ta_account_info)?;
 
+    // Check account layout
     let token_mint = {
-        let token_data: &[u8] = &token_account_info.try_borrow_data()?;
-        let mut token_data_ref: &[u8] = &token_data;
-        IMint::try_deserialize(&mut token_data_ref)?
+        let mut token_data: &[u8] = &token_account_info.try_borrow_data()?;
+        IMint::try_deserialize(&mut token_data)?
     };
 
     let recipient_ta = {
-        let recipient_ta_data = recipient_ta_account_info.try_borrow_data()?;
-        let mut recipient_ta_data_ref: &[u8] = &recipient_ta_data;
-        ITokenAccount::try_deserialize(&mut recipient_ta_data_ref)?
+        let mut recipient_ta_data: &[u8] = &recipient_ta_account_info.try_borrow_data()?;
+        ITokenAccount::try_deserialize(&mut recipient_ta_data)?
     };
 
     let user_ta = {
-        let user_ta_data = user_ta_account_info.try_borrow_data()?;
-        let mut user_ta_data_ref: &[u8] = &user_ta_data;
-        ITokenAccount::try_deserialize(&mut user_ta_data_ref)?
+        let mut user_ta_data: &[u8] = &user_ta_account_info.try_borrow_data()?;
+        ITokenAccount::try_deserialize(&mut user_ta_data)?
     };
 
-    let transfer_recipient = Pubkey::try_from(transfer.recipient.as_slice())
-        .map_err(|_| error!(SettlerError::InvalidTransferRecipient))?;
-
-    let transfer_token = Pubkey::try_from(transfer.token.as_slice())
-        .map_err(|_| error!(SettlerError::InvalidTransferToken))?;
-
-    require_keys_eq!(
-        transfer_recipient,
+    // Check logical constraints
+    check_token_accounts(
         recipient_account_info.key(),
-        SettlerError::IncorrectTransferRecipient
-    );
-    require_keys_eq!(
-        transfer_token,
         token_account_info.key(),
-        SettlerError::IncorrectTransferToken
-    );
-    require_keys_eq!(
-        recipient_ta.owner,
-        recipient_account_info.key(),
-        SettlerError::IncorrectRecipientTokenAccount
-    );
-    require_keys_eq!(
-        recipient_ta.mint,
-        token_account_info.key(),
-        SettlerError::IncorrectRecipientTokenAccount
-    );
-    require_keys_eq!(user_ta.owner, user, SettlerError::IncorrectUserTokenAccount);
-    require_keys_eq!(
-        user_ta.mint,
-        token_account_info.key(),
-        SettlerError::IncorrectUserTokenAccount
-    );
+        user,
+        &recipient_ta,
+        &user_ta,
+        &transfer.recipient,
+        &transfer.token,
+    )?;
 
+    // Construct transfer_checked CPI
     let cpi_accounts = TransferChecked {
         authority: delegate.clone(),
         from: user_ta_account_info.clone(),
@@ -190,6 +169,57 @@ fn execute_transfer<'info>(
 
     let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, delegate_seeds);
     token_interface::transfer_checked(cpi_ctx, transfer.amount, token_mint.decimals)
+}
+
+/// Checks token accounts have correct owner and mint, and that they equal expected values per transfer struct
+fn check_token_accounts(
+    recipient: Pubkey,
+    token: Pubkey,
+    user: Pubkey,
+    recipient_ta: &ITokenAccount,
+    user_ta: &ITokenAccount,
+    expected_recipient: &[u8],
+    expected_token: &[u8],
+) -> Result<()> {
+    let expected_recipient_pubkey = Pubkey::try_from(expected_recipient)
+        .map_err(|_| error!(SettlerError::InvalidTransferRecipient))?;
+
+    let expected_token_pubkey =
+        Pubkey::try_from(expected_token).map_err(|_| error!(SettlerError::InvalidTransferToken))?;
+
+    require_keys_eq!(
+        recipient,
+        expected_recipient_pubkey,
+        SettlerError::IncorrectTransferRecipient
+    );
+
+    require_keys_eq!(
+        token,
+        expected_token_pubkey,
+        SettlerError::IncorrectTransferToken
+    );
+
+    require_keys_eq!(
+        recipient_ta.owner,
+        expected_recipient_pubkey,
+        SettlerError::IncorrectRecipientTokenAccount
+    );
+
+    require_keys_eq!(
+        recipient_ta.mint,
+        expected_token_pubkey,
+        SettlerError::IncorrectRecipientTokenAccount
+    );
+
+    require_keys_eq!(user_ta.owner, user, SettlerError::IncorrectUserTokenAccount);
+
+    require_keys_eq!(
+        user_ta.mint,
+        expected_token_pubkey,
+        SettlerError::IncorrectUserTokenAccount
+    );
+
+    Ok(())
 }
 
 fn validate_transfer(proposal: &Proposal, intent_data: &SvmTransferIntentData) -> Result<()> {

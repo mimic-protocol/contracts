@@ -5,7 +5,7 @@ use crate::errors::SettlerError;
 const SECP256K1_ID: Pubkey = pubkey!("KeccakSecp256k11111111111111111111111111111");
 
 pub fn check_secp256k1_ix(ix: &Instruction) -> Result<()> {
-    if ix.program_id != SECP256K1_ID || ix.accounts.len() != 0 {
+    if ix.program_id != SECP256K1_ID || !ix.accounts.is_empty() {
         return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
     }
 
@@ -58,12 +58,12 @@ pub fn get_args_from_secp256k1_ix_data(data: &[u8]) -> Result<Secp256k1Args<'_>>
 
     // Header check
     if num_signatures != &exp_num_signatures.to_le_bytes()
-        || signature_offset != &exp_signature_offset.to_le_bytes()
+        || signature_offset != exp_signature_offset.to_le_bytes()
         || signature_instruction_index != &[0]
-        || eth_address_offset != &exp_eth_address_offset.to_le_bytes()
+        || eth_address_offset != exp_eth_address_offset.to_le_bytes()
         || eth_address_instruction_index != &[0]
-        || message_data_offset != &exp_message_data_offset.to_le_bytes()
-        || message_data_size != &msg_len.to_le_bytes()
+        || message_data_offset != exp_message_data_offset.to_le_bytes()
+        || message_data_size != msg_len.to_le_bytes()
         || message_instruction_index != &[0]
     {
         return err!(SettlerError::SigVerificationFailedInvalidPreinstruction);
@@ -73,9 +73,7 @@ pub fn get_args_from_secp256k1_ix_data(data: &[u8]) -> Result<Secp256k1Args<'_>>
         eth_address: eth_address
             .try_into()
             .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
-        msg: msg
-            .try_into()
-            .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,
+        msg,
         sig: sig
             .try_into()
             .map_err(|_| SettlerError::SigVerificationFailedInvalidPreinstruction)?,

@@ -67,8 +67,8 @@ pub fn execute_proposal<'info>(
     let proposal = &ctx.accounts.proposal;
 
     handle_intent_execution(
-        &intent,
-        &proposal,
+        intent,
+        proposal,
         &ctx.accounts.delegate.clone(),
         ctx.remaining_accounts,
         ctx.bumps.delegate,
