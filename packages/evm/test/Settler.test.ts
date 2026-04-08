@@ -38,6 +38,9 @@ import {
   createCallProposal,
   createCrossChainSwapIntent,
   createCrossChainSwapOperation,
+  createDynamicCallIntent,
+  createDynamicCallOperation,
+  createDynamicCallProposal,
   createIntent,
   createProposal,
   createSwapIntent,
@@ -47,17 +50,21 @@ import {
   createTransferOperation,
   createTransferProposal,
   currentTimestamp,
+  DynamicCallOperation,
   hashIntent,
   hashProposal,
   Intent,
+  literal,
   Proposal,
   signProposal,
+  staticCall,
   SwapOperation,
   SwapProposal,
   toAddress,
   toArray,
   TransferOperation,
   TransferProposal,
+  variable,
 } from './helpers'
 import { addValidations } from './helpers/validations'
 
@@ -95,6 +102,10 @@ describe('Settler', () => {
 
     it('has a smart accounts handler', async () => {
       expect(await settler.smartAccountsHandler()).to.not.be.equal(ZERO_ADDRESS)
+    })
+
+    it.skip('has a dynamic call decoder', async () => {
+      expect(await settler.dynamicCallEncoder()).to.not.be.equal(ZERO_ADDRESS)
     })
   })
 
@@ -1049,6 +1060,148 @@ describe('Settler', () => {
                                         context('when the chain is not the current chain', () => {
                                           beforeEach('set chain', () => {
                                             callOperationParams.chainId = 1
+                                          })
+
+                                          itReverts('SettlerInvalidChain')
+                                        })
+                                      })
+
+                                      context('for dynamic call operations', () => {
+                                        const dynamicCallOperationParams: Partial<DynamicCallOperation> = {}
+                                        const dynamicCallProposalParams: Partial<Proposal> = {}
+                                        let token: TokenMock
+
+                                        beforeEach('set token', async () => {
+                                          token = await ethers.deployContract('TokenMock', ['TKN', 18])
+                                        })
+
+                                        beforeEach('set intent params', async () => {
+                                          const target = await ethers.deployContract('StaticCallMock')
+                                          dynamicCallOperationParams.calls = [
+                                            {
+                                              target,
+                                              selector: target.interface.getFunction('returnUint')!.selector,
+                                              arguments: [literal(['uint256'], [11n])],
+                                            },
+                                          ]
+                                        })
+
+                                        const itReverts = (reason: string) => {
+                                          it('reverts', async () => {
+                                            const intent = createDynamicCallIntent(
+                                              intentParams,
+                                              dynamicCallOperationParams
+                                            )
+                                            await addValidations(settler, intent, [validator1, validator2])
+                                            const proposal = createDynamicCallProposal({
+                                              ...proposalParams,
+                                              ...dynamicCallProposalParams,
+                                            })
+                                            const signature = await signProposal(
+                                              settler,
+                                              intent,
+                                              solver,
+                                              proposal,
+                                              admin
+                                            )
+
+                                            await expect(
+                                              settler.execute(intent, proposal, signature)
+                                            ).to.be.revertedWithCustomError(settler, reason)
+                                          })
+                                        }
+
+                                        context('when the chain is the current chain', () => {
+                                          beforeEach('set chain', () => {
+                                            dynamicCallOperationParams.chainId = 31337
+                                          })
+
+                                          context('when the proposal has some data', () => {
+                                            beforeEach('set proposal data', () => {
+                                              dynamicCallProposalParams.datas = ['0xab']
+                                            })
+
+                                            itReverts('SettlerProposalDataNotEmpty')
+                                          })
+
+                                          context('when the user is a smart account', () => {
+                                            beforeEach('set proposal data', () => {
+                                              dynamicCallProposalParams.datas = ['0x']
+                                            })
+
+                                            beforeEach('set intent user', async () => {
+                                              const smartAccountUser = await ethers.deployContract(
+                                                'SmartAccountContract',
+                                                [settler, owner]
+                                              )
+                                              intentParams.feePayer = smartAccountUser
+                                              dynamicCallOperationParams.user = smartAccountUser
+                                              await feeToken.mint(intentParams.feePayer, feeAmount)
+                                            })
+
+                                            it('executes successfully', async () => {
+                                              const intent = createDynamicCallIntent(
+                                                intentParams,
+                                                dynamicCallOperationParams
+                                              )
+                                              await addValidations(settler, intent, [validator1, validator2])
+                                              const proposal = createDynamicCallProposal({
+                                                ...proposalParams,
+                                                ...dynamicCallProposalParams,
+                                              })
+                                              const signature = await signProposal(
+                                                settler,
+                                                intent,
+                                                solver,
+                                                proposal,
+                                                admin
+                                              )
+
+                                              const tx = await settler.execute(intent, proposal, signature)
+
+                                              const settlerEvents = await settler.queryFilter(
+                                                settler.filters.ProposalExecuted(),
+                                                tx.blockNumber
+                                              )
+                                              expect(settlerEvents).to.have.lengthOf(1)
+
+                                              const proposalHash = await settler.getProposalHash(
+                                                proposal,
+                                                intent,
+                                                solver
+                                              )
+                                              expect(settlerEvents[0].args.proposal).to.be.equal(proposalHash)
+                                            })
+                                          })
+
+                                          context('when the user is not a smart account', () => {
+                                            beforeEach('set proposal data', () => {
+                                              dynamicCallProposalParams.datas = ['0x']
+                                            })
+
+                                            context('when the user is an EOA', () => {
+                                              beforeEach('set intent user', async () => {
+                                                intentParams.feePayer = other
+                                                dynamicCallOperationParams.user = other
+                                              })
+
+                                              itReverts('SettlerUserNotSmartAccount')
+                                            })
+
+                                            context('when the user is another contract', () => {
+                                              beforeEach('set intent user', async () => {
+                                                intentParams.feePayer = token
+                                                dynamicCallOperationParams.user = token
+                                              })
+
+                                              itReverts('SettlerUserNotSmartAccount')
+                                            })
+                                          })
+                                        })
+
+                                        context('when the chain is not the current chain', () => {
+                                          beforeEach('set chain', () => {
+                                            dynamicCallOperationParams.chainId = 1
                                           })
 
                                           itReverts('SettlerInvalidChain')
@@ -2870,6 +3023,201 @@ describe('Settler', () => {
               expect(event.args.result).to.equal('0x')
             }
           })
+        })
+      })
+
+      context('dynamic call', () => {
+        let user: SmartAccount
+        let target: Account
+        let feeToken: TokenMock
+        let proposal: Proposal
+
+        const argument = randomEvmAddress()
+        const feeAmount = fp(0.01)
+        const eventTopic = randomHex(32)
+        const eventData = randomHex(120)
+
+        beforeEach('deploy contracts', async () => {
+          user = await ethers.deployContract('SmartAccountContract', [settler, owner])
+          target = await ethers.deployContract('StaticCallMock')
+          feeToken = await ethers.deployContract('TokenMock', ['WETH', 18])
+        })
+
+        beforeEach('mint tokens', async () => {
+          await feeToken.mint(user, feeAmount)
+        })
+
+        beforeEach('create intent', async () => {
+          intent = createDynamicCallIntent(
+            {
+              settler,
+              feePayer: user,
+              maxFees: [{ token: feeToken, amount: feeAmount }],
+            },
+            {
+              user,
+              calls: [
+                {
+                  target,
+                  selector: target.interface.getFunction('returnAddress')!.selector,
+                  arguments: [literal(['address'], [argument])],
+                },
+                {
+                  target,
+                  selector: target.interface.getFunction('returnUint')!.selector,
+                  arguments: [staticCall(feeToken.target, feeToken.interface.getFunction('decimals')!.selector, [])],
+                },
+              ],
+              events: [{ topic: eventTopic, data: eventData }],
+            }
+          )
+        })
+
+        beforeEach('create proposal', () => {
+          proposal = createDynamicCallProposal({ fees: [feeAmount] })
+        })
+
+        it('executes the intent', async () => {
+          const preUserBalance = await balanceOf(feeToken, user)
+          const preSolverBalance = await balanceOf(feeToken, solver)
+
+          const signature = await signProposal(settler, intent, solver, proposal, admin)
+          await settler.execute(intent, proposal, signature)
+
+          const postUserBalance = await balanceOf(feeToken, user)
+          expect(preUserBalance - postUserBalance).to.be.eq(feeAmount)
+
+          const postSolverBalance = await balanceOf(feeToken, solver)
+          expect(postSolverBalance - preSolverBalance).to.be.eq(feeAmount)
+        })
+
+        it('logs the intent events correctly', async () => {
+          const signature = await signProposal(settler, intent, solver, proposal, admin)
+          const tx = await settler.execute(intent, proposal, signature)
+
+          const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
+          expect(events).to.have.lengthOf(1)
+
+          expect(events[0].args.user).to.be.equal(intent.operations[0].user)
+          expect(events[0].args.topic).to.be.equal(eventTopic)
+          expect(events[0].args.opType).to.be.equal(4)
+          expect(events[0].args.intentHash).to.be.equal(hashIntent(intent))
+          expect(events[0].args.data).to.be.equal(eventData)
+
+          const [outputs] = AbiCoder.defaultAbiCoder().decode(['bytes[]'], events[0].args.output)
+          expect(outputs).to.have.lengthOf(2)
+
+          const [decodedA] = AbiCoder.defaultAbiCoder().decode(['address'], outputs[0])
+          expect(decodedA.toLowerCase()).to.be.equal(argument)
+
+          const [decodedB] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[1])
+          expect(decodedB).to.be.equal(18)
+        })
+      })
+
+      context('swap + dynamic call', () => {
+        let smartAccount: SmartAccount
+        let tokenIn: TokenMock
+        let tokenOutA: TokenMock, tokenOutB: TokenMock
+        let executor: TransferExecutorMock
+        let target: Account
+        let proposal: Proposal
+
+        const chainId = 31337
+        const swapAmountIn = fp(1)
+        const swapAmountOutA = BigInt(2900 * 1e6)
+        const swapAmountOutB = BigInt(7 * 1e18)
+        const eventTopic = randomHex(32)
+        const eventData = randomHex(120)
+
+        beforeEach('deploy contracts', async () => {
+          smartAccount = await ethers.deployContract('SmartAccountContract', [settler, owner])
+          tokenIn = await ethers.deployContract('TokenMock', ['WETH', 18])
+          tokenOutA = await ethers.deployContract('TokenMock', ['USDC', 6])
+          tokenOutB = await ethers.deployContract('TokenMock', ['DAI', 18])
+          executor = await ethers.deployContract('TransferExecutorMock')
+          target = await ethers.deployContract('StaticCallMock')
+        })
+
+        beforeEach('mint and approve tokens', async () => {
+          await tokenIn.mint(user, swapAmountIn)
+          await tokenIn.connect(user).approve(settler, swapAmountIn)
+          await tokenOutA.mint(executor, swapAmountOutA)
+          await tokenOutB.mint(executor, swapAmountOutB)
+        })
+
+        beforeEach('create intent', async () => {
+          const swapOperation = createSwapOperation({
+            user,
+            sourceChain: chainId,
+            destinationChain: chainId,
+            tokensIn: { token: tokenIn, amount: swapAmountIn },
+            tokensOut: [
+              { token: tokenOutA, minAmount: swapAmountOutA, recipient: other },
+              { token: tokenOutB, minAmount: swapAmountOutB, recipient: other },
+            ],
+          })
+
+          const dynamicCallOperation = createDynamicCallOperation({
+            user: smartAccount,
+            chainId,
+            calls: [
+              {
+                target,
+                selector: target.interface.getFunction('returnUint')!.selector,
+                arguments: [variable(0)],
+              },
+            ],
+            events: [{ topic: eventTopic, data: eventData }],
+          })
+
+          intent = createIntent({
+            settler,
+            feePayer: user,
+            maxFees: [],
+            operations: [swapOperation, dynamicCallOperation],
+          })
+        })
+
+        beforeEach('create proposal', () => {
+          const executorData = AbiCoder.defaultAbiCoder().encode(
+            ['address[]', 'uint256[]'],
+            [
+              [tokenOutA.target, tokenOutB.target],
+              [swapAmountOutA, swapAmountOutB],
+            ]
+          )
+
+          proposal = createSwapProposal({
+            executor,
+            executorData,
+            amountsOut: [swapAmountOutA, swapAmountOutB],
+          })
+          proposal.datas = [...proposal.datas, '0x']
+        })
+
+        it('passes the swap output into the dynamic call', async () => {
+          const signature = await signProposal(settler, intent, solver, proposal, admin)
+          const tx = await settler.execute(intent, proposal, signature)
+
+          const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
+          expect(events).to.have.lengthOf(1)
+
+          expect(events[0].args.opType).to.be.equal(4)
+          expect(events[0].args.topic).to.be.equal(eventTopic)
+          expect(events[0].args.data).to.be.equal(eventData)
+
+          const [outputs] = AbiCoder.defaultAbiCoder().decode(['bytes[]'], events[0].args.output)
+          expect(outputs).to.have.lengthOf(1)
+
+          const [decoded] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[0])
+          expect(decoded).to.be.equal(swapAmountOutA)
+
+          const callEvents = await smartAccount.queryFilter(smartAccount.filters.Called(), tx.blockNumber)
+          expect(callEvents).to.have.lengthOf(1)
+          expect(callEvents[0].args.data).to.be.equal(
+            target.interface.encodeFunctionData('returnUint', [swapAmountOutA])
+          )
         })
       })
 

@@ -215,6 +215,11 @@ interface ISettler {
     function operationsValidator() external view returns (address);
 
     /**
+     * @dev Tells the reference to the dynamic call encoder
+     */
+    function dynamicCallEncoder() external view returns (address);
+
+    /**
      * @dev Tells the block at which an intent was executed. Returns 0 if unexecuted.
      * @param hash Hash of the intent being queried
      */

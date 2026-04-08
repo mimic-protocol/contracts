@@ -139,6 +139,7 @@ contract OperationsValidator is
         }
         if (operation.opType == uint8(OpType.Transfer)) return _isTransferOperationValid(operation, safeguard);
         if (operation.opType == uint8(OpType.Call)) return _isCallOperationValid(operation, safeguard);
+        if (operation.opType == uint8(OpType.DynamicCall)) return true; // TODO: implement
         revert OperationsValidatorUnknownOperationType(uint8(operation.opType));
     }
 
