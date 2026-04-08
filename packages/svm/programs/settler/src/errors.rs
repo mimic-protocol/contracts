@@ -107,6 +107,9 @@ pub enum SettlerError {
     #[msg("Incorrect transfer token mint account")]
     IncorrectTransferToken,
 
+    #[msg("Incorrect fee token mint account")]
+    IncorrectFeeToken,
+
     #[msg("Account not owned by TokenKeg or Token2022 programs")]
     AccountNotOwnedByTokenProgram,
 
@@ -115,6 +118,9 @@ pub enum SettlerError {
 
     #[msg("Incorrect user token account: mint or authority do not match expected")]
     IncorrectUserTokenAccount,
+
+    #[msg("Incorrect solver token account: mint or authority do not match expected")]
+    IncorrectSolverTokenAccount,
 
     #[msg("Incorrect token program account provided")]
     IncorrectTokenProgram,
