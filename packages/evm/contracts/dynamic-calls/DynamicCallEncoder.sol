@@ -51,15 +51,17 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
      * @dev Encodes a dynamic call into calldata
      * @param dynamicCall Dynamic call specification
      * @param variables List of resolved variable values
+     * @param variablesLength Number of resolved variables
      * @return data Fully ABI-encoded calldata
      */
-    function encode(DynamicCall memory dynamicCall, bytes[][] memory variables)
+    function encode(DynamicCall memory dynamicCall, bytes[][] memory variables, uint256 variablesLength)
         external
         view
         override
         returns (bytes memory data)
     {
-        data = _buildCalldata(dynamicCall.selector, dynamicCall.arguments, variables);
+        if (variablesLength > variables.length) revert DynamicCallEncoderVariablesLengthOutOfBounds();
+        data = _buildCalldata(dynamicCall.selector, dynamicCall.arguments, variables, variablesLength);
     }
 
     /**
@@ -68,18 +70,19 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
      * - static arguments are inlined in the head
      * - dynamic arguments place offsets in the head and append data to the tail
      */
-    function _buildCalldata(bytes4 selector, DynamicArg[] memory args, bytes[][] memory variables)
-        internal
-        view
-        returns (bytes memory data)
-    {
+    function _buildCalldata(
+        bytes4 selector,
+        DynamicArg[] memory args,
+        bytes[][] memory variables,
+        uint256 variablesLength
+    ) internal view returns (bytes memory data) {
         uint256 n = args.length;
         bytes[] memory encodedArgs = new bytes[](n);
         bool[] memory isDynamic = new bool[](n);
         uint256 headLength = 0;
 
         for (uint256 i = 0; i < n; i++) {
-            EncodedArg memory enc = _encodeArg(args[i], variables);
+            EncodedArg memory enc = _encodeArg(args[i], variables, variablesLength);
             encodedArgs[i] = enc.data;
             isDynamic[i] = enc.isDynamic;
             headLength += enc.headLength;
@@ -105,14 +108,14 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
     /**
      * @dev Encodes a single dynamic argument based on its kind
      */
-    function _encodeArg(DynamicArg memory arg, bytes[][] memory variables)
+    function _encodeArg(DynamicArg memory arg, bytes[][] memory variables, uint256 variablesLength)
         internal
         view
         returns (EncodedArg memory out)
     {
         if (arg.kind == DynamicArgKind.Literal) return _encodeLiteral(arg.data);
-        if (arg.kind == DynamicArgKind.Variable) return _encodeVariable(arg.data, variables);
-        if (arg.kind == DynamicArgKind.StaticCall) return _encodeStaticCall(arg.data, variables);
+        if (arg.kind == DynamicArgKind.Variable) return _encodeVariable(arg.data, variables, variablesLength);
+        if (arg.kind == DynamicArgKind.StaticCall) return _encodeStaticCall(arg.data, variables, variablesLength);
         revert DynamicCallEncoderStaticCallBadSpec();
     }
 
@@ -150,7 +153,7 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
     /**
      * @dev Encodes a variable argument by resolving it from the variables list
      */
-    function _encodeVariable(bytes memory data, bytes[][] memory variables)
+    function _encodeVariable(bytes memory data, bytes[][] memory variables, uint256 variablesLength)
         internal
         pure
         returns (EncodedArg memory out)
@@ -158,7 +161,7 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
         if (data.length != 64) revert DynamicCallEncoderVariableRefBadLength();
         uint256 opIndex = data.readWord0();
         uint256 subIndex = data.readWord1();
-        if (opIndex >= variables.length) revert DynamicCallEncoderVariableOutOfBounds();
+        if (opIndex >= variablesLength) revert DynamicCallEncoderVariableOutOfBounds();
         if (subIndex >= variables[opIndex].length) revert DynamicCallEncoderVariableOutOfBounds();
         out = _encodeFromAbiLikeBytes(variables[opIndex][subIndex]);
     }
@@ -167,14 +170,14 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
      * @dev Encodes a staticcall argument
      * Executes a staticcall and interprets the return data as an ABI value
      */
-    function _encodeStaticCall(bytes memory data, bytes[][] memory variables)
+    function _encodeStaticCall(bytes memory data, bytes[][] memory variables, uint256 variablesLength)
         internal
         view
         returns (EncodedArg memory out)
     {
         if (data.length < 64) revert DynamicCallEncoderStaticCallBadSpec();
         DynamicStaticCallArg memory spec = abi.decode(data, (DynamicStaticCallArg));
-        bytes memory callData = _buildCalldata(spec.selector, spec.arguments, variables);
+        bytes memory callData = _buildCalldata(spec.selector, spec.arguments, variables, variablesLength);
         (bool ok, bytes memory result) = spec.target.staticcall(callData);
         if (!ok) revert DynamicCallEncoderStaticCallFailed(spec.target);
         out = _encodeFromAbiLikeBytes(result);

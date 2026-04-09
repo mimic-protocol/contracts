@@ -53,6 +53,11 @@ interface IDynamicCallEncoder {
     error DynamicCallEncoderVariableOutOfBounds();
 
     /**
+     * @dev The declared variables length exceeds the variables array length
+     */
+    error DynamicCallEncoderVariablesLengthOutOfBounds();
+
+    /**
      * @dev The variable value is too short to be interpreted
      */
     error DynamicCallEncoderVariableTooShort();
@@ -70,7 +75,11 @@ interface IDynamicCallEncoder {
     /**
      * @dev Encodes a dynamic call into calldata.
      * @param dynamicCall Dynamic call specification.
-     * @param variables Resolved outputs from previous operations.
+     * @param variables List of resolved variable values.
+     * @param variablesLength Number of resolved variables.
      */
-    function encode(DynamicCall memory dynamicCall, bytes[][] memory variables) external view returns (bytes memory);
+    function encode(DynamicCall memory dynamicCall, bytes[][] memory variables, uint256 variablesLength)
+        external
+        view
+        returns (bytes memory);
 }

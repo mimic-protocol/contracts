@@ -29,7 +29,6 @@ import './interfaces/IDynamicCallEncoder.sol';
 import './interfaces/IOperationsValidator.sol';
 import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
-import './utils/BytesHelpers.sol';
 import './utils/Denominations.sol';
 import './utils/ERC20Helpers.sol';
 import './smart-accounts/SmartAccountsHandler.sol';
@@ -41,7 +40,6 @@ import './smart-accounts/SmartAccountsHandlerHelpers.sol';
  */
 contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
-    using BytesHelpers for bytes[][];
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
     using IntentsHelpers for Validation;
@@ -233,9 +231,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
         if (opType == uint8(OpType.Transfer)) return _executeTransfer(intent, proposal, index);
         if (opType == uint8(OpType.Call)) return _executeCall(intent, proposal, index);
-        if (opType == uint8(OpType.DynamicCall)) {
-            return _executeDynamicCall(intent, proposal, index, outputs.slice(0, index));
-        }
+        if (opType == uint8(OpType.DynamicCall)) return _executeDynamicCall(intent, proposal, index, outputs);
         revert SettlerUnknownOperationType(opType);
     }
 
@@ -342,7 +338,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @param intent Intent that contains dynamic call operation to be fulfilled
      * @param proposal Dynamic call proposal to be executed
      * @param index Position where the dynamic call proposal data and operation are located
-     * @param variables List of previous operations outputs
+     * @param variables List of operations outputs
      */
     function _executeDynamicCall(
         Intent memory intent,
@@ -357,7 +353,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         outputs = new bytes[](dynamicCallOperation.calls.length);
         for (uint256 i = 0; i < dynamicCallOperation.calls.length; i++) {
             DynamicCall memory dynamicCall = abi.decode(dynamicCallOperation.calls[i], (DynamicCall));
-            bytes memory data = IDynamicCallEncoder(dynamicCallEncoder).encode(dynamicCall, variables);
+            bytes memory data = IDynamicCallEncoder(dynamicCallEncoder).encode(dynamicCall, variables, index);
             // solhint-disable-next-line avoid-low-level-calls
             outputs[i] = smartAccountsHandler.call(operation.user, dynamicCall.target, data, dynamicCall.value);
         }

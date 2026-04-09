@@ -40,7 +40,7 @@ describe('DynamicCallEncoder', () => {
         const call = dynamicCall('balanceOf', [literal(['address'], [owner])])
 
         it('encodes arguments properly', async () => {
-          const encoded = await encoder.encode(call, variables)
+          const encoded = await encoder.encode(call, variables, variables.length)
           expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [owner]))
         })
       })
@@ -51,7 +51,7 @@ describe('DynamicCallEncoder', () => {
         const call = dynamicCall('transfer', [literal(['address'], [to]), literal(['uint256'], [amount])])
 
         it('encodes arguments properly', async () => {
-          const encoded = await encoder.encode(call, variables)
+          const encoded = await encoder.encode(call, variables, variables.length)
           expect(encoded).to.equal(iface.encodeFunctionData('transfer', [to, amount]))
         })
       })
@@ -61,7 +61,7 @@ describe('DynamicCallEncoder', () => {
         const call = dynamicCall('foo', [literal(['uint256[]'], [values])])
 
         it('encodes arguments properly', async () => {
-          const encoded = await encoder.encode(call, variables)
+          const encoded = await encoder.encode(call, variables, variables.length)
           expect(encoded).to.equal(iface.encodeFunctionData('foo', [values]))
         })
       })
@@ -86,7 +86,7 @@ describe('DynamicCallEncoder', () => {
           const call = dynamicCall('balanceOf', [variable(0, 1)])
 
           it('encodes arguments properly', async () => {
-            const encoded = await encoder.encode(call, variables)
+            const encoded = await encoder.encode(call, variables, variables.length)
             expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [var1]))
           })
         })
@@ -96,7 +96,7 @@ describe('DynamicCallEncoder', () => {
           const call = dynamicCall('transfer', [literal(['address'], [to]), variable(0, 0)])
 
           it('encodes arguments properly', async () => {
-            const encoded = await encoder.encode(call, variables)
+            const encoded = await encoder.encode(call, variables, variables.length)
             expect(encoded).to.equal(iface.encodeFunctionData('transfer', [to, var0]))
           })
         })
@@ -105,7 +105,7 @@ describe('DynamicCallEncoder', () => {
           const call = dynamicCall('foo', [variable(1, 0)])
 
           it('encodes arguments properly', async () => {
-            const encoded = await encoder.encode(call, variables)
+            const encoded = await encoder.encode(call, variables, variables.length)
             expect(encoded).to.equal(iface.encodeFunctionData('foo', [var2]))
           })
         })
@@ -116,7 +116,7 @@ describe('DynamicCallEncoder', () => {
           const call = dynamicCall('foo', [{ kind: 1, data: '0x11' }])
 
           it('reverts with DynamicCallEncoderVariableRefBadLength', async () => {
-            await expect(encoder.encode(call, [])).to.be.revertedWithCustomError(
+            await expect(encoder.encode(call, [], 0)).to.be.revertedWithCustomError(
               encoder,
               'DynamicCallEncoderVariableRefBadLength'
             )
@@ -124,10 +124,13 @@ describe('DynamicCallEncoder', () => {
         })
 
         context('when operation index is out of bounds', () => {
-          const call = dynamicCall('foo', [variable(0, 0)])
+          const var0 = [ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [1n])]
+          const variables = [var0, var0] // variables.length = 2
+          const variablesLength = 1
+          const call = dynamicCall('foo', [variable(1, 0)])
 
           it('reverts with DynamicCallEncoderVariableOutOfBounds', async () => {
-            await expect(encoder.encode(call, [])).to.be.revertedWithCustomError(
+            await expect(encoder.encode(call, variables, variablesLength)).to.be.revertedWithCustomError(
               encoder,
               'DynamicCallEncoderVariableOutOfBounds'
             )
@@ -139,7 +142,7 @@ describe('DynamicCallEncoder', () => {
           const call = dynamicCall('foo', [variable(0, 1)])
 
           it('reverts with DynamicCallEncoderVariableOutOfBounds', async () => {
-            await expect(encoder.encode(call, variables)).to.be.revertedWithCustomError(
+            await expect(encoder.encode(call, variables, variables.length)).to.be.revertedWithCustomError(
               encoder,
               'DynamicCallEncoderVariableOutOfBounds'
             )
@@ -151,7 +154,7 @@ describe('DynamicCallEncoder', () => {
           const call = dynamicCall('transfer', [literal(['address'], [randomEvmAddress()]), variable(0, 0)])
 
           it('reverts with DynamicCallEncoderVariableTooShort', async () => {
-            await expect(encoder.encode(call, variables)).to.be.revertedWithCustomError(
+            await expect(encoder.encode(call, variables, variables.length)).to.be.revertedWithCustomError(
               encoder,
               'DynamicCallEncoderVariableTooShort'
             )
@@ -179,7 +182,7 @@ describe('DynamicCallEncoder', () => {
               ]),
               literal(['uint256'], [amount]),
             ])
-            const encoded = await encoder.encode(call, [])
+            const encoded = await encoder.encode(call, [], 0)
             expect(encoded).to.equal(iface.encodeFunctionData('transfer', [to, amount]))
           })
         })
@@ -194,7 +197,7 @@ describe('DynamicCallEncoder', () => {
               ]),
             ])
 
-            const encoded = await encoder.encode(call, [])
+            const encoded = await encoder.encode(call, [], 0)
             expect(encoded).to.equal(iface.encodeFunctionData('foo', [values]))
           })
         })
@@ -209,7 +212,7 @@ describe('DynamicCallEncoder', () => {
             staticCall(mock.target, mock.interface.getFunction('returnAddress')!.selector, [variable(0, 0)]),
           ])
 
-          const encoded = await encoder.encode(call, variables)
+          const encoded = await encoder.encode(call, variables, variables.length)
           expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [owner]))
         })
       })
@@ -226,9 +229,21 @@ describe('DynamicCallEncoder', () => {
             ]),
           ])
 
-          const encoded = await encoder.encode(call, [])
+          const encoded = await encoder.encode(call, [], 0)
           expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [to]))
         })
+      })
+    })
+
+    context('when variables length exceeds the variables array length', () => {
+      const variables = [[ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [1n])]]
+      const call = dynamicCall('foo', [variable(0, 0)])
+
+      it('reverts with DynamicCallEncoderVariablesLengthOutOfBounds', async () => {
+        await expect(encoder.encode(call, variables, variables.length + 1)).to.be.revertedWithCustomError(
+          encoder,
+          'DynamicCallEncoderVariablesLengthOutOfBounds'
+        )
       })
     })
   })
