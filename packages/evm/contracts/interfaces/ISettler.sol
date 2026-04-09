@@ -160,6 +160,11 @@ interface ISettler {
     error SmartAccountsHandlerZero();
 
     /**
+     * @dev The new dynamic call encoder is zero
+     */
+    error SettlerDynamicCallEncoderZero();
+
+    /**
      * @dev Custom events emitted for each operation
      */
     event OperationExecuted(
@@ -193,6 +198,11 @@ interface ISettler {
      * @dev Emitted every time the operations validator is set
      */
     event OperationsValidatorSet(address indexed operationsValidator);
+
+    /**
+     * @dev Emitted every time the dynamic call encoder is set
+     */
+    event DynamicCallEncoderSet(address indexed dynamicCallEncoder);
 
     /**
      * @dev Emitted every time a safeguard is set
@@ -267,6 +277,12 @@ interface ISettler {
      * @param newOperationsValidator New operations validator to be set
      */
     function setOperationsValidator(address newOperationsValidator) external;
+
+    /**
+     * @dev Sets a new dynamic call encoder address
+     * @param newDynamicCallEncoder New dynamic call encoder to be set
+     */
+    function setDynamicCallEncoder(address newDynamicCallEncoder) external;
 
     /**
      * @dev Sets a safeguard for a user

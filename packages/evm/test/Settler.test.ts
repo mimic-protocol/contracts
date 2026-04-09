@@ -355,6 +355,54 @@ describe('Settler', () => {
     })
   })
 
+  describe('setDynamicCallEncoder', () => {
+    context('when the sender is the owner', () => {
+      beforeEach('set sender', () => {
+        settler = settler.connect(owner)
+      })
+
+      context('when the dynamic call encoder is not zero', () => {
+        let newDynamicCallEncoder: DynamicCallEncoder
+
+        beforeEach('deploy encoder', async () => {
+          newDynamicCallEncoder = await ethers.deployContract('DynamicCallEncoder', [])
+        })
+
+        it('sets the dynamic call encoder and emits an event', async () => {
+          const tx = await settler.setDynamicCallEncoder(newDynamicCallEncoder)
+
+          expect(await settler.dynamicCallEncoder()).to.equal(newDynamicCallEncoder)
+
+          const events = await settler.queryFilter(settler.filters.DynamicCallEncoderSet(), tx.blockNumber)
+          expect(events).to.have.lengthOf(1)
+          expect(events[0].args.dynamicCallEncoder).to.equal(newDynamicCallEncoder)
+        })
+      })
+
+      context('when the dynamic call encoder is zero', () => {
+        it('reverts', async () => {
+          await expect(settler.setDynamicCallEncoder(ZERO_ADDRESS)).to.be.revertedWithCustomError(
+            settler,
+            'SettlerDynamicCallEncoderZero'
+          )
+        })
+      })
+    })
+
+    context('when the sender is not the owner', () => {
+      beforeEach('set sender', () => {
+        settler = settler.connect(user)
+      })
+
+      it('reverts', async () => {
+        await expect(settler.setDynamicCallEncoder(ZERO_ADDRESS)).to.be.revertedWithCustomError(
+          settler,
+          'OwnableUnauthorizedAccount'
+        )
+      })
+    })
+  })
+
   describe('setSafeguard', () => {
     const safeguard = randomHex(64)
 

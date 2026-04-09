@@ -152,6 +152,14 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
+     * @dev Sets a new dynamic call encoder address
+     * @param newDynamicCallEncoder New dynamic call encoder to be set
+     */
+    function setDynamicCallEncoder(address newDynamicCallEncoder) external override onlyOwner {
+        _setDynamicCallEncoder(newDynamicCallEncoder);
+    }
+
+    /**
      * @dev Sets a safeguard for a user
      * @param safeguard Safeguard to be set
      */
@@ -634,6 +642,16 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     function _setOperationsValidator(address newOperationsValidator) internal {
         operationsValidator = newOperationsValidator;
         emit OperationsValidatorSet(newOperationsValidator);
+    }
+
+    /**
+     * @dev Sets the dynamic call encoder
+     * @param newDynamicCallEncoder New dynamic call encoder to be set
+     */
+    function _setDynamicCallEncoder(address newDynamicCallEncoder) internal {
+        if (newDynamicCallEncoder == address(0)) revert SettlerDynamicCallEncoderZero();
+        dynamicCallEncoder = newDynamicCallEncoder;
+        emit DynamicCallEncoderSet(newDynamicCallEncoder);
     }
 
     /**
