@@ -8,6 +8,7 @@ import { DynamicArg, literal, staticCall, variable } from '../helpers'
 const { ethers } = await network.connect()
 
 /* eslint-disable no-secrets/no-secrets */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 describe('DynamicCallEncoder', () => {
   let encoder: DynamicCallEncoder

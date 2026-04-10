@@ -51,7 +51,6 @@ import {
   createTransferOperation,
   createTransferProposal,
   currentTimestamp,
-  DYNAMIC_CALL_OP_TYPE,
   DynamicCallOperation,
   hashIntent,
   hashProposal,
@@ -73,6 +72,7 @@ import { addValidations } from './helpers/validations'
 const { ethers } = await network.connect()
 
 /* eslint-disable no-secrets/no-secrets */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 describe('Settler', () => {
   let settler: Settler, controller: Controller
@@ -3165,7 +3165,7 @@ describe('Settler', () => {
 
           expect(events[0].args.user).to.be.equal(intent.operations[0].user)
           expect(events[0].args.topic).to.be.equal(eventTopic)
-          expect(events[0].args.opType).to.be.equal(DYNAMIC_CALL_OP_TYPE)
+          expect(events[0].args.opType).to.be.equal(OpType.EvmDynamicCall)
           expect(events[0].args.intentHash).to.be.equal(hashIntent(intent))
           expect(events[0].args.data).to.be.equal(eventData)
 
@@ -3295,7 +3295,7 @@ describe('Settler', () => {
           const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
           expect(events).to.have.lengthOf(1)
 
-          expect(events[0].args.opType).to.be.equal(DYNAMIC_CALL_OP_TYPE)
+          expect(events[0].args.opType).to.be.equal(OpType.EvmDynamicCall)
           expect(events[0].args.topic).to.be.equal(eventTopic)
           expect(events[0].args.data).to.be.equal(eventData)
 

@@ -1,10 +1,9 @@
+import { OpType } from '@mimicprotocol/sdk'
 import { AbiCoder, BigNumberish } from 'ethers'
 
 import { Account, toAddress } from '../addresses.js'
 import { DynamicArg } from '../dynamic-calls.js'
 import { createIntent, createOperation, Intent, Operation } from './base.js'
-
-export const DYNAMIC_CALL_OP_TYPE = 4
 
 export type DynamicCallOperation = Operation & {
   chainId: BigNumberish
@@ -29,7 +28,7 @@ export function createDynamicCallIntent(
 }
 
 export function createDynamicCallOperation(params?: Partial<DynamicCallOperation>): Operation {
-  const operation = createOperation({ ...params, opType: DYNAMIC_CALL_OP_TYPE })
+  const operation = createOperation({ ...params, opType: OpType.EvmDynamicCall })
   const dynamicCallOperation = { ...getDefaults(), ...params, ...operation } as DynamicCallOperation
   operation.data = AbiCoder.defaultAbiCoder().encode(
     ['tuple(uint256 chainId, bytes[] calls)'],
