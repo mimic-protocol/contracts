@@ -235,6 +235,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
+        // Using the intent hash as the unique operation hash because cross-chain swap has only one operation per intent
         bytes32 operationHash = intent.hash();
         IExecutor(swapProposal.executor).execute(operation, operationHash, proposal.datas[index]);
 
