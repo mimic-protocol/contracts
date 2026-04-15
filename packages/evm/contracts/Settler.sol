@@ -235,7 +235,8 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
-        IExecutor(swapProposal.executor).execute(intent, proposal, index);
+        bytes32 operationHash = intent.hash();
+        IExecutor(swapProposal.executor).execute(operation, operationHash, proposal.datas[index]);
 
         if (swapOperation.destinationChain == block.chainid) {
             uint256[] memory outputs = new uint256[](swapOperation.tokensOut.length);
