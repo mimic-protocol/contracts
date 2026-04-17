@@ -8,6 +8,7 @@ import {
   OpType,
   randomEvmAddress,
   randomHex,
+  randomNumber,
   randomSig,
   USD_ADDRESS,
   ZERO_ADDRESS,
@@ -58,7 +59,6 @@ import {
   literal,
   Proposal,
   signProposal,
-  staticCall,
   SwapOperation,
   SwapProposal,
   toAddress,
@@ -3083,7 +3083,8 @@ describe('Settler', () => {
         let proposal: Proposal
         let dynamicCallEncoder: DynamicCallEncoder
 
-        const argument = randomEvmAddress()
+        const arg0 = randomEvmAddress()
+        const arg1 = randomNumber(2)
         const value = fp(0.00001)
         const feeAmount = fp(0.01)
         const eventTopic = randomHex(32)
@@ -3116,13 +3117,14 @@ describe('Settler', () => {
                 {
                   target,
                   selector: target.interface.getFunction('returnAddress')!.selector,
-                  arguments: [literal(['address'], [argument])],
+                  arguments: [literal(['address'], [arg0])],
                   value,
                 },
                 {
                   target,
                   selector: target.interface.getFunction('returnUint')!.selector,
-                  arguments: [staticCall(feeToken.target, feeToken.interface.getFunction('decimals')!.selector, [])],
+                  arguments: [literal(['uint256'], [arg1])],
+                  value: 0n,
                 },
               ],
               events: [{ topic: eventTopic, data: eventData }],
@@ -3173,10 +3175,10 @@ describe('Settler', () => {
           expect(outputs).to.have.lengthOf(2)
 
           const [decodedA] = AbiCoder.defaultAbiCoder().decode(['address'], outputs[0])
-          expect(decodedA.toLowerCase()).to.be.equal(argument)
+          expect(decodedA.toLowerCase()).to.be.equal(arg0)
 
           const [decodedB] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[1])
-          expect(decodedB).to.be.equal(18)
+          expect(decodedB).to.be.equal(arg1)
         })
 
         it('reverts if the dynamic call references a later operation output', async () => {
@@ -3207,7 +3209,7 @@ describe('Settler', () => {
         })
       })
 
-      context('swap + dynamic call', () => {
+      context('swap + call + dynamic call', () => {
         let smartAccount: SmartAccount
         let tokenIn: TokenMock
         let tokenOutA: TokenMock, tokenOutB: TokenMock
@@ -3250,6 +3252,12 @@ describe('Settler', () => {
             ],
           })
 
+          const callOperation = createCallOperation({
+            user: smartAccount,
+            chainId,
+            calls: [{ target: tokenOutA, data: tokenOutA.interface.encodeFunctionData('decimals') }],
+          })
+
           const dynamicCallOperation = createDynamicCallOperation({
             user: smartAccount,
             chainId,
@@ -3257,7 +3265,12 @@ describe('Settler', () => {
               {
                 target,
                 selector: target.interface.getFunction('returnUint')!.selector,
-                arguments: [variable(0, 1)],
+                arguments: [variable(0, 1)], // First operation, second output
+              },
+              {
+                target,
+                selector: target.interface.getFunction('returnUint')!.selector,
+                arguments: [variable(1, 0)], // Second operation, first output
               },
             ],
             events: [{ topic: eventTopic, data: eventData }],
@@ -3267,7 +3280,7 @@ describe('Settler', () => {
             settler,
             feePayer: user,
             maxFees: [],
-            operations: [swapOperation, dynamicCallOperation],
+            operations: [swapOperation, callOperation, dynamicCallOperation],
           })
         })
 
@@ -3285,10 +3298,10 @@ describe('Settler', () => {
             executorData,
             amountsOut: [swapAmountOutA, swapAmountOutB],
           })
-          proposal.datas = [...proposal.datas, '0x']
+          proposal.datas = [...proposal.datas, '0x', '0x']
         })
 
-        it('passes the swap output into the dynamic call', async () => {
+        it('passes the previous outputs into the dynamic call', async () => {
           const signature = await signProposal(settler, intent, solver, proposal, admin)
           const tx = await settler.execute(intent, proposal, signature)
 
@@ -3300,16 +3313,22 @@ describe('Settler', () => {
           expect(events[0].args.data).to.be.equal(eventData)
 
           const [outputs] = AbiCoder.defaultAbiCoder().decode(['bytes[]'], events[0].args.output)
-          expect(outputs).to.have.lengthOf(1)
+          expect(outputs).to.have.lengthOf(2)
 
-          const [decoded] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[0])
-          expect(decoded).to.be.equal(swapAmountOutB)
+          const [decodedA] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[0])
+          expect(decodedA).to.be.equal(swapAmountOutB)
+
+          const [decodedB] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[1])
+          expect(decodedB).to.be.equal(6n)
 
           const callEvents = await smartAccount.queryFilter(smartAccount.filters.Called(), tx.blockNumber)
-          expect(callEvents).to.have.lengthOf(1)
-          expect(callEvents[0].args.data).to.be.equal(
+          expect(callEvents).to.have.lengthOf(3)
+
+          expect(callEvents[0].args.data).to.be.equal(tokenOutA.interface.encodeFunctionData('decimals'))
+          expect(callEvents[1].args.data).to.be.equal(
             target.interface.encodeFunctionData('returnUint', [swapAmountOutB])
           )
+          expect(callEvents[2].args.data).to.be.equal(target.interface.encodeFunctionData('returnUint', [6n]))
         })
       })
 

@@ -68,11 +68,6 @@ interface IDynamicCallEncoder {
     error DynamicCallEncoderStaticCallBadSpec();
 
     /**
-     * @dev The staticcall execution failed
-     */
-    error DynamicCallEncoderStaticCallFailed(address target);
-
-    /**
      * @dev Encodes a dynamic call into calldata.
      * @param dynamicCall Dynamic call specification.
      * @param variables List of resolved variable values.

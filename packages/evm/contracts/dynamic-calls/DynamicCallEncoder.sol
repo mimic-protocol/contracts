@@ -25,7 +25,6 @@ import '../utils/BytesHelpers.sol';
  * This encoder supports:
  * - Literal ABI-encoded arguments
  * - Variable references resolved from previous execution results
- * - Nested static calls whose return values are used as arguments
  *
  * The encoder follows standard ABI encoding rules, reconstructing
  * the calldata heads and tails dynamically based on argument types.
@@ -56,7 +55,7 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
      */
     function encode(DynamicCall memory dynamicCall, bytes[][] memory variables, uint256 variablesLength)
         external
-        view
+        pure
         override
         returns (bytes memory data)
     {
@@ -75,7 +74,7 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
         DynamicArg[] memory args,
         bytes[][] memory variables,
         uint256 variablesLength
-    ) internal view returns (bytes memory data) {
+    ) internal pure returns (bytes memory data) {
         uint256 n = args.length;
         bytes[] memory encodedArgs = new bytes[](n);
         bool[] memory isDynamic = new bool[](n);
@@ -110,12 +109,11 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
      */
     function _encodeArg(DynamicArg memory arg, bytes[][] memory variables, uint256 variablesLength)
         internal
-        view
+        pure
         returns (EncodedArg memory out)
     {
         if (arg.kind == DynamicArgKind.Literal) return _encodeLiteral(arg.data);
         if (arg.kind == DynamicArgKind.Variable) return _encodeVariable(arg.data, variables, variablesLength);
-        if (arg.kind == DynamicArgKind.StaticCall) return _encodeStaticCall(arg.data, variables, variablesLength);
         revert DynamicCallEncoderStaticCallBadSpec();
     }
 
@@ -167,25 +165,8 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
     }
 
     /**
-     * @dev Encodes a staticcall argument
-     * Executes a staticcall and interprets the return data as an ABI value
-     */
-    function _encodeStaticCall(bytes memory data, bytes[][] memory variables, uint256 variablesLength)
-        internal
-        view
-        returns (EncodedArg memory out)
-    {
-        if (data.length < 64) revert DynamicCallEncoderStaticCallBadSpec();
-        DynamicStaticCallArg memory spec = abi.decode(data, (DynamicStaticCallArg));
-        bytes memory callData = _buildCalldata(spec.selector, spec.arguments, variables, variablesLength);
-        (bool ok, bytes memory result) = spec.target.staticcall(callData);
-        if (!ok) revert DynamicCallEncoderStaticCallFailed(spec.target);
-        out = _encodeFromAbiLikeBytes(result);
-    }
-
-    /**
      * @dev Interprets ABI-like bytes as either a static or dynamic value
-     * Used for variable resolution and staticcall return values
+     * Used for variable resolution
      */
     function _encodeFromAbiLikeBytes(bytes memory value) internal pure returns (EncodedArg memory out) {
         if (value.length < 32) revert DynamicCallEncoderVariableTooShort();

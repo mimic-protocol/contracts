@@ -18,25 +18,10 @@ pragma solidity ^0.8.20;
  * @dev Kind of dynamic argument to be encoded
  * @param Literal ABI-encoded literal value provided by the resolver
  * @param Variable Reference to a previously resolved variable value
- * @param StaticCall Result of executing a static call at encoding time
  */
 enum DynamicArgKind {
     Literal,
-    Variable,
-    StaticCall
-}
-
-/**
- * @dev Specification for a static call whose return value
- *      will be used as an argument in another call
- * @param target Contract to be called via staticcall
- * @param selector Function selector to invoke
- * @param arguments Arguments to be encoded and passed to the static call
- */
-struct DynamicStaticCallArg {
-    address target;
-    bytes4 selector;
-    DynamicArg[] arguments;
+    Variable
 }
 
 /**

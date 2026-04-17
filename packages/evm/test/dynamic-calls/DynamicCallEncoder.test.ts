@@ -2,8 +2,8 @@ import { randomEvmAddress } from '@mimicprotocol/sdk'
 import { expect } from 'chai'
 import { network } from 'hardhat'
 
-import { DynamicCallEncoder, StaticCallMock } from '../../types/ethers-contracts/index.js'
-import { DynamicArg, literal, staticCall, variable } from '../helpers'
+import { DynamicCallEncoder } from '../../types/ethers-contracts/index.js'
+import { DynamicArg, literal, variable } from '../helpers'
 
 const { ethers } = await network.connect()
 
@@ -160,78 +160,6 @@ describe('DynamicCallEncoder', () => {
               'DynamicCallEncoderVariableTooShort'
             )
           })
-        })
-      })
-    })
-
-    context('with staticcall arguments', () => {
-      let mock: StaticCallMock
-
-      beforeEach('deploy static call mock', async () => {
-        mock = await ethers.deployContract('StaticCallMock')
-      })
-
-      context('when the staticcall receives a literal', () => {
-        context('with fixed-length return types', () => {
-          it('encodes arguments properly', async () => {
-            const to = randomEvmAddress()
-            const amount = 999n
-
-            const call = dynamicCall('transfer', [
-              staticCall(mock.target, mock.interface.getFunction('returnAddress')!.selector, [
-                literal(['address'], [to]),
-              ]),
-              literal(['uint256'], [amount]),
-            ])
-            const encoded = await encoder.encode(call, [], 0)
-            expect(encoded).to.equal(iface.encodeFunctionData('transfer', [to, amount]))
-          })
-        })
-
-        context('with arbitrary-length return types', () => {
-          it('encodes arguments properly', async () => {
-            const values = [1n, 2n, 3n]
-
-            const call = dynamicCall('foo', [
-              staticCall(mock.target, mock.interface.getFunction('returnArray')!.selector, [
-                literal(['uint256[]'], [values]),
-              ]),
-            ])
-
-            const encoded = await encoder.encode(call, [], 0)
-            expect(encoded).to.equal(iface.encodeFunctionData('foo', [values]))
-          })
-        })
-      })
-
-      context('when the staticcall receives a variable', () => {
-        it('encodes arguments properly', async () => {
-          const owner = randomEvmAddress()
-          const variables = [[ethers.AbiCoder.defaultAbiCoder().encode(['address'], [owner])]]
-
-          const call = dynamicCall('balanceOf', [
-            staticCall(mock.target, mock.interface.getFunction('returnAddress')!.selector, [variable(0, 0)]),
-          ])
-
-          const encoded = await encoder.encode(call, variables, variables.length)
-          expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [owner]))
-        })
-      })
-
-      context('when the staticcall receives the result of another staticcall', () => {
-        it('encodes arguments properly', async () => {
-          const to = randomEvmAddress()
-
-          const call = dynamicCall('balanceOf', [
-            staticCall(mock.target, mock.interface.getFunction('returnAddress')!.selector, [
-              staticCall(mock.target, mock.interface.getFunction('returnAddress')!.selector, [
-                literal(['address'], [to]),
-              ]),
-            ]),
-          ])
-
-          const encoded = await encoder.encode(call, [], 0)
-          expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [to]))
         })
       })
     })

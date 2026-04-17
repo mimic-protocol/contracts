@@ -6,6 +6,7 @@ import './CallOperationsValidator.sol';
 import './Safeguards.sol';
 import './BaseOperationsValidator.sol';
 import '../Intents.sol';
+import '../dynamic-calls/DynamicCallTypes.sol';
 
 /**
  * @title DynamicCallOperationsValidator

@@ -2,8 +2,6 @@
 
 pragma solidity ^0.8.20;
 
-import './dynamic-calls/DynamicCallTypes.sol';
-
 /**
  * @dev Enum representing the operation type.
  * - Swap: Swap tokens in the same chain.
