@@ -2382,6 +2382,11 @@ describe('Settler', () => {
       solver: solver.toString(),
     })
 
+    const totalTransferAmount = (transfers: TransferIntentData['transfers']) =>
+      transfers.reduce((prev, curr) => prev + Number(curr.amount), 0)
+
+    const totalFees = (fees: string[]) => fees.reduce((prev, curr) => prev + Number(curr), 0)
+
     const prepareIntentAndProposal = async (sdk: SvmSettler = solverSdk) => {
       await makeTxSignAndSend(solverProvider, await sdk.createIntentIx(intentHash, intent, true))
 
@@ -2425,7 +2430,7 @@ describe('Settler', () => {
       await makeTxSignAndSend(adminProvider, ix)
     })
 
-    before('Create validator, Axia, USDC and fund user', async () => {
+    before('Create validator, Axia, USDC, USDT and fund user', async () => {
       user = randomKeypair()
       recipient = randomPubkey()
       userProvider = new LiteSVMProvider(client, new Wallet(user))
@@ -2446,13 +2451,12 @@ describe('Settler', () => {
       let transfers: TransferIntentData['transfers']
       let testIntentData: TransferIntentData
 
-      const createTestTransfers = () => [
-        {
+      const createTestTransfers = (n: number) =>
+        Array.from({ length: n }, () => ({
           amount: '1000000000',
           token: usdc.toString(),
           recipient: recipient.toString(),
-        },
-      ]
+        }))
 
       const createTestIntentData = (transfers?: TransferIntentData['transfers']): TransferIntentData => ({
         chainId: Chains.Solana,
@@ -2505,13 +2509,13 @@ describe('Settler', () => {
         })
       }
 
-      const itWorksAsExpected = () => {
+      const itWorksAsExpected = (n: number) => {
         context('when remaining accounts are correct', () => {
           context('when transfer/s is/are valid', () => {
             context('when protocol has approval', () => {
               context('when user has sufficient funds', () => {
                 beforeEach('Create data and approve delegate', async () => {
-                  transfers = createTestTransfers()
+                  transfers = createTestTransfers(n)
                   testIntentData = createTestIntentData(transfers)
                   intentHash = randomHex(32)
                   intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2523,7 +2527,7 @@ describe('Settler', () => {
                     userAta,
                     solverSdk.getDelegateKey(user.publicKey),
                     user,
-                    Number(transfers[0].amount) + Number(proposal.fees[0])
+                    totalTransferAmount(transfers) + totalFees(proposal.fees)
                   )
 
                   await prepareIntentAndProposal()
@@ -2572,11 +2576,12 @@ describe('Settler', () => {
                     expect(error.message).to.include('Account does not exist')
                   }
 
+                  const transfersAmount = totalTransferAmount(transfers)
+                  const feesAmount = totalFees(proposal.fees)
+
                   expect(client.getAccount(fulfilledIntentKey)?.owner.toString()).to.be.eq(settler.programId.toString())
-                  expect(recipientBalanceAfter).to.be.eq(recipientBalanceBefore + Number(transfers[0].amount))
-                  expect(userBalanceAfter).to.be.eq(
-                    userBalanceBefore - Number(transfers[0].amount) - Number(proposal.fees[0])
-                  )
+                  expect(recipientBalanceAfter).to.be.eq(recipientBalanceBefore + transfersAmount)
+                  expect(userBalanceAfter).to.be.eq(userBalanceBefore - transfersAmount - feesAmount)
                   expect(solverBalanceAfter).to.be.eq(
                     solverBalanceBefore +
                       intentBalanceBefore +
@@ -2586,7 +2591,7 @@ describe('Settler', () => {
                   )
                   expect(proposalBalanceAfter).to.be.eq(0)
                   expect(intentBalanceAfter).to.be.eq(0)
-                  expect(solverAtaBalanceAfter).to.be.eq(solverAtaBalanceBefore + Number(proposal.fees[0]))
+                  expect(solverAtaBalanceAfter).to.be.eq(solverAtaBalanceBefore + feesAmount)
                 })
               })
 
@@ -2624,7 +2629,41 @@ describe('Settler', () => {
                 })
 
                 context('when user does not have fee token/s sufficient funds', () => {
-                  // TODO: implement
+                  beforeEach('Create data with new token for fees', async () => {
+                    const usdt = createMint(client, admin, { decimals: 9, freezeAuthority: null }).mint
+                    const usdtUserAta = (await createFundedAta(adminProvider, admin, user.publicKey, usdt, 0)).ata
+                    await createFundedAta(adminProvider, admin, solver.publicKey, usdt, 0)
+
+                    transfers = createTestTransfers(n)
+                    testIntentData = createTestIntentData(transfers)
+                    intentHash = randomHex(32)
+                    intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                    intent = { ...intent, maxFees: [{ token: usdt.toString(), amount: '10000000' }] }
+                    proposal = createTestProposal(intent)
+                    remainingAccounts = getRemainingAccounts(intent, proposal)
+
+                    await approveDelegate(
+                      userProvider,
+                      userAta,
+                      solverSdk.getDelegateKey(user.publicKey),
+                      user,
+                      totalTransferAmount(transfers)
+                    )
+
+                    await approveDelegate(
+                      userProvider,
+                      usdtUserAta,
+                      solverSdk.getDelegateKey(user.publicKey),
+                      user,
+                      totalFees(proposal.fees)
+                    )
+
+                    await prepareIntentAndProposal()
+
+                    ix = await createIx(solverSdk)
+                  })
+
+                  itThrowsAnError('insufficient funds')
                 })
               })
             })
@@ -2634,7 +2673,7 @@ describe('Settler', () => {
                 beforeEach('Create data and remove delegate', async () => {
                   await revokeDelegate(userProvider, userAta, user)
 
-                  transfers = createTestTransfers()
+                  transfers = createTestTransfers(n)
                   testIntentData = createTestIntentData(transfers)
                   intentHash = randomHex(32)
                   intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2650,7 +2689,33 @@ describe('Settler', () => {
               })
 
               context('when protocol does not have fee token/s approval', () => {
-                // TODO: implement
+                beforeEach('Create data, new fee token mint, approve Delegate for transfer token only', async () => {
+                  const usdt = createMint(client, admin, { decimals: 9, freezeAuthority: null }).mint
+                  await createFundedAta(adminProvider, admin, user.publicKey, usdt, 100_000_000_000)
+                  await createFundedAta(adminProvider, admin, solver.publicKey, usdt, 0)
+
+                  transfers = createTestTransfers(n)
+                  testIntentData = createTestIntentData(transfers)
+                  intentHash = randomHex(32)
+                  intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                  intent = { ...intent, maxFees: [{ token: usdt.toString(), amount: '100000' }] }
+                  proposal = createTestProposal(intent)
+                  remainingAccounts = getRemainingAccounts(intent, proposal)
+
+                  await approveDelegate(
+                    userProvider,
+                    userAta,
+                    solverSdk.getDelegateKey(user.publicKey),
+                    user,
+                    totalTransferAmount(transfers) + totalFees(proposal.fees)
+                  )
+
+                  await prepareIntentAndProposal()
+
+                  ix = await createIx(solverSdk)
+                })
+
+                itThrowsAnError('owner does not match')
               })
             })
           })
@@ -2658,7 +2723,7 @@ describe('Settler', () => {
           context('when proposal is not valid', () => {
             context('when proposal intent is not for chain Solana', () => {
               beforeEach('Create data for Optimism', async () => {
-                transfers = createTestTransfers()
+                transfers = createTestTransfers(n)
                 testIntentData = { ...createTestIntentData(transfers), chainId: Chains.Optimism }
                 intentHash = randomHex(32)
                 intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2675,7 +2740,7 @@ describe('Settler', () => {
 
             context('when proposal has data/instructions', () => {
               beforeEach('Create Proposal and manually edit bytes to add data on-chain', async () => {
-                transfers = createTestTransfers()
+                transfers = createTestTransfers(n)
                 testIntentData = createTestIntentData(transfers)
                 intentHash = randomHex(32)
                 intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2683,7 +2748,7 @@ describe('Settler', () => {
                 remainingAccounts = getRemainingAccounts(intent, proposal)
 
                 await prepareIntentAndProposal()
-                editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), {
+                await editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), {
                   instructions: [
                     {
                       programId: randomPubkey(),
@@ -2703,7 +2768,7 @@ describe('Settler', () => {
 
         context('when remaining accounts are not correct', () => {
           beforeEach('Set up base data and re-approve', async () => {
-            transfers = createTestTransfers()
+            transfers = createTestTransfers(n)
             testIntentData = createTestIntentData(transfers)
             intentHash = randomHex(32)
             intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2716,7 +2781,7 @@ describe('Settler', () => {
               userAta,
               solverSdk.getDelegateKey(user.publicKey),
               user,
-              Number(transfers[0].amount) + Number(proposal.fees[0])
+              totalTransferAmount(transfers) + totalFees(proposal.fees)
             )
           })
 
@@ -2797,15 +2862,71 @@ describe('Settler', () => {
               context('when transfer accounts are correct', () => {
                 context('when fee accounts are incorrect', () => {
                   context('when token is incorrect', () => {
-                    // TODO: implement
+                    context('when token is another token', () => {
+                      beforeEach(async () => {
+                        remainingAccounts[remainingAccounts.length - 3].pubkey = createMint(client, admin).mint
+                        await prepareIntentAndProposal()
+                        ix = await createIx(solverSdk)
+                      })
+
+                      itThrowsAnError('Incorrect fee token mint account')
+                    })
+
+                    context('when token is another type of account', () => {
+                      beforeEach(async () => {
+                        remainingAccounts[remainingAccounts.length - 3].pubkey = randomPubkey()
+                        await prepareIntentAndProposal()
+                        ix = await createIx(solverSdk)
+                      })
+
+                      itThrowsAnError('Account not owned by TokenKeg or Token2022 programs')
+                    })
                   })
 
                   context('when solver token account is incorrect', () => {
-                    // TODO: implement
+                    context('when solver token account is another token account', () => {
+                      beforeEach(async () => {
+                        const otherAta = await createFundedAta(adminProvider, admin, randomPubkey(), usdc, 0)
+                        remainingAccounts[remainingAccounts.length - 2].pubkey = otherAta.ata
+                        await prepareIntentAndProposal()
+                        ix = await createIx(solverSdk)
+                      })
+
+                      itThrowsAnError('Incorrect solver token account: mint or authority do not match expected')
+                    })
+
+                    context('when solver token account is another type of account', () => {
+                      beforeEach(async () => {
+                        remainingAccounts[remainingAccounts.length - 2].pubkey = randomPubkey()
+                        await prepareIntentAndProposal()
+                        ix = await createIx(solverSdk)
+                      })
+
+                      itThrowsAnError('Account not owned by TokenKeg or Token2022 programs')
+                    })
                   })
 
                   context('when user token account is incorrect', () => {
-                    // TODO: implement
+                    context('when user token account is another token account', () => {
+                      beforeEach(async () => {
+                        const otherAta = await createFundedAta(adminProvider, admin, randomPubkey(), usdc, 0)
+                        remainingAccounts[remainingAccounts.length - 1].pubkey = otherAta.ata
+                        await prepareIntentAndProposal()
+                        ix = await createIx(solverSdk)
+                      })
+
+                      itThrowsAnError('Incorrect user token account: mint or authority do not match expected')
+                    })
+
+                    context('when user token account is another type of account', () => {
+                      beforeEach(async () => {
+                        remainingAccounts[remainingAccounts.length - 1].pubkey = randomPubkey()
+                        await prepareIntentAndProposal()
+                        ix = await createIx(solverSdk)
+                      })
+
+                      itThrowsAnError('Account not owned by TokenKeg or Token2022 programs')
+                    })
                   })
                 })
               })
@@ -2878,17 +2999,17 @@ describe('Settler', () => {
             context('when proposal exists', () => {
               context('when proposal is correct', () => {
                 context('when intent has one transfer', () => {
-                  itWorksAsExpected()
+                  itWorksAsExpected(1)
                 })
 
                 context('when intent has more than one transfer', () => {
-                  itWorksAsExpected()
+                  itWorksAsExpected(2)
                 })
               })
 
               context('when proposal is not correct', () => {
                 beforeEach('Setup base data', async () => {
-                  transfers = createTestTransfers()
+                  transfers = createTestTransfers(1)
                   testIntentData = createTestIntentData(transfers)
                   intentHash = randomHex(32)
                   intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2926,7 +3047,7 @@ describe('Settler', () => {
                 context('when proposal is not signed', () => {
                   beforeEach(async () => {
                     await prepareIntentAndProposal()
-                    editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), { isSigned: false })
+                    await editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), { isSigned: false })
                     ix = await createIx(solverSdk)
                   })
 
@@ -2951,7 +3072,7 @@ describe('Settler', () => {
           context('when intent is not correct', () => {
             context('when intent_creator is not correct', () => {
               beforeEach(async () => {
-                transfers = createTestTransfers()
+                transfers = createTestTransfers(1)
                 testIntentData = createTestIntentData(transfers)
                 intentHash = randomHex(32)
                 intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2970,7 +3091,7 @@ describe('Settler', () => {
 
       context('when caller is not allowlisted solver', () => {
         beforeEach(async () => {
-          transfers = createTestTransfers()
+          transfers = createTestTransfers(1)
           testIntentData = createTestIntentData(transfers)
           intentHash = randomHex(32)
           intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
