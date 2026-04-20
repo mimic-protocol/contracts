@@ -180,7 +180,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('update_eip712_domain', () => {
+  describe('update_eip712_domain', () => {
     context('when caller is controller admin', () => {
       context('when domain is valid', () => {
         const itUpdatesDomainCorrectly = (testCase: string, domain: SolanaEip712Domain) => {
@@ -241,7 +241,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('create_intent', () => {
+  describe('create_intent', () => {
     let intentHash: string
     let intentOptions: CreateIntentOptions = {}
 
@@ -519,7 +519,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('extend_intent', () => {
+  describe('extend_intent', () => {
     let intentHash: string
     let intentKey: PublicKey
     let extendParams: ExtendIntentParams = {}
@@ -822,7 +822,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('claim_stale_intent', () => {
+  describe('claim_stale_intent', () => {
     let intentHash: string
 
     context('when caller is intent creator', () => {
@@ -968,7 +968,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('create_proposal', () => {
+  describe('create_proposal', () => {
     let params: CreateProposalParams & { intentHash: string }
 
     const createProposalFromParams = async () => {
@@ -1311,7 +1311,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('add_instructions_to_proposal', () => {
+  describe('add_instructions_to_proposal', () => {
     const createTestProposal = async (options?: CreateProposalOptions): Promise<string> => {
       const params = await createProposalParams(solverSdk, solverProvider, client, options)
       const ix = await solverSdk.createProposalIx(params.intentHash, params)
@@ -1536,7 +1536,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('claim_stale_proposal', () => {
+  describe('claim_stale_proposal', () => {
     const createTestProposal = async (options?: CreateProposalOptions): Promise<string> => {
       const params = await createProposalParams(solverSdk, solverProvider, client, options)
       const ix = await solverSdk.createProposalIx(params.intentHash, params)
@@ -1657,7 +1657,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('add_validator_sigs', () => {
+  describe('add_validator_sigs', () => {
     const createAllowlistedValidator = async () => {
       const validator = ethers.Wallet.createRandom()
       await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Validator, hexToBytes(validator.address))
@@ -1991,7 +1991,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('add_axia_sig', () => {
+  describe('add_axia_sig', () => {
     const createAllowlistedAxia = async () => {
       const axia = ethers.Wallet.createRandom()
       await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Axia, hexToBytes(axia.address))

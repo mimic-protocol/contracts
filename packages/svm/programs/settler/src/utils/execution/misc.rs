@@ -51,7 +51,7 @@ pub fn handle_intent_execution<'info>(
 ///     token::mint = fee_token
 /// )]
 /// pub solver_ta: Account<'info, ITokenAccount>,
-/// 
+///
 /// #[account(
 ///     mut,
 ///     token::owner = user,
@@ -95,11 +95,31 @@ pub fn pay_solver_fees<'info>(
             ITokenAccount::try_deserialize(&mut solver_ta_data)?
         };
 
-        require_keys_eq!(token_account_info.key(), max_fee.token, SettlerError::IncorrectFeeToken);
-        require_keys_eq!(user_ta.owner, intent.user, SettlerError::IncorrectUserTokenAccount);
-        require_keys_eq!(user_ta.mint, max_fee.token, SettlerError::IncorrectUserTokenAccount);
-        require_keys_eq!(solver_ta.owner, proposal.creator, SettlerError::IncorrectSolverTokenAccount);
-        require_keys_eq!(solver_ta.mint, max_fee.token, SettlerError::IncorrectSolverTokenAccount);
+        require_keys_eq!(
+            token_account_info.key(),
+            max_fee.token,
+            SettlerError::IncorrectFeeToken
+        );
+        require_keys_eq!(
+            user_ta.owner,
+            intent.user,
+            SettlerError::IncorrectUserTokenAccount
+        );
+        require_keys_eq!(
+            user_ta.mint,
+            max_fee.token,
+            SettlerError::IncorrectUserTokenAccount
+        );
+        require_keys_eq!(
+            solver_ta.owner,
+            proposal.creator,
+            SettlerError::IncorrectSolverTokenAccount
+        );
+        require_keys_eq!(
+            solver_ta.mint,
+            max_fee.token,
+            SettlerError::IncorrectSolverTokenAccount
+        );
 
         // Construct transfer_checked CPI
         let cpi_accounts = TransferChecked {
