@@ -63,9 +63,9 @@ interface IDynamicCallEncoder {
     error DynamicCallEncoderVariableTooShort();
 
     /**
-     * @dev The static call argument cannot be decoded
+     * @dev The argument kind is not valid
      */
-    error DynamicCallEncoderStaticCallBadSpec();
+    error DynamicCallEncoderInvalidArgKind();
 
     /**
      * @dev Encodes a dynamic call into calldata.

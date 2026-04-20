@@ -114,7 +114,7 @@ contract DynamicCallEncoder is IDynamicCallEncoder {
     {
         if (arg.kind == DynamicArgKind.Literal) return _encodeLiteral(arg.data);
         if (arg.kind == DynamicArgKind.Variable) return _encodeVariable(arg.data, variables, variablesLength);
-        revert DynamicCallEncoderStaticCallBadSpec();
+        revert DynamicCallEncoderInvalidArgKind();
     }
 
     /**
