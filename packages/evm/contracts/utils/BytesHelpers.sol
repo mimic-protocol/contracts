@@ -19,7 +19,9 @@ pragma solidity ^0.8.20;
  * @dev Collection of low-level helpers to operate on `bytes` values in memory.
  */
 library BytesHelpers {
-    /// @dev Thrown when a slice operation exceeds the bounds of the input bytes
+    /**
+     * @dev Thrown when a slice operation exceeds the bounds of the input bytes
+     */
     error BytesLibSliceOutOfBounds();
 
     /**

@@ -1,3 +1,4 @@
+import { randomEvmAddress } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
 import { AbiCoder } from 'ethers'
@@ -33,17 +34,42 @@ describe('SmartAccountsHandlerHelpers', () => {
   })
 
   describe('call', () => {
-    it('returns the expected bytes', async () => {
-      const value = 11n
-      const data = target.interface.encodeFunctionData('returnUint', [value])
+    const itReturnsTheExpectedBytes = (
+      name: string,
+      args: unknown[],
+      types: string[],
+      expectedDecoded: unknown[]
+    ): void => {
+      it('returns the expected bytes', async () => {
+        const data = target.interface.encodeFunctionData(name, args)
+        const result = await helper.call.staticCall(handler, smartAccount, target, data, 0)
+        const expected = target.interface.encodeFunctionResult(name, args)
 
-      const result = await helper.call.staticCall(handler, smartAccount, target, data, 0)
+        expect(result).to.equal(expected)
+        expect(AbiCoder.defaultAbiCoder().decode(types, result)).to.deep.equal(expectedDecoded)
+      })
+    }
 
-      const expected = target.interface.encodeFunctionResult('returnUint', [value])
-      expect(result).to.equal(expected)
+    context('when returning a uint256', () => {
+      itReturnsTheExpectedBytes('returnUint', [11n], ['uint256'], [11n])
+    })
 
-      const [decoded] = AbiCoder.defaultAbiCoder().decode(['uint256'], result)
-      expect(decoded).to.equal(value)
+    context('when returning a dynamic array', () => {
+      const dynamicArray = [11n, 22n, 33n]
+
+      itReturnsTheExpectedBytes('returnArray', [dynamicArray], ['uint256[]'], [dynamicArray])
+    })
+
+    context('when returning a fixed-length array', () => {
+      const fixedArray = [44n, 55n, 66n]
+
+      itReturnsTheExpectedBytes('returnFixedArray', [fixedArray], ['uint256[3]'], [fixedArray])
+    })
+
+    context('when returning a struct', () => {
+      const struct = { a: 77n, b: randomEvmAddress() }
+
+      itReturnsTheExpectedBytes('returnStruct', [struct], ['tuple(uint256 a,address b)'], [[struct.a, struct.b]])
     })
   })
 })

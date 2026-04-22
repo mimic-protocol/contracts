@@ -42,12 +42,15 @@ library SmartAccountsHandlerHelpers {
      */
     function call(address handler, address account, address target, bytes memory data, uint256 value)
         internal
-        returns (bytes memory)
+        returns (bytes memory result)
     {
-        bytes memory result = Address.functionDelegateCall(
+        result = Address.functionDelegateCall(
             handler,
             abi.encodeWithSelector(ISmartAccountsHandler.call.selector, account, target, data, value)
         );
-        return abi.decode(result, (bytes));
+        // Skip the ABI-encoded offset and length of the outer `bytes` to point at the inner payload
+        assembly {
+            result := add(result, 64)
+        }
     }
 }
