@@ -3209,7 +3209,7 @@ describe('Settler', () => {
         })
       })
 
-      context('swap + call + dynamic call', () => {
+      context('swap + call + dynamic call + dynamic call', () => {
         let smartAccount: SmartAccount
         let tokenIn: TokenMock
         let tokenOutA: TokenMock, tokenOutB: TokenMock
@@ -3276,11 +3276,24 @@ describe('Settler', () => {
             events: [{ topic: eventTopic, data: eventData }],
           })
 
+          const dynamicCallOperation2 = createDynamicCallOperation({
+            user: smartAccount,
+            chainId,
+            calls: [
+              {
+                target,
+                selector: target.interface.getFunction('returnStruct')!.selector,
+                arguments: [variable(2, 1), literal(['address'], [tokenOutA.target])], // Third operation, second output + literal
+              },
+            ],
+            events: [{ topic: eventTopic, data: eventData }],
+          })
+
           intent = createIntent({
             settler,
             feePayer: user,
             maxFees: [],
-            operations: [swapOperation, callOperation, dynamicCallOperation],
+            operations: [swapOperation, callOperation, dynamicCallOperation, dynamicCallOperation2],
           })
         })
 
@@ -3298,37 +3311,54 @@ describe('Settler', () => {
             executorData,
             amountsOut: [swapAmountOutA, swapAmountOutB],
           })
-          proposal.datas = [...proposal.datas, '0x', '0x']
+          proposal.datas = [...proposal.datas, '0x', '0x', '0x']
         })
 
-        it('passes the previous outputs into the dynamic call', async () => {
+        it('passes the previous outputs into the dynamic calls', async () => {
           const signature = await signProposal(settler, intent, solver, proposal, admin)
           const tx = await settler.execute(intent, proposal, signature)
 
           const events = await settler.queryFilter(settler.filters.OperationExecuted(), tx.blockNumber)
-          expect(events).to.have.lengthOf(1)
+          expect(events).to.have.lengthOf(2)
 
+          // First dynamic call event
           expect(events[0].args.opType).to.be.equal(OpType.EvmDynamicCall)
           expect(events[0].args.topic).to.be.equal(eventTopic)
           expect(events[0].args.data).to.be.equal(eventData)
 
-          const [outputs] = AbiCoder.defaultAbiCoder().decode(['bytes[]'], events[0].args.output)
-          expect(outputs).to.have.lengthOf(2)
+          const [outputs0] = AbiCoder.defaultAbiCoder().decode(['bytes[]'], events[0].args.output)
+          expect(outputs0).to.have.lengthOf(2)
 
-          const [decodedA] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[0])
+          const [decodedA] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs0[0])
           expect(decodedA).to.be.equal(swapAmountOutB)
 
-          const [decodedB] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs[1])
+          const [decodedB] = AbiCoder.defaultAbiCoder().decode(['uint256'], outputs0[1])
           expect(decodedB).to.be.equal(6n)
 
+          // Second dynamic call event
+          expect(events[1].args.opType).to.be.equal(OpType.EvmDynamicCall)
+          expect(events[1].args.topic).to.be.equal(eventTopic)
+          expect(events[1].args.data).to.be.equal(eventData)
+
+          const [outputs1] = AbiCoder.defaultAbiCoder().decode(['bytes[]'], events[1].args.output)
+          expect(outputs1).to.have.lengthOf(1)
+
+          const [decodedStruct] = AbiCoder.defaultAbiCoder().decode(['tuple(uint256 a,address b)'], outputs1[0])
+          expect(decodedStruct.a).to.be.equal(6n)
+          expect(decodedStruct.b).to.be.equal(tokenOutA.target)
+
+          // All operations calls
           const callEvents = await smartAccount.queryFilter(smartAccount.filters.Called(), tx.blockNumber)
-          expect(callEvents).to.have.lengthOf(3)
+          expect(callEvents).to.have.lengthOf(4)
 
           expect(callEvents[0].args.data).to.be.equal(tokenOutA.interface.encodeFunctionData('decimals'))
           expect(callEvents[1].args.data).to.be.equal(
             target.interface.encodeFunctionData('returnUint', [swapAmountOutB])
           )
           expect(callEvents[2].args.data).to.be.equal(target.interface.encodeFunctionData('returnUint', [6n]))
+          expect(callEvents[3].args.data).to.be.equal(
+            target.interface.encodeFunctionData('returnStruct', [[6n, tokenOutA.target]])
+          )
         })
       })
 
