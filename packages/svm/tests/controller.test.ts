@@ -6,7 +6,7 @@ import { EntityType, SvmController } from '@mimicprotocol/sdk'
 import { fromWorkspace, LiteSVMProvider } from 'anchor-litesvm'
 import { expect } from 'chai'
 import fs from 'fs'
-import { LiteSVM } from 'litesvm'
+import { AccountInfoBytes, LiteSVM } from 'litesvm'
 import os from 'os'
 import path from 'path'
 
@@ -75,7 +75,7 @@ describe('Controller', () => {
       it('cannot initialize', async () => {
         const newAdmin = randomPubkey()
 
-        const ix = await maliciousSdk.initializeIx(newAdmin)
+        const ix = await maliciousSdk.initializeIx(newAdmin, 1)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only deployer can call this instruction')
@@ -83,29 +83,57 @@ describe('Controller', () => {
     })
 
     context('when caller is deployer', async () => {
-      it('should initialize', async () => {
-        const ix = await deployerSdk.initializeIx(admin.publicKey)
-        await makeTxSignAndSend(deployerProvider, ix)
+      context('when min validations are not valid', () => {
+        context('when min validations are 0', () => {
+          it('throws an error', async () => {
+            const ix = await deployerSdk.initializeIx(admin.publicKey, 0)
+            const res = await makeTxSignAndSend(deployerProvider, ix)
 
-        const settings = await program.account.controllerSettings.fetch(deployerSdk.getControllerSettingsPubkey())
-        expect(settings.admin.toString()).to.be.eq(admin.publicKey.toString())
+            expectTransactionError(res, 'Min validations cannot be zero')
+          })
+        })
+
+        context('when min validations are less than 0', () => {
+          it('throws an error', async () => {
+            try {
+              await deployerSdk.initializeIx(admin.publicKey, -1)
+            } catch (e) {
+              expect(String(e)).to.be.eq(
+                'RangeError [ERR_OUT_OF_RANGE]: The value of "value" is out of range. It must be >= 0 and <= 65535. Received -1'
+              )
+            }
+          })
+        })
       })
 
-      it('cannot call initialize again', async () => {
-        const ix = await deployerSdk.initializeIx(admin.publicKey)
-        const res = await makeTxSignAndSend(deployerProvider, ix)
+      context('when min validations are valid', async () => {
+        const minValidations = 2
 
-        expectTransactionError(res, 'already in use')
+        it('should initialize', async () => {
+          const ix = await deployerSdk.initializeIx(admin.publicKey, minValidations)
+          await makeTxSignAndSend(deployerProvider, ix)
+
+          const settings = await program.account.controllerSettings.fetch(deployerSdk.getControllerSettingsPubkey())
+          expect(settings.admin.toString()).to.be.eq(admin.publicKey.toString())
+          expect(settings.minValidations).to.be.eq(minValidations)
+        })
+
+        it('cannot call initialize again', async () => {
+          const ix = await deployerSdk.initializeIx(admin.publicKey, minValidations)
+          const res = await makeTxSignAndSend(deployerProvider, ix)
+
+          expectTransactionError(res, 'already in use')
+        })
       })
     })
   })
 
-  describe('set admin', () => {
+  describe('set_admin', () => {
     context('when caller is not admin', async () => {
       it('cannot set admin', async () => {
         const newAdmin = randomPubkey()
 
-        const ix = await maliciousSdk.setAdmin(newAdmin)
+        const ix = await maliciousSdk.setAdminIx(newAdmin)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
         expectTransactionError(res, 'Only admin can call this instruction')
@@ -114,16 +142,161 @@ describe('Controller', () => {
 
     context('when caller is admin', async () => {
       after('reset admin to original for subsequent tests', async () => {
-        const resetIx = await otherAdminSdk.setAdmin(admin.publicKey)
+        const resetIx = await otherAdminSdk.setAdminIx(admin.publicKey)
         await makeTxSignAndSend(otherAdminProvider, resetIx)
       })
 
       it('can set admin', async () => {
-        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
+        const ix = await adminSdk.setAdminIx(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
 
         const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
         expect(settings.admin.toString()).to.be.eq(otherAdmin.publicKey.toString())
+      })
+    })
+  })
+
+  describe('set_min_validations', () => {
+    context('when caller is not admin', () => {
+      it('throws an error', async () => {
+        const ix = await maliciousSdk.setMinValidationsIx(2)
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
+
+        expectTransactionError(res, 'Only admin can call this instruction')
+      })
+    })
+
+    context('when caller is admin', () => {
+      context('when min validations are not valid', () => {
+        context('when min validations are zero', () => {
+          it('throws an error', async () => {
+            const ix = await adminSdk.setMinValidationsIx(0)
+            const res = await makeTxSignAndSend(adminProvider, ix)
+
+            expectTransactionError(res, 'Min validations cannot be zero')
+          })
+        })
+
+        context('when min validations are less than zero', () => {
+          it('throws an error', async () => {
+            try {
+              await adminSdk.setMinValidationsIx(-1)
+            } catch (e) {
+              expect(String(e)).to.be.eq(
+                'RangeError [ERR_OUT_OF_RANGE]: The value of "value" is out of range. It must be >= 0 and <= 65535. Received -1'
+              )
+            }
+          })
+        })
+      })
+
+      context('when min validations are valid', () => {
+        it('sets min validations', async () => {
+          const newMinValidations = 1
+
+          let settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
+          expect(settings.minValidations).to.not.be.eq(newMinValidations)
+
+          const ix = await adminSdk.setMinValidationsIx(newMinValidations)
+          await makeTxSignAndSend(adminProvider, ix)
+
+          settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
+          expect(settings.minValidations).to.be.eq(newMinValidations)
+        })
+      })
+    })
+  })
+
+  describe('resize_settings', () => {
+    context('when caller is not admin', () => {
+      it('throws an error', async () => {
+        const ix = await maliciousSdk.resizeSettings()
+        const res = await makeTxSignAndSend(maliciousProvider, ix)
+
+        expectTransactionError(res, 'Only admin can call this instruction')
+      })
+    })
+
+    context('when caller is admin', () => {
+      const itIsIdempotent = () => {
+        it('is idempotent', async () => {
+          const settingsBefore = client.getAccount(adminSdk.getControllerSettingsPubkey())
+
+          const ix = await adminSdk.resizeSettings()
+          await makeTxSignAndSend(adminProvider, ix)
+
+          const settingsAfter = client.getAccount(adminSdk.getControllerSettingsPubkey())
+
+          expect(settingsBefore).to.not.be.undefined
+          expect(settingsAfter).to.not.be.undefined
+          expect(settingsAfter!.data.length).to.be.eq(settingsBefore!.data.length)
+        })
+      }
+
+      context('when settings are not correct size', () => {
+        context('when settings are larger', () => {
+          // NOTE: This is an impossible case, but we test it nevertheless just in case.
+          // Given the scenario where the settings grew larger than the minimum size for
+          // some reason, calling this instruction still does not truncate the PDA as
+          // doing that would imply potential data loss.
+
+          let controllerSettingsAccount: AccountInfoBytes
+
+          beforeEach('Mock large ControllerSettings PDA (impossible scenario)', () => {
+            const controllerSettingsKey = adminSdk.getControllerSettingsPubkey()
+            controllerSettingsAccount = client.getAccount(controllerSettingsKey)!
+
+            const mockSettings = {
+              ...controllerSettingsAccount,
+              data: Uint8Array.from(Array(1000)),
+            }
+
+            client.setAccount(adminSdk.getControllerSettingsPubkey(), mockSettings)
+          })
+
+          itIsIdempotent()
+
+          afterEach('Restore PDA', () => {
+            client.setAccount(adminSdk.getControllerSettingsPubkey(), controllerSettingsAccount)
+          })
+        })
+
+        context('when settings are smaller', () => {
+          let controllerSettingsAccount: AccountInfoBytes
+
+          beforeEach('Mock large ControllerSettings PDA (e.g. after a program upgrade)', () => {
+            const controllerSettingsKey = adminSdk.getControllerSettingsPubkey()
+            controllerSettingsAccount = client.getAccount(controllerSettingsKey)!
+
+            const mockSettings = {
+              ...controllerSettingsAccount,
+              data: controllerSettingsAccount.data.slice(0, controllerSettingsAccount.data.length - 2),
+            }
+
+            client.setAccount(adminSdk.getControllerSettingsPubkey(), mockSettings)
+          })
+
+          it('resizes settings', async () => {
+            const settingsBefore = client.getAccount(adminSdk.getControllerSettingsPubkey())
+
+            const ix = await adminSdk.resizeSettings()
+            await makeTxSignAndSend(adminProvider, ix)
+
+            const settingsAfter = client.getAccount(adminSdk.getControllerSettingsPubkey())
+
+            expect(settingsBefore).to.not.be.undefined
+            expect(settingsAfter).to.not.be.undefined
+            expect(settingsAfter!.data.length).to.be.greaterThan(settingsBefore!.data.length)
+          })
+
+          afterEach('Restore PDA', () => {
+            client.setAccount(adminSdk.getControllerSettingsPubkey(), controllerSettingsAccount)
+          })
+        })
+      })
+
+      context('when settings are correct size', () => {
+        itIsIdempotent()
       })
     })
   })
@@ -183,7 +356,7 @@ describe('Controller', () => {
       })
 
       it('should change admin for next tests', async () => {
-        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
+        const ix = await adminSdk.setAdminIx(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
 
         const settings = await program.account.controllerSettings.fetch(adminSdk.getControllerSettingsPubkey())
@@ -231,7 +404,7 @@ describe('Controller', () => {
 
     context('when the admin is changed and caller is new admin', async () => {
       before('change admin for next tests', async () => {
-        const ix = await adminSdk.setAdmin(otherAdmin.publicKey)
+        const ix = await adminSdk.setAdminIx(otherAdmin.publicKey)
         await makeTxSignAndSend(adminProvider, ix)
       })
 

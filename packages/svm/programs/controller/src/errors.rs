@@ -10,4 +10,7 @@ pub enum ControllerError {
 
     #[msg("Entity address can only be Solana (32 bytes) or Ethereum (20 bytes)")]
     EntityAddressHasWrongSize,
+
+    #[msg("Min validations cannot be zero")]
+    MinValidationsCannotBeZero,
 }

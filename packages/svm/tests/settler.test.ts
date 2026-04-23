@@ -86,7 +86,7 @@ import { makeTxSignAndSend, warpSeconds } from './utils'
 describe('Settler', () => {
   let client: LiteSVM
 
-  let provider: LiteSVMProvider
+  let adminProvider: LiteSVMProvider
   let maliciousProvider: LiteSVMProvider
   let solverProvider: LiteSVMProvider
 
@@ -94,7 +94,7 @@ describe('Settler', () => {
   let malicious: Keypair
   let solver: Keypair
 
-  let program: Program<Settler>
+  let settler: Program<Settler>
 
   let sdk: SvmSettler
   let maliciousSdk: SvmSettler
@@ -112,25 +112,25 @@ describe('Settler', () => {
 
     client = fromWorkspace(path.join(__dirname, '../')).withBuiltins().withPrecompiles().withSysvars()
 
-    provider = new LiteSVMProvider(client, new Wallet(admin))
+    adminProvider = new LiteSVMProvider(client, new Wallet(admin))
     maliciousProvider = new LiteSVMProvider(client, new Wallet(malicious))
     solverProvider = new LiteSVMProvider(client, new Wallet(solver))
 
-    program = new Program<Settler>(SettlerIDL as any, provider)
+    settler = new Program<Settler>(SettlerIDL as any, adminProvider)
 
-    sdk = new SvmSettler(provider)
+    sdk = new SvmSettler(adminProvider)
     maliciousSdk = new SvmSettler(maliciousProvider)
     solverSdk = new SvmSettler(solverProvider)
-    adminSdk = new SvmSettler(provider)
+    adminSdk = new SvmSettler(adminProvider)
 
-    provider.client.airdrop(admin.publicKey, toLamports(100))
-    provider.client.airdrop(malicious.publicKey, toLamports(100))
-    provider.client.airdrop(solver.publicKey, toLamports(100))
+    adminProvider.client.airdrop(admin.publicKey, toLamports(100))
+    adminProvider.client.airdrop(malicious.publicKey, toLamports(100))
+    adminProvider.client.airdrop(solver.publicKey, toLamports(100))
 
     // Initialize Controller and add Solver to allowlist
-    controllerSdk = new SvmController(provider)
-    await makeTxSignAndSend(provider, await controllerSdk.initializeIx(admin.publicKey))
-    await makeTxSignAndSend(provider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
+    controllerSdk = new SvmController(adminProvider)
+    await makeTxSignAndSend(adminProvider, await controllerSdk.initializeIx(admin.publicKey, 1))
+    await makeTxSignAndSend(adminProvider, await controllerSdk.setAllowedEntityIx(EntityType.Solver, solver.publicKey))
   })
 
   beforeEach(() => {
@@ -156,16 +156,16 @@ describe('Settler', () => {
 
       it('should call initialize', async () => {
         const ix = await sdk.initializeIx(domain)
-        await makeTxSignAndSend(provider, ix)
+        await makeTxSignAndSend(adminProvider, ix)
 
-        const settings = await program.account.settlerSettings.fetch(sdk.getSettlerSettingsKey())
+        const settings = await settler.account.settlerSettings.fetch(sdk.getSettlerSettingsKey())
         expect(settings.controllerProgram.toString()).to.be.eq(ControllerIDL.address)
         expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(ethers.TypedDataEncoder.hashDomain(domain))
       })
 
       it('cannot call initialize again', async () => {
         const ix = await sdk.initializeIx({})
-        const res = await makeTxSignAndSend(provider, ix)
+        const res = await makeTxSignAndSend(adminProvider, ix)
 
         expectTransactionError(res, 'already in use')
       })
@@ -178,8 +178,8 @@ describe('Settler', () => {
         const itUpdatesDomainCorrectly = (testCase: string, domain: SolanaEip712Domain) => {
           it(`updates domain correctly (${testCase})`, async () => {
             const ix = await adminSdk.updateEip712DomainIx(domain)
-            const res = await makeTxSignAndSend(provider, ix)
-            const settings = await program.account.settlerSettings.fetch(adminSdk.getSettlerSettingsKey())
+            const res = await makeTxSignAndSend(adminProvider, ix)
+            const settings = await settler.account.settlerSettings.fetch(adminSdk.getSettlerSettingsKey())
             expect(res.toString()).to.not.include('FailedTransaction')
             expect(bytesToHex(Buffer.from(settings.eip712DomainHash))).to.be.eq(
               ethers.TypedDataEncoder.hashDomain(domain)
@@ -206,7 +206,7 @@ describe('Settler', () => {
       context('when domain is invalid', () => {
         const itThrowsAnError = (testCase: string, domain: SolanaEip712Domain, error: string) => {
           it(`throws an error (${testCase})`, async () => {
-            const ix = await program.methods
+            const ix = await settler.methods
               .updateEip712Domain({
                 name: null,
                 version: null,
@@ -215,7 +215,7 @@ describe('Settler', () => {
                 chainId: domain.chainId ? new BN(domain.chainId) : null,
               })
               .instruction()
-            const res = await makeTxSignAndSend(provider, ix)
+            const res = await makeTxSignAndSend(adminProvider, ix)
             expectTransactionError(res, error)
           })
         }
@@ -250,45 +250,73 @@ describe('Settler', () => {
       context('when intent data is valid', () => {
         context('when intent does not exist', () => {
           context('when creating a basic intent', () => {
-            const intentOptions: CreateIntentOptions = {
-              op: OpType.Transfer,
-              user: randomPubkey(),
-              nonce: generateNonce(),
-              deadline: '10000',
-              minValidations: 5,
-              data: TEST_DATA_HEX_1,
-              maxFees: [
-                {
-                  token: randomPubkey(),
-                  amount: '1000',
-                },
-              ],
-              events: [
-                {
-                  topic: randomHex(32).slice(2),
-                  data: randomHex(100).slice(2),
-                },
-              ],
-              isFinal: true,
+            const itWorksAsExpected = (minValidations: number) => {
+              const intentOptions: CreateIntentOptions = {
+                op: OpType.Transfer,
+                user: randomPubkey(),
+                nonce: generateNonce(),
+                deadline: '10000',
+                minValidations,
+                data: TEST_DATA_HEX_1,
+                maxFees: [
+                  {
+                    token: randomPubkey(),
+                    amount: '1000',
+                  },
+                ],
+                events: [
+                  {
+                    topic: randomHex(32).slice(2),
+                    data: randomHex(100).slice(2),
+                  },
+                ],
+                isFinal: true,
+              }
+
+              it('creates the intent with correct properties', async () => {
+                intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
+                const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
+
+                expect(intent.op).to.deep.include({ transfer: {} })
+                expect(intent.user.toString()).to.be.eq(intentOptions.user!.toString())
+                expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
+                expect(bytesToHex(Buffer.from(intent.nonce))).to.be.eq(intentOptions.nonce)
+                expect(intent.deadline.toString()).to.be.eq(intentOptions.deadline)
+                expect(intent.minValidations).to.be.eq(
+                  Math.max(controllerMinValidations, intentOptions.minValidations ?? 0)
+                )
+                expect(intent.isFinal).to.be.true
+                expect(Buffer.from(intent.data).toString('hex')).to.be.eq(intentOptions.data)
+                expect(intent.maxFees.length).to.be.eq(1)
+                expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
+                expect(intent.events.length).to.be.eq(1)
+                expect(intent.validators.length).to.be.eq(0)
+                expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.events![0].data)
+              })
             }
 
-            it('creates the intent with correct properties', async () => {
-              intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
-              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+            const controllerMinValidations = 3
 
-              expect(intent.op).to.deep.include({ transfer: {} })
-              expect(intent.user.toString()).to.be.eq(intentOptions.user!.toString())
-              expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
-              expect(bytesToHex(Buffer.from(intent.nonce))).to.be.eq(intentOptions.nonce)
-              expect(intent.deadline.toString()).to.be.eq(intentOptions.deadline)
-              expect(intent.minValidations).to.be.eq(intentOptions.minValidations)
-              expect(intent.isFinal).to.be.true
-              expect(Buffer.from(intent.data).toString('hex')).to.be.eq(intentOptions.data)
-              expect(intent.maxFees.length).to.be.eq(1)
-              expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
-              expect(intent.events.length).to.be.eq(1)
-              expect(intent.validators.length).to.be.eq(0)
-              expect(Buffer.from(intent.events[0].data).toString('hex')).to.be.eq(intentOptions.events![0].data)
+            before('Set Controller min validations to 3 for tests', async () => {
+              const ix = await controllerSdk.setMinValidationsIx(controllerMinValidations)
+              await makeTxSignAndSend(adminProvider, ix)
+            })
+
+            context("when intent minValidations are less than Controller's", () => {
+              itWorksAsExpected(controllerMinValidations - 1)
+            })
+
+            context("when intent minValidations are more than Controller's", () => {
+              itWorksAsExpected(controllerMinValidations + 1)
+            })
+
+            context("when intent minValidations are equal to Controller's", () => {
+              itWorksAsExpected(controllerMinValidations)
+            })
+
+            after('Restore Controller min validations to 1 for future tests', async () => {
+              const ix = await controllerSdk.setMinValidationsIx(1)
+              await makeTxSignAndSend(adminProvider, ix)
             })
           })
 
@@ -300,7 +328,7 @@ describe('Settler', () => {
 
             it('creates the intent', async () => {
               intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
-              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
               expect(intent.op).to.deep.include({ transfer: {} })
               expect(Buffer.from(intent.data).toString('hex')).to.be.eq(EMPTY_DATA_HEX)
               expect(intent.isFinal).to.be.true
@@ -315,7 +343,7 @@ describe('Settler', () => {
 
             it('creates the intent', async () => {
               intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
-              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
               expect(intent.events.length).to.be.eq(0)
             })
           })
@@ -328,7 +356,7 @@ describe('Settler', () => {
 
             it('creates the intent', async () => {
               intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
-              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
               expect(intent.isFinal).to.be.true
             })
           })
@@ -341,7 +369,7 @@ describe('Settler', () => {
 
             it('creates the intent', async () => {
               intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
-              const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
               expect(intent.isFinal).to.be.false
             })
           })
@@ -357,7 +385,7 @@ describe('Settler', () => {
               client.setAccount(fulfilledIntent, {
                 executable: false,
                 lamports: 1002240,
-                owner: program.programId,
+                owner: settler.programId,
                 data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
               })
             })
@@ -411,10 +439,10 @@ describe('Settler', () => {
             }))
             const intentKey = PublicKey.findProgramAddressSync(
               [Buffer.from('intent'), hexToBytes(intentHash)],
-              program.programId
+              settler.programId
             )[0]
 
-            ix = await program.methods
+            ix = await settler.methods
               .createIntent(
                 intentHashParam,
                 dataArray,
@@ -503,7 +531,7 @@ describe('Settler', () => {
                   const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
                   await makeTxSignAndSend(solverProvider, ix)
 
-                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(Buffer.from(intent.data).toString('hex')).to.be.eq(
                     `${DEFAULT_DATA_HEX}${extendParams.moreDataHex}`
                   )
@@ -528,7 +556,7 @@ describe('Settler', () => {
                   const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
                   await makeTxSignAndSend(solverProvider, ix)
 
-                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.maxFees.length).to.be.eq(2)
                   expect(intent.maxFees[0].amount.toNumber()).to.be.eq(DEFAULT_MAX_FEE)
                   expect(intent.maxFees[1].token.toString()).to.be.eq(extendParams.moreMaxFees![0].token.toString())
@@ -553,7 +581,7 @@ describe('Settler', () => {
                   const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
                   await makeTxSignAndSend(solverProvider, ix)
 
-                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.events.length).to.be.eq(2)
                   expect(Buffer.from(intent.events[1].topic).toString('hex')).to.be.eq(
                     extendParams.moreEventsHex![0].topic
@@ -591,7 +619,7 @@ describe('Settler', () => {
                   const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
                   await makeTxSignAndSend(solverProvider, ix)
 
-                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(Buffer.from(intent.data).toString('hex')).to.be.eq(`${TEST_DATA_HEX_1}${TEST_DATA_HEX_2}`)
                   expect(intent.maxFees.length).to.be.eq(2)
                   expect(intent.maxFees[1].amount.toString()).to.be.eq(extendParams.moreMaxFees![0].amount)
@@ -641,7 +669,7 @@ describe('Settler', () => {
                     for (let i = 0; i < loops; i++) {
                       const ix = await solverSdk.extendIntentIx(intentHash, extendParams, false)
                       const res = await makeTxSignAndSend(solverProvider, ix)
-                      expect(res.toString()).to.include(`Program ${program.programId} success`)
+                      expect(res.toString()).to.include(`Program ${settler.programId} success`)
                       client.expireBlockhash()
                     }
                   })
@@ -658,7 +686,7 @@ describe('Settler', () => {
                 })
 
                 it('extended the intent fields as expected', async () => {
-                  const intent = await program.account.intent.fetch(intentKey)
+                  const intent = await settler.account.intent.fetch(intentKey)
                   const intentAcc = client.getAccount(intentKey)
                   expect(intent.data.length).to.be.eq(5000)
                   expect(intent.maxFees.length).to.be.eq(55)
@@ -692,7 +720,7 @@ describe('Settler', () => {
                 })
 
                 it('extended the intent as expected', async () => {
-                  const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                  const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(Buffer.from(intent.data).toString('hex')).to.be.eq(
                     `${TEST_DATA_HEX_1}${extendParams1.moreDataHex}${extendParams2.moreDataHex}`
                   )
@@ -713,7 +741,7 @@ describe('Settler', () => {
                 const ix = await solverSdk.extendIntentIx(intentHash, extendParams, true)
                 await makeTxSignAndSend(solverProvider, ix)
 
-                const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                 expect(intent.isFinal).to.be.true
               })
             })
@@ -731,7 +759,7 @@ describe('Settler', () => {
                 const ix = await solverSdk.extendIntentIx(intentHash, extendParams, true)
                 await makeTxSignAndSend(solverProvider, ix)
 
-                const intent = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                 expect(Buffer.from(intent.data).toString('hex')).to.be.eq(
                   `${TEST_DATA_HEX_2}${extendParams.moreDataHex}`
                 )
@@ -764,7 +792,7 @@ describe('Settler', () => {
 
         it('throws an error', async () => {
           const ix = await sdk.extendIntentIx(intentHash, extendParams, false)
-          const res = await makeTxSignAndSend(provider, ix)
+          const res = await makeTxSignAndSend(adminProvider, ix)
 
           expectTransactionError(res, `AccountNotInitialized`)
         })
@@ -797,22 +825,22 @@ describe('Settler', () => {
               const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
               intentHash = await createTestIntent(solverSdk, solverProvider, { deadline, isFinal: true })
 
-              warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
+              warpSeconds(adminProvider, STALE_CLAIM_DELAY_PLUS_ONE)
             })
 
             it('claims the stale intent', async () => {
-              const intentBefore = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-              const intentBalanceBefore = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceBefore = Number(provider.client.getBalance(intentBefore.creator)) || 0
+              const intentBefore = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intentBalanceBefore = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceBefore = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
 
               const ix = await solverSdk.claimStaleIntentIx(intentHash)
               await makeTxSignAndSend(solverProvider, ix)
 
-              const intentBalanceAfter = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceAfter = Number(provider.client.getBalance(intentBefore.creator)) || 0
+              const intentBalanceAfter = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceAfter = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
 
               try {
-                await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                 expect.fail('Intent account should be closed')
               } catch (error: any) {
                 expect(error.message).to.include(`Account does not exist`)
@@ -837,22 +865,22 @@ describe('Settler', () => {
               const deadline = getCurrentTimestamp(client, STALE_CLAIM_DELAY)
               intentHash = await createTestIntent(solverSdk, solverProvider, { deadline, isFinal: false })
 
-              warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
+              warpSeconds(adminProvider, STALE_CLAIM_DELAY_PLUS_ONE)
             })
 
             it('claims the stale intent', async () => {
-              const intentBefore = await program.account.intent.fetch(sdk.getIntentKey(intentHash))
-              const intentBalanceBefore = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceBefore = Number(provider.client.getBalance(intentBefore.creator)) || 0
+              const intentBefore = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
+              const intentBalanceBefore = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceBefore = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
 
               const ix = await solverSdk.claimStaleIntentIx(intentHash)
               await makeTxSignAndSend(solverProvider, ix)
 
-              const intentBalanceAfter = Number(provider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceAfter = Number(provider.client.getBalance(intentBefore.creator)) || 0
+              const intentBalanceAfter = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
+              const intentCreatorBalanceAfter = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
 
               try {
-                await program.account.intent.fetch(sdk.getIntentKey(intentHash))
+                await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                 expect.fail('Intent account should be closed')
               } catch (error: any) {
                 expect(error.message).to.include(`Account does not exist`)
@@ -878,7 +906,7 @@ describe('Settler', () => {
             beforeEach('create intent and warp time', async () => {
               const deadline = getCurrentTimestamp(client, LONG_DEADLINE)
               intentHash = await createTestIntent(solverSdk, solverProvider, { deadline })
-              warpSeconds(provider, WARP_TIME_SHORT)
+              warpSeconds(adminProvider, WARP_TIME_SHORT)
             })
 
             it('throws an error', async () => {
@@ -892,7 +920,7 @@ describe('Settler', () => {
             beforeEach('create intent and warp time', async () => {
               const deadline = getCurrentTimestamp(client, MEDIUM_DEADLINE)
               intentHash = await createTestIntent(solverSdk, solverProvider, { deadline })
-              warpSeconds(provider, MEDIUM_DEADLINE)
+              warpSeconds(adminProvider, MEDIUM_DEADLINE)
             })
 
             it('throws an error', async () => {
@@ -921,7 +949,7 @@ describe('Settler', () => {
       beforeEach('create intent and warp time', async () => {
         const deadline = getCurrentTimestamp(client, EXPIRATION_TEST_DELAY)
         intentHash = await createTestIntent(solverSdk, solverProvider, { deadline })
-        warpSeconds(provider, EXPIRATION_TEST_DELAY_PLUS_ONE)
+        warpSeconds(adminProvider, EXPIRATION_TEST_DELAY_PLUS_ONE)
       })
 
       it('throws an error', async () => {
@@ -968,7 +996,7 @@ describe('Settler', () => {
               it('creates the proposal', async () => {
                 await createProposalFromParams()
 
-                const proposal = await program.account.proposal.fetch(
+                const proposal = await settler.account.proposal.fetch(
                   sdk.getProposalKey(params.intentHash, solver.publicKey)
                 )
                 expect(proposal.intent.toString()).to.be.eq(sdk.getIntentKey(params.intentHash).toString())
@@ -1010,7 +1038,7 @@ describe('Settler', () => {
               it('creates the proposal with multiple instructions', async () => {
                 await createProposalFromParams()
 
-                const proposal = await program.account.proposal.fetch(
+                const proposal = await settler.account.proposal.fetch(
                   sdk.getProposalKey(params.intentHash, solver.publicKey)
                 )
                 expect(proposal.instructions.length).to.be.eq(2)
@@ -1044,7 +1072,7 @@ describe('Settler', () => {
               it('creates the proposal with empty instructions', async () => {
                 await createProposalFromParams()
 
-                const proposal = await program.account.proposal.fetch(
+                const proposal = await settler.account.proposal.fetch(
                   sdk.getProposalKey(params.intentHash, solver.publicKey)
                 )
                 expect(proposal.instructions.length).to.be.eq(0)
@@ -1077,7 +1105,7 @@ describe('Settler', () => {
               it('creates proposal with correct fees', async () => {
                 await createProposalFromParams()
 
-                const proposal = await program.account.proposal.fetch(
+                const proposal = await settler.account.proposal.fetch(
                   sdk.getProposalKey(params.intentHash, solver.publicKey)
                 )
                 expect(proposal.fees.length).to.be.eq(2)
@@ -1115,7 +1143,7 @@ describe('Settler', () => {
                 beforeEach('create intent and proposal params with deadline exceeding intent', async () => {
                   const intentHash = await createValidatedIntent(solverSdk, solverProvider, client)
                   const intentDeadline = Number(
-                    (await program.account.intent.fetch(sdk.getIntentKey(intentHash))).deadline
+                    (await settler.account.intent.fetch(sdk.getIntentKey(intentHash))).deadline
                   )
 
                   params = await createProposalParams(solverSdk, solverProvider, client, {
@@ -1188,7 +1216,7 @@ describe('Settler', () => {
                 deadline: intentDeadline,
               })
 
-              warpSeconds(provider, Number(intentDeadline) + 10)
+              warpSeconds(adminProvider, Number(intentDeadline) + 10)
 
               params = await createProposalParams(solverSdk, solverProvider, client, { intentHash })
             })
@@ -1226,7 +1254,7 @@ describe('Settler', () => {
               client.setAccount(fulfilledIntent, {
                 executable: false,
                 lamports: 1002240,
-                owner: program.programId,
+                owner: settler.programId,
                 data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
               })
 
@@ -1316,7 +1344,7 @@ describe('Settler', () => {
                   const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
                   await makeTxSignAndSend(solverProvider, ix)
 
-                  const proposal = await program.account.proposal.fetch(
+                  const proposal = await settler.account.proposal.fetch(
                     sdk.getProposalKey(intentHash, solver.publicKey)
                   )
                   expect(proposal.instructions.length).to.be.eq(2)
@@ -1349,7 +1377,7 @@ describe('Settler', () => {
                   const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
                   await makeTxSignAndSend(solverProvider, ix)
 
-                  const proposal = await program.account.proposal.fetch(
+                  const proposal = await settler.account.proposal.fetch(
                     sdk.getProposalKey(intentHash, solver.publicKey)
                   )
                   expect(proposal.instructions.length).to.be.eq(3)
@@ -1370,7 +1398,7 @@ describe('Settler', () => {
                   const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, false)
                   await makeTxSignAndSend(solverProvider, ix)
 
-                  const proposal = await program.account.proposal.fetch(
+                  const proposal = await settler.account.proposal.fetch(
                     sdk.getProposalKey(intentHash, solver.publicKey)
                   )
                   expect(proposal.isFinal).to.be.false
@@ -1398,7 +1426,7 @@ describe('Settler', () => {
                   const ix2 = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions2, false)
                   await makeTxSignAndSend(solverProvider, ix2)
 
-                  const proposal = await program.account.proposal.fetch(
+                  const proposal = await settler.account.proposal.fetch(
                     sdk.getProposalKey(intentHash, solver.publicKey)
                   )
                   expect(proposal.instructions.length).to.be.eq(3)
@@ -1421,7 +1449,7 @@ describe('Settler', () => {
                 const ix = await solverSdk.addInstructionsToProposalIx(intentHash, moreInstructions, true)
                 await makeTxSignAndSend(solverProvider, ix)
 
-                const proposal = await program.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
+                const proposal = await settler.account.proposal.fetch(sdk.getProposalKey(intentHash, solver.publicKey))
                 expect(proposal.isFinal).to.be.true
                 expect(proposal.instructions.length).to.be.eq(2)
               })
@@ -1486,7 +1514,7 @@ describe('Settler', () => {
       })
 
       it('throws an error', async () => {
-        const ix = await program.methods
+        const ix = await settler.methods
           .addInstructionsToProposal([], true)
           .accountsPartial({
             creator: malicious.publicKey,
@@ -1528,22 +1556,22 @@ describe('Settler', () => {
               proposalParams: { deadline: getCurrentTimestamp(client, STALE_CLAIM_DELAY) },
             })
             proposalKey = solverSdk.getProposalKey(intentHash)
-            warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
+            warpSeconds(adminProvider, STALE_CLAIM_DELAY_PLUS_ONE)
           })
 
           it('claims the stale proposal', async () => {
-            const proposalBefore = await program.account.proposal.fetch(proposalKey)
-            const proposalBalanceBefore = Number(provider.client.getBalance(proposalKey)) || 0
-            const proposalCreatorBalanceBefore = Number(provider.client.getBalance(proposalBefore.creator)) || 0
+            const proposalBefore = await settler.account.proposal.fetch(proposalKey)
+            const proposalBalanceBefore = Number(adminProvider.client.getBalance(proposalKey)) || 0
+            const proposalCreatorBalanceBefore = Number(adminProvider.client.getBalance(proposalBefore.creator)) || 0
 
             const ix = await solverSdk.claimStaleProposalIx(intentHash)
             await makeTxSignAndSend(solverProvider, ix)
 
-            const proposalBalanceAfter = Number(provider.client.getBalance(proposalKey)) || 0
-            const proposalCreatorBalanceAfter = Number(provider.client.getBalance(proposalBefore.creator)) || 0
+            const proposalBalanceAfter = Number(adminProvider.client.getBalance(proposalKey)) || 0
+            const proposalCreatorBalanceAfter = Number(adminProvider.client.getBalance(proposalBefore.creator)) || 0
 
             try {
-              await program.account.proposal.fetch(proposalKey)
+              await settler.account.proposal.fetch(proposalKey)
               expect.fail('Proposal account should be closed')
             } catch (error: any) {
               expect(error.message).to.include(`Account does not exist`)
@@ -1570,7 +1598,7 @@ describe('Settler', () => {
               intentHash = await createTestProposal({
                 proposalParams: { deadline: getCurrentTimestamp(client, LONG_DEADLINE) },
               })
-              warpSeconds(provider, WARP_TIME_SHORT)
+              warpSeconds(adminProvider, WARP_TIME_SHORT)
             })
 
             itThrowsAnError('Proposal not yet expired')
@@ -1581,7 +1609,7 @@ describe('Settler', () => {
               intentHash = await createTestProposal({
                 proposalParams: { deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
               })
-              warpSeconds(provider, WARP_TIME_SHORT)
+              warpSeconds(adminProvider, WARP_TIME_SHORT)
             })
 
             itThrowsAnError('Proposal not yet expired')
@@ -1603,11 +1631,11 @@ describe('Settler', () => {
         intentHash = await createTestProposal({
           proposalParams: { deadline: getCurrentTimestamp(client, STALE_CLAIM_DELAY) },
         })
-        warpSeconds(provider, STALE_CLAIM_DELAY_PLUS_ONE)
+        warpSeconds(adminProvider, STALE_CLAIM_DELAY_PLUS_ONE)
       })
 
       it('throws an error', async () => {
-        const ix = await program.methods
+        const ix = await settler.methods
           .claimStaleProposal()
           .accountsPartial({
             creator: malicious.publicKey,
@@ -1624,7 +1652,7 @@ describe('Settler', () => {
   describe('add_validator_sigs', () => {
     const createAllowlistedValidator = async () => {
       const validator = ethers.Wallet.createRandom()
-      await createAllowlistedEntity(controllerSdk, provider, EntityType.Validator, hexToBytes(validator.address))
+      await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Validator, hexToBytes(validator.address))
       return validator
     }
 
@@ -1646,7 +1674,7 @@ describe('Settler', () => {
       const validatorEthAddress = hexToBytes(ethValidator.address)
       const eip712Preimage = new ValidatorSigner().getIntentMessage({
         hash,
-        settler: program.programId.toString(),
+        settler: settler.programId.toString(),
         chainId: Chains.Solana,
       })
 
@@ -1658,7 +1686,7 @@ describe('Settler', () => {
         ...secp256k1IxOptions,
       })
 
-      const ix = await program.methods
+      const ix = await settler.methods
         .addValidatorSig()
         .accountsPartial({
           solver: solverSdk.getSignerKey(),
@@ -1690,7 +1718,7 @@ describe('Settler', () => {
         ...SETTLER_EIP712_DOMAIN,
         chainId: Chains.Solana,
       })
-      await makeTxSignAndSend(provider, ix)
+      await makeTxSignAndSend(adminProvider, ix)
     })
 
     context('when caller is whitelisted solver', () => {
@@ -1707,9 +1735,9 @@ describe('Settler', () => {
                   })
 
                   it('should add validator to intent validators array', async () => {
-                    const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    const intentBefore = await settler.account.intent.fetch(solverSdk.getIntentKey(intentHash))
                     await makeTxSignAndSend(solverProvider, ...ixs)
-                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    const intentAfter = await settler.account.intent.fetch(solverSdk.getIntentKey(intentHash))
 
                     expect(intentBefore.validators.length).to.be.eq(0)
                     expect(intentAfter.validators.length).to.be.eq(1)
@@ -1721,7 +1749,7 @@ describe('Settler', () => {
                     ixs = await createSigAndIxs()
                     const res = await makeTxSignAndSend(solverProvider, ...ixs)
 
-                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    const intentAfter = await settler.account.intent.fetch(solverSdk.getIntentKey(intentHash))
 
                     expect(res.toString()).to.not.include('FailedTransactionMetadata')
                     expect(intentAfter.validators.length).to.be.eq(1)
@@ -1748,9 +1776,9 @@ describe('Settler', () => {
                       const validator = validators[i]
                       const ixs = sigIxs[i]
 
-                      const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                      const intentBefore = await settler.account.intent.fetch(solverSdk.getIntentKey(intentHash))
                       await makeTxSignAndSend(solverProvider, ...ixs)
-                      const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                      const intentAfter = await settler.account.intent.fetch(solverSdk.getIntentKey(intentHash))
 
                       expect(intentBefore.validators.length).to.be.eq(i)
                       expect(intentAfter.validators.length).to.be.eq(i + 1)
@@ -1768,7 +1796,7 @@ describe('Settler', () => {
                   intentHash = await createTestIntent(solverSdk, solverProvider)
                   ixs = await createSigAndIxs()
                   const ix = await adminSdk.updateEip712DomainIx({ name: 'Other Domain' })
-                  await makeTxSignAndSend(provider, ix)
+                  await makeTxSignAndSend(adminProvider, ix)
                 })
 
                 after(async () => {
@@ -1777,7 +1805,7 @@ describe('Settler', () => {
                     ...SETTLER_EIP712_DOMAIN,
                     chainId: Chains.Solana,
                   })
-                  await makeTxSignAndSend(provider, ix)
+                  await makeTxSignAndSend(adminProvider, ix)
                 })
 
                 itThrowsAnError('SigVerificationFailedIncorrectMessage')
@@ -1865,9 +1893,9 @@ describe('Settler', () => {
                   })
 
                   it('should not add the validator', async () => {
-                    const intentBefore = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    const intentBefore = await settler.account.intent.fetch(solverSdk.getIntentKey(intentHash))
                     const res = await makeTxSignAndSend(solverProvider, ...ixs)
-                    const intentAfter = await program.account.intent.fetch(solverSdk.getIntentKey(intentHash))
+                    const intentAfter = await settler.account.intent.fetch(solverSdk.getIntentKey(intentHash))
 
                     expect(res.toString()).to.not.include('FailedTransactionMetadata')
                     expect(intentBefore.validators.length).to.be.eq(1)
@@ -1911,7 +1939,7 @@ describe('Settler', () => {
                 client.setAccount(fulfilledIntent, {
                   executable: false,
                   lamports: 1002240,
-                  owner: program.programId,
+                  owner: settler.programId,
                   data: Buffer.from('595168911b9267f7' + '010000000000000000', 'hex'),
                 })
 
@@ -1944,11 +1972,11 @@ describe('Settler', () => {
         validator = ethers.Wallet.createRandom()
         ixs = await createSigAndIxs()
 
-        await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+        await removeEntityFromAllowlist(controllerSdk, adminProvider, EntityType.Solver, solver.publicKey)
       })
 
       after('re-whitelist solver', async () => {
-        await createAllowlistedEntity(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+        await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Solver, solver.publicKey)
       })
 
       itThrowsAnError('Program log: AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
@@ -1958,7 +1986,7 @@ describe('Settler', () => {
   describe('add_axia_sig', () => {
     const createAllowlistedAxia = async () => {
       const axia = ethers.Wallet.createRandom()
-      await createAllowlistedEntity(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
+      await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Axia, hexToBytes(axia.address))
       return axia
     }
 
@@ -1979,14 +2007,14 @@ describe('Settler', () => {
         axiaRegistry: Address
       }> = {}
     ): Promise<TransactionInstruction[]> => {
-      const proposal = await program.account.proposal.fetch(proposalKeyOverride)
-      const intent = await program.account.intent.fetch(proposal.intent)
+      const proposal = await settler.account.proposal.fetch(proposalKeyOverride)
+      const intent = await settler.account.intent.fetch(proposal.intent)
 
       const { signature, recoveryId } = await createAxiaSignature(intent.hash, proposal, ethAxia)
 
       const eip712Preimage = new ProposalSigner().getMessage(
         solverSdk.anchorProposalToEip712Proposal(proposal, intent.hash),
-        { chainId: Chains.Solana, address: program.programId.toString() }
+        { chainId: Chains.Solana, address: settler.programId.toString() }
       )
 
       const secp256k1Ix = Secp256k1Program.createInstructionWithEthAddress({
@@ -1997,7 +2025,7 @@ describe('Settler', () => {
         ...secp256k1IxOptions,
       })
 
-      const ix = await program.methods
+      const ix = await settler.methods
         .addAxiaSig()
         .accountsPartial({
           solver: solverSdk.getSignerKey(),
@@ -2029,7 +2057,7 @@ describe('Settler', () => {
         ...SETTLER_EIP712_DOMAIN,
         chainId: Chains.Solana,
       })
-      await makeTxSignAndSend(provider, ix)
+      await makeTxSignAndSend(adminProvider, ix)
     })
 
     context('when caller is whitelisted solver', () => {
@@ -2046,12 +2074,12 @@ describe('Settler', () => {
                   })
 
                   it('should sign the proposal', async () => {
-                    let proposal = await program.account.proposal.fetch(proposalKey)
+                    let proposal = await settler.account.proposal.fetch(proposalKey)
                     expect(proposal.isSigned).to.be.false
 
                     await makeTxSignAndSend(solverProvider, ...ixs)
 
-                    proposal = await program.account.proposal.fetch(proposalKey)
+                    proposal = await settler.account.proposal.fetch(proposalKey)
                     expect(proposal.isSigned).to.be.true
                   })
                 })
@@ -2065,12 +2093,12 @@ describe('Settler', () => {
                   })
 
                   it('should not sign the proposal twice (idempotent ix)', async () => {
-                    let proposal = await program.account.proposal.fetch(proposalKey)
+                    let proposal = await settler.account.proposal.fetch(proposalKey)
                     expect(proposal.isSigned).to.be.true
 
                     const res = await makeTxSignAndSend(solverProvider, ...ixs)
 
-                    proposal = await program.account.proposal.fetch(proposalKey)
+                    proposal = await settler.account.proposal.fetch(proposalKey)
                     expect(proposal.isSigned).to.be.true
                     expect(res.toString()).to.not.include('FailedTransactionMetadata')
                   })
@@ -2086,7 +2114,7 @@ describe('Settler', () => {
                       proposal: await createTestProposal(),
                     })
                     const ix = await adminSdk.updateEip712DomainIx({ name: 'Other Domain' })
-                    await makeTxSignAndSend(provider, ix)
+                    await makeTxSignAndSend(adminProvider, ix)
                   })
 
                   after(async () => {
@@ -2095,7 +2123,7 @@ describe('Settler', () => {
                       ...SETTLER_EIP712_DOMAIN,
                       chainId: Chains.Solana,
                     })
-                    await makeTxSignAndSend(provider, ix)
+                    await makeTxSignAndSend(adminProvider, ix)
                   })
 
                   itThrowsAnError('SigVerificationFailedIncorrectMessage')
@@ -2132,7 +2160,7 @@ describe('Settler', () => {
                     const validator = ethers.Wallet.createRandom()
                     await createAllowlistedEntity(
                       controllerSdk,
-                      provider,
+                      adminProvider,
                       EntityType.Validator,
                       hexToBytes(validator.address)
                     )
@@ -2195,7 +2223,7 @@ describe('Settler', () => {
                     proposalParams: { isFinal: true, deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
                   })
                   ixs = await createSigAndIxs()
-                  warpSeconds(provider, WARP_TIME_LONG)
+                  warpSeconds(adminProvider, WARP_TIME_LONG)
                 })
 
                 itThrowsAnError('ProposalIsExpired')
@@ -2207,7 +2235,7 @@ describe('Settler', () => {
                     proposalParams: { isFinal: true, deadline: getCurrentTimestamp(client, SHORT_DEADLINE) },
                   })
                   ixs = await createSigAndIxs()
-                  warpSeconds(provider, WARP_TIME_SHORT)
+                  warpSeconds(adminProvider, WARP_TIME_SHORT)
                 })
 
                 itThrowsAnError('ProposalIsExpired')
@@ -2243,7 +2271,7 @@ describe('Settler', () => {
         before('create objects and de-whitelist axia', async () => {
           proposalKey = await createTestProposal()
           ixs = await createSigAndIxs()
-          await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Axia, hexToBytes(axia.address))
+          await removeEntityFromAllowlist(controllerSdk, adminProvider, EntityType.Axia, hexToBytes(axia.address))
         })
 
         itThrowsAnError('AnchorError caused by account: axia_registry. Error Code: AccountNotInitialized')
@@ -2254,11 +2282,11 @@ describe('Settler', () => {
       before('create objects and de-whitelist solver', async () => {
         proposalKey = await createTestProposal()
         ixs = await createSigAndIxs()
-        await removeEntityFromAllowlist(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+        await removeEntityFromAllowlist(controllerSdk, adminProvider, EntityType.Solver, solver.publicKey)
       })
 
       after('re-whitelist solver', async () => {
-        await createAllowlistedEntity(controllerSdk, provider, EntityType.Solver, solver.publicKey)
+        await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Solver, solver.publicKey)
       })
 
       itThrowsAnError('AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
