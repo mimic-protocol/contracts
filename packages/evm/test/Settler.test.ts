@@ -31,6 +31,7 @@ import {
   TransferExecutorMock,
 } from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
+import itBehavesLikeUpgradeable from './behaviors/Upgradeable.behavior'
 import {
   Account,
   CallOperation,
@@ -52,6 +53,7 @@ import {
   createTransferOperation,
   createTransferProposal,
   currentTimestamp,
+  deployProxy,
   DynamicCallOperation,
   hashIntent,
   hashProposal,
@@ -76,14 +78,14 @@ const { ethers } = await network.connect()
 
 describe('Settler', () => {
   let settler: Settler, controller: Controller
-  let user: HardhatEthersSigner, other: HardhatEthersSigner
-  let admin: HardhatEthersSigner, owner: HardhatEthersSigner, solver: HardhatEthersSigner
+  let user: HardhatEthersSigner, other: HardhatEthersSigner, solver: HardhatEthersSigner
+  let admin: HardhatEthersSigner, owner: HardhatEthersSigner, proxyOwner: HardhatEthersSigner
 
   beforeEach('deploy settler', async () => {
     // eslint-disable-next-line prettier/prettier
-    [, admin, owner, user, other, solver] = await ethers.getSigners()
+    [, admin, owner, user, other, solver, proxyOwner] = await ethers.getSigners()
     controller = await ethers.deployContract('Controller', [admin, [], [], [], [], 0])
-    settler = await ethers.deployContract('Settler', [controller, owner])
+    settler = await deployProxy<Settler>(ethers, 'Settler', proxyOwner, [controller.target, owner.address])
   })
 
   const balanceOf = (token: TokenMock | string, account: Account) => {
@@ -109,6 +111,29 @@ describe('Settler', () => {
     it('has a dynamic call decoder', async () => {
       expect(await settler.dynamicCallEncoder()).to.not.be.equal(ZERO_ADDRESS)
     })
+  })
+
+  describe('upgradeable', () => {
+    beforeEach('set upgradeable context', function () {
+      this.ethers = ethers
+      this.proxy = settler
+      this.proxyOwner = proxyOwner
+      this.other = other
+      this.implementationNameV1 = 'Settler'
+      this.implementationNameV2 = 'SettlerV2Mock'
+      this.initializeArgs = [ZERO_ADDRESS, ZERO_ADDRESS]
+      this.assertUpgrade = async (proxy: Settler) => {
+        const upgraded = await ethers.getContractAt('SettlerV2Mock', proxy)
+        expect(await upgraded.someNewFunction()).to.be.equal('Some new function')
+        expect(await upgraded.owner()).to.be.equal(owner)
+        expect(await upgraded.controller()).to.be.equal(controller)
+        expect(await upgraded.operationsValidator()).to.be.equal(ZERO_ADDRESS)
+        expect(await upgraded.smartAccountsHandler()).to.not.be.equal(ZERO_ADDRESS)
+        expect(await upgraded.dynamicCallEncoder()).to.not.be.equal(ZERO_ADDRESS)
+      }
+    })
+
+    itBehavesLikeUpgradeable()
   })
 
   describe('ownable', () => {
