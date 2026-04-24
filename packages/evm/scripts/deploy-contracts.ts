@@ -1,6 +1,7 @@
 import { Interface } from 'ethers'
 
 import ControllerArtifact from '../artifacts/contracts/Controller.sol/Controller.json'
+import DynamicCallEncoderArtifact from '../artifacts/contracts/dynamic-calls/DynamicCallEncoder.sol/DynamicCallEncoder.json'
 import SettlerArtifact from '../artifacts/contracts/Settler.sol/Settler.json'
 import SettlerProxyArtifact from '../artifacts/contracts/SettlerProxy.sol/SettlerProxy.json'
 import SmartAccount7702 from '../artifacts/contracts/smart-accounts/SmartAccount7702.sol/SmartAccount7702.json'
@@ -19,8 +20,14 @@ async function main(): Promise<void> {
   const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
   const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
 
+  const dynamicCallEncoder = await deployCreate3(DynamicCallEncoderArtifact, [], '0x20')
   const settlerImplementation = await deployCreate3(SettlerArtifact, [], '0x1801')
-  const initializeData = new Interface(SettlerArtifact.abi).encodeFunctionData('initialize', [controller.target, ADMIN])
+
+  const initializeData = new Interface(SettlerArtifact.abi).encodeFunctionData('initialize', [
+    controller.target,
+    ADMIN,
+    dynamicCallEncoder.target,
+  ])
   const settlerProxy = await deployCreate3(
     SettlerProxyArtifact,
     [settlerImplementation.target, ADMIN, initializeData],

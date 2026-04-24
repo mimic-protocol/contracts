@@ -23,7 +23,6 @@ import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
 import './Intents.sol';
-import './dynamic-calls/DynamicCallEncoder.sol';
 import './interfaces/IController.sol';
 import './interfaces/IDynamicCallEncoder.sol';
 import './interfaces/IOperationsValidator.sol';
@@ -83,15 +82,16 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
      * @dev Initializes a new Settler contract
      * @param _controller Address of the Settler controller
      * @param _owner Address that will own the contract
+     * @param _dynamicCallEncoder Address of the dynamic call encoder
      */
-    function initialize(address _controller, address _owner) external initializer {
+    function initialize(address _controller, address _owner, address _dynamicCallEncoder) external initializer {
         __Ownable_init(_owner);
         __ReentrancyGuard_init();
         __EIP712_init('Mimic Protocol Settler', '1');
 
         controller = _controller;
         smartAccountsHandler = address(new SmartAccountsHandler());
-        dynamicCallEncoder = address(new DynamicCallEncoder());
+        _setDynamicCallEncoder(_dynamicCallEncoder);
     }
 
     /**
@@ -309,7 +309,7 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
      * @dev Validates and executes a proposal to fulfill a transfer operation
      * @param intent Intent that contains transfer operation to be fulfilled
      * @param proposal Transfer proposal to be executed
-     * @param index Position where the trasnfer proposal data and operation are located
+     * @param index Position where the transfer proposal data and operation are located
      */
     function _executeTransfer(Intent memory intent, Proposal memory proposal, uint256 index)
         internal

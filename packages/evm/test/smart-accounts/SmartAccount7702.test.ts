@@ -22,7 +22,11 @@ describe('SmartAccount7702', () => {
     // eslint-disable-next-line prettier/prettier
     [, admin, user, solver] = await ethers.getSigners()
     controller = await ethers.deployContract('Controller', [admin, [solver], [], [admin], [], 0])
-    settler = await deployProxy<Settler>(ethers, 'Settler', admin, [controller.target, admin.address])
+    settler = await deployProxy<Settler>(ethers, 'Settler', admin, [
+      controller.target,
+      admin.address,
+      randomEvmAddress(),
+    ])
     smartAccount = await ethers.deployContract('SmartAccount7702', [settler])
   })
 
