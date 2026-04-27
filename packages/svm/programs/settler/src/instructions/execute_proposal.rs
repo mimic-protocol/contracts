@@ -41,6 +41,7 @@ pub struct ExecuteProposal<'info> {
     #[account(
         mut,
         constraint = intent.creator == intent_creator.key() @ SettlerError::IncorrectIntentCreator,
+        constraint = intent.is_final @ SettlerError::IntentIsNotFinal,
         close = intent_creator
     )]
     pub intent: Box<Account<'info, Intent>>,
