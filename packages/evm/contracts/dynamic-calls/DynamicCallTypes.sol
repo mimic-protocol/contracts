@@ -47,6 +47,7 @@ struct DynamicStaticCallArg {
 struct DynamicArg {
     DynamicArgKind kind;
     bytes data;
+    bool isDynamic;
 }
 
 /**

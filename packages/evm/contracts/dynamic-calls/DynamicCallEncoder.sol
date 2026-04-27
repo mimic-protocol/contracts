@@ -64,16 +64,12 @@ contract DynamicCallEncoder {
 
     /**
      * @dev Internal representation of a fully-encoded argument
-     * @param data ABI-encoded argument payload:
-     *  - static: inline ABI words
-     *  - dynamic: tail data ([len][data...])
+     * @param data ABI-encoded argument payload
      * @param isDynamic Whether this argument requires a head offset
-     * @param headLength Bytes contributed to the calldata head
      */
     struct EncodedArg {
         bytes data;
         bool isDynamic;
-        uint256 headLength;
     }
 
     /**
@@ -106,7 +102,7 @@ contract DynamicCallEncoder {
             EncodedArg memory enc = _encodeArg(args[i], variables);
             encodedArgs[i] = enc.data;
             isDynamic[i] = enc.isDynamic;
-            headLength += enc.headLength;
+            headLength += enc.isDynamic ? 32 : enc.data.length;
         }
 
         bytes memory heads;
@@ -130,120 +126,69 @@ contract DynamicCallEncoder {
      * @dev Encodes a single dynamic argument based on its kind
      */
     function _encodeArg(DynamicArg memory arg, bytes[] memory variables) internal view returns (EncodedArg memory out) {
-        if (arg.kind == DynamicArgKind.Literal) return _encodeLiteral(arg.data);
-        if (arg.kind == DynamicArgKind.Variable) return _encodeVariable(arg.data, variables);
-        if (arg.kind == DynamicArgKind.StaticCall) return _encodeStaticCall(arg.data, variables);
+        if (arg.kind == DynamicArgKind.Literal) return _encodeLiteral(arg);
+        if (arg.kind == DynamicArgKind.Variable) return _encodeVariable(arg, variables);
+        if (arg.kind == DynamicArgKind.StaticCall) return _encodeStaticCall(arg, variables);
         revert DynamicCallEncoderStaticCallBadSpec();
     }
 
     /**
-     * @dev Encodes a literal argument. It supports:
-     * - Static values encoded as [size][data][0]
-     * - Dynamic values pre-encoded with a dynamic ABI prefix
+     * @dev Encodes a literal argument.
      */
-    function _encodeLiteral(bytes memory argument) internal pure returns (EncodedArg memory out) {
-        if (argument.length % 32 != 0) revert DynamicCallEncoderBadLength();
-
-        if (_hasDynamicPrefix(argument)) {
-            // Dynamic literal: remove pre-encoding prefix
-            bytes memory encodedArg = argument.sliceFrom(96);
-            if (encodedArg.length == 0) revert DynamicCallEncoderEmptyDynamic();
-
-            out.data = encodedArg;
-            out.isDynamic = true;
-            out.headLength = 32;
-        } else {
-            // Static literal: [size][data][zero]
-            if (argument.length < 64) revert DynamicCallEncoderTooShortStatic();
-
-            uint256 staticSize = argument.readWord0();
-            if (argument.length != staticSize + 32) revert DynamicCallEncoderBadStaticSize();
-            if (!argument.lastWordIsZero()) revert DynamicCallEncoderBadStaticTrailer();
-
-            bytes memory encodedArg = argument.slice(32, argument.length - 32);
-            out.data = encodedArg;
-            out.isDynamic = false;
-            out.headLength = encodedArg.length;
-        }
+    function _encodeLiteral(DynamicArg memory arg) internal pure returns (EncodedArg memory) {
+        return _encodeAbiValue(arg.data, arg.isDynamic);
     }
 
     /**
      * @dev Encodes a variable argument by resolving it from the variables list
      */
-    function _encodeVariable(bytes memory data, bytes[] memory variables)
+    function _encodeVariable(DynamicArg memory arg, bytes[] memory variables)
         internal
         pure
         returns (EncodedArg memory out)
     {
-        if (data.length != 32) revert DynamicCallEncoderVariableRefBadLength();
-        uint256 index = data.readWord0();
+        if (arg.data.length != 32) revert DynamicCallEncoderVariableRefBadLength();
+        uint256 index = arg.data.readWord0();
         if (index >= variables.length) revert DynamicCallEncoderVariableOutOfBounds();
-        out = _encodeFromAbiLikeBytes(variables[index]);
+
+        return _encodeAbiValue(variables[index], arg.isDynamic);
     }
 
     /**
      * @dev Encodes a staticcall argument
      * Executes a staticcall and interprets the return data as an ABI value
      */
-    function _encodeStaticCall(bytes memory data, bytes[] memory variables)
+    function _encodeStaticCall(DynamicArg memory arg, bytes[] memory variables)
         internal
         view
         returns (EncodedArg memory out)
     {
-        if (data.length < 64) revert DynamicCallEncoderStaticCallBadSpec();
-        DynamicStaticCallArg memory spec = abi.decode(data, (DynamicStaticCallArg));
+        if (arg.data.length < 64) revert DynamicCallEncoderStaticCallBadSpec();
+
+        DynamicStaticCallArg memory spec = abi.decode(arg.data, (DynamicStaticCallArg));
         bytes memory callData = _buildCalldata(spec.selector, spec.arguments, variables);
         (bool ok, bytes memory result) = spec.target.staticcall(callData);
         if (!ok) revert DynamicCallEncoderStaticCallFailed(spec.target);
-        out = _encodeFromAbiLikeBytes(result);
+
+        return _encodeAbiValue(result, arg.isDynamic);
     }
 
     /**
      * @dev Interprets ABI-like bytes as either a static or dynamic value
      * Used for variable resolution and staticcall return values
      */
-    function _encodeFromAbiLikeBytes(bytes memory value) internal pure returns (EncodedArg memory out) {
-        if (value.length < 32) revert DynamicCallEncoderVariableTooShort();
+    function _encodeAbiValue(bytes memory data, bool isDynamic) internal pure returns (EncodedArg memory out) {
+        if (data.length == 0 || data.length % 32 != 0) revert DynamicCallEncoderBadLength();
 
-        if (_looksLikeSingleDynamicAbiValue(value)) {
-            bytes memory tail = value.sliceFrom(32);
-            if (tail.length == 0) revert DynamicCallEncoderEmptyDynamic();
-            out.data = tail;
+        if (isDynamic) {
+            if (data.length < 64) revert DynamicCallEncoderEmptyDynamic();
+            if (data.readWord0() != 0x20) revert DynamicCallEncoderBadLength();
+
+            out.data = data.sliceFrom(32);
             out.isDynamic = true;
-            out.headLength = 32;
         } else {
-            out.data = value.slice(0, 32);
+            out.data = data;
             out.isDynamic = false;
-            out.headLength = 32;
         }
-    }
-
-    /**
-     * @dev Detects ABI encoding of a single dynamic return value
-     */
-    function _looksLikeSingleDynamicAbiValue(bytes memory data) private pure returns (bool) {
-        if (data.length < 64) return false;
-        if (data.length % 32 != 0) return false;
-        return data.readWord0() == 0x20;
-    }
-
-    /**
-     * @dev Detects the dynamic pre-encoding prefix used by abi.encode("", value)
-     */
-    function _hasDynamicPrefix(bytes memory argument) private pure returns (bool) {
-        if (argument.length < 96) return false;
-
-        bytes32 w0;
-        bytes32 w1;
-        bytes32 w2;
-
-        assembly {
-            let off := add(argument, 32)
-            w0 := mload(off)
-            w1 := mload(add(off, 32))
-            w2 := mload(add(off, 64))
-        }
-
-        return (uint256(w0) == 0x40) && (uint256(w1) == 0x60) && (w2 == bytes32(0));
     }
 }

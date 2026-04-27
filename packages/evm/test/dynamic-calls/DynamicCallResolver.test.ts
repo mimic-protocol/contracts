@@ -71,26 +71,22 @@ describe('DynamicCallEncoder', () => {
       })
 
       context.only('with uint256 96', () => {
-        // misclassified as dynamic
-
-        const val = 96n
-        const call = dynamicCall('number', [literal(['uint256'], [val])])
+        const value = 96n
+        const call = dynamicCall('number', [literal(['uint256'], [value])])
         
         it('encodes arguments properly', async () => {
           const encoded = await encoder.encode(call, variables)
-          expect(encoded).to.equal(iface.encodeFunctionData('number', [val]))
+          expect(encoded).to.equal(iface.encodeFunctionData('number', [value]))
         })
       })
 
       context.only('with address 0x60', () => {
-        // misclassified as dynamic
-
-        const val = '0x0000000000000000000000000000000000000060'
-        const call = dynamicCall('balanceOf', [literal(['address'], [val])])
+        const value = '0x0000000000000000000000000000000000000060'
+        const call = dynamicCall('balanceOf', [literal(['address'], [value])])
         
         it('encodes arguments properly', async () => {
           const encoded = await encoder.encode(call, variables)
-          expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [val]))
+          expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [value]))
         })
       })
     })
