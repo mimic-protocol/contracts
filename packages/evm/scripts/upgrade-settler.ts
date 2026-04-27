@@ -1,6 +1,8 @@
+import { HardhatEthers, HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { Contract, getAddress } from 'ethers'
 import { network } from 'hardhat'
 
+import ProxyAdminArtifact from '../artifacts/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol/ProxyAdmin.json'
 import SettlerArtifact from '../artifacts/contracts/Settler.sol/Settler.json'
 import { deployCreate3 } from './deploy-create3'
 
@@ -13,7 +15,7 @@ async function main(): Promise<void> {
   if (!process.env.SETTLER_PROXY) throw Error('SETTLER_PROXY env variable not provided')
   const proxy = getAddress(process.env.SETTLER_PROXY)
 
-  const proxyAdmin = await getProxyAdmin(proxy)
+  const proxyAdmin = await getProxyAdmin(ethers, proxy, signer)
   const proxyAdminOwner = await proxyAdmin.owner()
   if (proxyAdminOwner !== signer.address) {
     throw Error(`Signer ${signer.address} is not the ProxyAdmin owner ${proxyAdminOwner}`)
@@ -25,17 +27,10 @@ async function main(): Promise<void> {
   console.log(`✅ Settler ${proxy} upgraded in tx ${tx.hash}`)
 }
 
-async function getProxyAdmin(proxy: string): Promise<Contract> {
-  const { ethers } = await network.connect()
+async function getProxyAdmin(ethers: HardhatEthers, proxy: string, signer: HardhatEthersSigner): Promise<Contract> {
   const rawAdmin = await ethers.provider.getStorage(proxy, ERC1967_ADMIN_SLOT)
-  return new Contract(
-    getAddress(`0x${rawAdmin.slice(-40)}`),
-    [
-      'function owner() view returns (address)',
-      'function upgradeAndCall(address proxy, address implementation, bytes data) payable',
-    ],
-    (await ethers.getSigners())[0]
-  )
+  const adminAddress = getAddress(`0x${rawAdmin.slice(-40)}`)
+  return ethers.getContractAt(ProxyAdminArtifact.abi, adminAddress, signer)
 }
 
 main().catch(console.error)

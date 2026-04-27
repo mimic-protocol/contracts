@@ -8,6 +8,7 @@ dotenv.config()
 const config: HardhatUserConfig = {
   plugins: [hardhatVerify, hardhatToolboxMochaEthersPlugin],
   solidity: {
+    dependenciesToCompile: ['@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol'],
     profiles: {
       default: {
         version: '0.8.28',
