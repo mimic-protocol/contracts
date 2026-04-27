@@ -2732,8 +2732,7 @@ describe('Settler', () => {
             context(contextName, () => {
               beforeEach(async () => {
                 remainingAccounts[getRemainingAccountIndex()].pubkey = await getWrongValue()
-                await prepareIntentAndProposal()
-                ix = await createIx(solverSdk, undefined, remainingAccounts)
+                await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
               })
 
               itThrowsAnError(expectedError)
