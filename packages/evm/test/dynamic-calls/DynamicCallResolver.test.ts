@@ -1,4 +1,4 @@
-import { randomEvmAddress } from '@mimicprotocol/sdk'
+import { randomEvmAddress, randomNumber } from '@mimicprotocol/sdk'
 import { expect } from 'chai'
 import { network } from 'hardhat'
 
@@ -20,6 +20,10 @@ describe('DynamicCallEncoder', () => {
     'function balanceOf(address) view returns (uint256)',
     'function transfer(address,uint256) returns (bool)',
     'function foo(uint256[])',
+    'function number(uint256 value) view returns (uint256)',
+    'function bar(uint256[2])',
+    'function baz((uint256,address))',
+    'function qux(uint256,uint256[2])',
   ])
 
   function dynamicCall(method: string, args: DynamicArg[]) {
@@ -65,6 +69,30 @@ describe('DynamicCallEncoder', () => {
           expect(encoded).to.equal(iface.encodeFunctionData('foo', [values]))
         })
       })
+
+      context.only('with uint256 96', () => {
+        // misclassified as dynamic
+
+        const val = 96n
+        const call = dynamicCall('number', [literal(['uint256'], [val])])
+        
+        it('encodes arguments properly', async () => {
+          const encoded = await encoder.encode(call, variables)
+          expect(encoded).to.equal(iface.encodeFunctionData('number', [val]))
+        })
+      })
+
+      context.only('with address 0x60', () => {
+        // misclassified as dynamic
+
+        const val = '0x0000000000000000000000000000000000000060'
+        const call = dynamicCall('balanceOf', [literal(['address'], [val])])
+        
+        it('encodes arguments properly', async () => {
+          const encoded = await encoder.encode(call, variables)
+          expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [val]))
+        })
+      })
     })
 
     context('with variable arguments', () => {
@@ -72,11 +100,17 @@ describe('DynamicCallEncoder', () => {
         const var0 = 100n
         const var1 = randomEvmAddress()
         const var2 = [1, 2, 3, 4, 5, 6, 7]
+        const var3 = [11n, 22n]
+        const var4 = [33n, randomEvmAddress()]
+        const var5 = [32n, 99n]
 
         const variables = [
           ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [var0]),
           ethers.AbiCoder.defaultAbiCoder().encode(['address'], [var1]),
           ethers.AbiCoder.defaultAbiCoder().encode(['uint256[]'], [var2]),
+          ethers.AbiCoder.defaultAbiCoder().encode(['uint256[2]'], [var3]),
+          ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256,address)'], [var4]),
+          ethers.AbiCoder.defaultAbiCoder().encode(['uint256[2]'], [var5]),
         ]
 
         context('with a single argument', () => {
@@ -104,6 +138,40 @@ describe('DynamicCallEncoder', () => {
           it('encodes arguments properly', async () => {
             const encoded = await encoder.encode(call, variables)
             expect(encoded).to.equal(iface.encodeFunctionData('foo', [var2]))
+          })
+        })
+
+        context.only('with multi-word static arguments', () => {
+          // uint256[2] variable only encodes the first word: 11, missing 22
+
+          const call = dynamicCall('bar', [variable(3)])
+
+          it('encodes arguments properly', async () => {
+            const encoded = await encoder.encode(call, variables)
+            expect(encoded).to.equal(iface.encodeFunctionData('bar', [var3]))
+          })
+        })
+
+        context.only('with static tuple arguments', () => {
+          // static tuple variable only encodes the first word: 33, missing the address
+
+          const call = dynamicCall('baz', [variable(4)])
+
+          it('encodes arguments properly', async () => {
+            const encoded = await encoder.encode(call, variables)
+            expect(encoded).to.equal(iface.encodeFunctionData('baz', [var4]))
+          })
+        })
+
+        context.only('when a static value starts with 0x20', () => {
+          // static array beginning with 0x20 (32n) is misclassified as dynamic
+
+          const val = 1n
+          const call = dynamicCall('qux', [literal(['uint256'], [val]), variable(5)])
+
+          it('encodes arguments properly', async () => {
+            const encoded = await encoder.encode(call, variables)
+            expect(encoded).to.equal(iface.encodeFunctionData('qux', [val, var5]))
           })
         })
       })
