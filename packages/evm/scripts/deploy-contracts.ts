@@ -2,8 +2,8 @@ import { Interface } from 'ethers'
 
 import ControllerArtifact from '../artifacts/contracts/Controller.sol/Controller.json'
 import DynamicCallEncoderArtifact from '../artifacts/contracts/dynamic-calls/DynamicCallEncoder.sol/DynamicCallEncoder.json'
+import ProxyArtifact from '../artifacts/contracts/proxy/Proxy.sol/Proxy.json'
 import SettlerArtifact from '../artifacts/contracts/Settler.sol/Settler.json'
-import SettlerProxyArtifact from '../artifacts/contracts/SettlerProxy.sol/SettlerProxy.json'
 import SmartAccount7702 from '../artifacts/contracts/smart-accounts/SmartAccount7702.sol/SmartAccount7702.json'
 import MimicHelperArtifact from '../artifacts/contracts/utils/MimicHelper.sol/MimicHelper.json'
 import { deployCreate3 } from './deploy-create3'
@@ -28,11 +28,7 @@ async function main(): Promise<void> {
     ADMIN,
     dynamicCallEncoder.target,
   ])
-  const settlerProxy = await deployCreate3(
-    SettlerProxyArtifact,
-    [settlerImplementation.target, ADMIN, initializeData],
-    '0x18'
-  )
+  const settlerProxy = await deployCreate3(ProxyArtifact, [settlerImplementation.target, ADMIN, initializeData], '0x18')
 
   await deployCreate3(SmartAccount7702, [settlerProxy.target], '0x19')
   await deployCreate3(MimicHelperArtifact, [], '0x42')

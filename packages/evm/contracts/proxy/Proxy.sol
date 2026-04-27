@@ -16,7 +16,7 @@ pragma solidity ^0.8.20;
 
 import '@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol';
 
-contract SettlerProxy is TransparentUpgradeableProxy {
+contract Proxy is TransparentUpgradeableProxy {
     constructor(address implementation, address initialOwner, bytes memory data)
         TransparentUpgradeableProxy(implementation, initialOwner, data)
     {}
