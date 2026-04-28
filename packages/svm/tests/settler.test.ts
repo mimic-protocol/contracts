@@ -2726,62 +2726,67 @@ describe('Settler', () => {
           let accountIndex: number
           let expectedOwner: web3.PublicKey
           let expectedMint: web3.PublicKey
+          let wrongValue: web3.PublicKey
 
-          const itThrowsAnErrorForGivenAccount = (
-            contextName: string,
-            getWrongValue: () => web3.PublicKey | Promise<web3.PublicKey>,
-            expectedError: string
-          ) => {
-            context(contextName, () => {
-              beforeEach(async () => {
-                remainingAccounts[accountIndex].pubkey = await getWrongValue()
-                await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
-              })
-
-              itThrowsAnError(expectedError)
+          const itThrowsAnErrorForGivenAccount = (expectedError: string) => {
+            beforeEach(async () => {
+              remainingAccounts[accountIndex].pubkey = wrongValue
+              await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
             })
+
+            itThrowsAnError(expectedError)
           }
 
           const itChecksTokenAccount = (tokenAccountName: string) => {
             const incorrectTokenAccountError = `Incorrect ${tokenAccountName}: mint or authority do not match expected`
             const invalidTokenAccountError = 'Account not owned by TokenKeg or Token2022 programs'
 
-            itThrowsAnErrorForGivenAccount(
-              `when ${tokenAccountName} is another token account (wrong owner)`,
-              async () => (await createFundedAta(adminProvider, admin, randomPubkey(), expectedMint, 0)).ata,
-              incorrectTokenAccountError
-            )
+            context(`when ${tokenAccountName} is another token account (wrong owner)`, () => {
+              beforeEach(async () => {
+                wrongValue = (await createFundedAta(adminProvider, admin, randomPubkey(), expectedMint, 0)).ata
+              })
 
-            itThrowsAnErrorForGivenAccount(
-              `when ${tokenAccountName} is another token account (wrong mint)`,
-              async () =>
-                (await createFundedAta(adminProvider, admin, expectedOwner, createMint(client, admin).mint, 0))
-                  .ata,
-              incorrectTokenAccountError
-            )
+              itThrowsAnErrorForGivenAccount(incorrectTokenAccountError)
+            })
 
-            itThrowsAnErrorForGivenAccount(
-              `when ${tokenAccountName} is another type of account`,
-              () => randomPubkey(),
-              invalidTokenAccountError
-            )
+            context(`when ${tokenAccountName} is another token account (wrong mint)`, () => {
+              beforeEach(async () => {
+                wrongValue = (
+                  await createFundedAta(adminProvider, admin, expectedOwner, createMint(client, admin).mint, 0)
+                ).ata
+              })
+
+              itThrowsAnErrorForGivenAccount(incorrectTokenAccountError)
+            })
+
+            context(`when ${tokenAccountName} is another type of account`, () => {
+              beforeEach(async () => {
+                wrongValue = randomPubkey()
+              })
+
+              itThrowsAnErrorForGivenAccount(invalidTokenAccountError)
+            })
           }
 
           const itChecksMintAccount = (tokenName: string) => {
             const incorrectTokenError = `Incorrect ${tokenName} mint account`
             const invalidTokenError = 'Account not owned by TokenKeg or Token2022 programs'
 
-            itThrowsAnErrorForGivenAccount(
-              `when ${tokenName} is another token`,
-              () => createMint(client, admin).mint,
-              incorrectTokenError
-            )
+            context(`when ${tokenName} is another token`, () => {
+              beforeEach(() => {
+                wrongValue = createMint(client, admin).mint
+              })
 
-            itThrowsAnErrorForGivenAccount(
-              `when ${tokenName} is another type of account`,
-              randomPubkey,
-              invalidTokenError
-            )
+              itThrowsAnErrorForGivenAccount(incorrectTokenError)
+            })
+
+            context(`when ${tokenName} is another type of account`, () => {
+              beforeEach(() => {
+                wrongValue = randomPubkey()
+              })
+
+              itThrowsAnErrorForGivenAccount(invalidTokenError)
+            })
           }
 
           beforeEach('Set up base data and re-approve', async () => {
@@ -2811,13 +2816,10 @@ describe('Settler', () => {
                 context('when recipient is incorrect', () => {
                   beforeEach(() => {
                     accountIndex = 3
+                    wrongValue = randomPubkey()
                   })
 
-                  itThrowsAnErrorForGivenAccount(
-                    'when recipient is incorrect',
-                    randomPubkey,
-                    'Incorrect transfer recipient account'
-                  )
+                  itThrowsAnErrorForGivenAccount('Incorrect transfer recipient account')
                 })
 
                 context('when recipient token account is incorrect', () => {
@@ -2878,17 +2880,19 @@ describe('Settler', () => {
               context('when first program is wrong', () => {
                 beforeEach(() => {
                   accountIndex = 0
+                  wrongValue = randomPubkey()
                 })
 
-                itThrowsAnErrorForGivenAccount('when first program is wrong', randomPubkey, 'Incorrect token program account')
+                itThrowsAnErrorForGivenAccount('Incorrect token program account')
               })
 
               context('when second program is wrong', () => {
                 beforeEach(() => {
                   accountIndex = 1
+                  wrongValue = randomPubkey()
                 })
 
-                itThrowsAnErrorForGivenAccount('when second program is wrong', randomPubkey, 'Incorrect token program account')
+                itThrowsAnErrorForGivenAccount('Incorrect token program account')
               })
 
               context('when both programs are wrong', () => {
