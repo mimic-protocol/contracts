@@ -28,21 +28,6 @@ interface IDynamicCallEncoder {
     error DynamicCallEncoderEmptyDynamic();
 
     /**
-     * @dev The static literal has an invalid size prefix
-     */
-    error DynamicCallEncoderBadStaticSize();
-
-    /**
-     * @dev The static literal does not end with a zero word
-     */
-    error DynamicCallEncoderBadStaticTrailer();
-
-    /**
-     * @dev The static literal is too short to be valid
-     */
-    error DynamicCallEncoderTooShortStatic();
-
-    /**
      * @dev The variable reference is not exactly one word
      */
     error DynamicCallEncoderVariableRefBadLength();
@@ -58,11 +43,6 @@ interface IDynamicCallEncoder {
     error DynamicCallEncoderVariablesLengthOutOfBounds();
 
     /**
-     * @dev The variable value is too short to be interpreted
-     */
-    error DynamicCallEncoderVariableTooShort();
-
-    /**
      * @dev The argument kind is not valid
      */
     error DynamicCallEncoderInvalidArgKind();
@@ -75,6 +55,6 @@ interface IDynamicCallEncoder {
      */
     function encode(DynamicCall memory dynamicCall, bytes[][] memory variables, uint256 variablesLength)
         external
-        view
+        pure
         returns (bytes memory);
 }

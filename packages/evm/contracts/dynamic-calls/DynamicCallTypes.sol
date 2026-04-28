@@ -28,10 +28,12 @@ enum DynamicArgKind {
  * @dev Represents a single dynamic argument
  * @param kind Type of argument resolution strategy
  * @param data Encoded argument data, interpreted based on `kind`
+ * @param isDynamic Whether the resolved argument is ABI-dynamic
  */
 struct DynamicArg {
     DynamicArgKind kind;
     bytes data;
+    bool isDynamic;
 }
 
 /**

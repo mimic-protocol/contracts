@@ -21,6 +21,11 @@ describe('DynamicCallEncoder', () => {
     'function balanceOf(address) view returns (uint256)',
     'function transfer(address,uint256) returns (bool)',
     'function foo(uint256[])',
+    'function number(uint256 value) view returns (uint256)',
+    'function bar(uint256[2])',
+    'function baz((uint256,address))',
+    'function qux(uint256,uint256[2])',
+    'function nested((uint256[],uint256[2],(address,uint256)[])[])',
   ])
 
   function dynamicCall(method: string, args: DynamicArg[]) {
@@ -59,11 +64,53 @@ describe('DynamicCallEncoder', () => {
 
       context('with arbitrary-length arguments', () => {
         const values = [1n, 2n, 3n]
-        const call = dynamicCall('foo', [literal(['uint256[]'], [values])])
+        const call = dynamicCall('foo', [literal(['uint256[]'], [values], true)])
 
         it('encodes arguments properly', async () => {
           const encoded = await encoder.encode(call, variables, variables.length)
           expect(encoded).to.equal(iface.encodeFunctionData('foo', [values]))
+        })
+      })
+
+      context('when a static uint256 equals an ABI dynamic offset', () => {
+        const value = 96n
+        const call = dynamicCall('number', [literal(['uint256'], [value])])
+
+        it('encodes arguments properly', async () => {
+          const encoded = await encoder.encode(call, variables, variables.length)
+          expect(encoded).to.equal(iface.encodeFunctionData('number', [value]))
+        })
+      })
+
+      context('when a static address equals an ABI dynamic offset', () => {
+        const value = '0x0000000000000000000000000000000000000060'
+        const call = dynamicCall('balanceOf', [literal(['address'], [value])])
+
+        it('encodes arguments properly', async () => {
+          const encoded = await encoder.encode(call, variables, variables.length)
+          expect(encoded).to.equal(iface.encodeFunctionData('balanceOf', [value]))
+        })
+      })
+
+      context('with an array of structs containing nested arrays', () => {
+        const values = [
+          [
+            [1n, 2n, 3n],
+            [4n, 5n],
+            [
+              [randomEvmAddress(), 6n],
+              [randomEvmAddress(), 7n],
+            ],
+          ],
+          [[8n, 9n], [10n, 11n], [[randomEvmAddress(), 12n]]],
+        ]
+        const call = dynamicCall('nested', [
+          literal(['tuple(uint256[],uint256[2],tuple(address,uint256)[])[]'], [values], true),
+        ])
+
+        it('encodes arguments properly', async () => {
+          const encoded = await encoder.encode(call, variables, variables.length)
+          expect(encoded).to.equal(iface.encodeFunctionData('nested', [values]))
         })
       })
     })
@@ -73,6 +120,20 @@ describe('DynamicCallEncoder', () => {
         const var0 = 100n
         const var1 = randomEvmAddress()
         const var2 = [1, 2, 3, 4, 5, 6, 7]
+        const var3 = [11n, 22n]
+        const var4 = [33n, randomEvmAddress()]
+        const var5 = [32n, 99n]
+        const var6 = [
+          [
+            [1n, 2n, 3n],
+            [4n, 5n],
+            [
+              [randomEvmAddress(), 6n],
+              [randomEvmAddress(), 7n],
+            ],
+          ],
+          [[], [10n, 11n], [[randomEvmAddress(), 12n]]],
+        ]
 
         // variables[opIndex][subIndex]
         const variables = [
@@ -80,7 +141,16 @@ describe('DynamicCallEncoder', () => {
             ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [var0]),
             ethers.AbiCoder.defaultAbiCoder().encode(['address'], [var1]),
           ],
-          [ethers.AbiCoder.defaultAbiCoder().encode(['uint256[]'], [var2])],
+          [
+            ethers.AbiCoder.defaultAbiCoder().encode(['uint256[]'], [var2]),
+            ethers.AbiCoder.defaultAbiCoder().encode(['uint256[2]'], [var3]),
+            ethers.AbiCoder.defaultAbiCoder().encode(['tuple(uint256,address)'], [var4]),
+            ethers.AbiCoder.defaultAbiCoder().encode(['uint256[2]'], [var5]),
+            ethers.AbiCoder.defaultAbiCoder().encode(
+              ['tuple(uint256[],uint256[2],tuple(address,uint256)[])[]'],
+              [var6]
+            ),
+          ],
         ]
 
         context('with a single argument', () => {
@@ -103,18 +173,55 @@ describe('DynamicCallEncoder', () => {
         })
 
         context('with arbitrary-length arguments', () => {
-          const call = dynamicCall('foo', [variable(1, 0)])
+          const call = dynamicCall('foo', [variable(1, 0, true)])
 
           it('encodes arguments properly', async () => {
             const encoded = await encoder.encode(call, variables, variables.length)
             expect(encoded).to.equal(iface.encodeFunctionData('foo', [var2]))
           })
         })
+
+        context('with multi-word static arguments', () => {
+          const call = dynamicCall('bar', [variable(1, 1)])
+
+          it('encodes arguments properly', async () => {
+            const encoded = await encoder.encode(call, variables, variables.length)
+            expect(encoded).to.equal(iface.encodeFunctionData('bar', [var3]))
+          })
+        })
+
+        context('with static tuple arguments', () => {
+          const call = dynamicCall('baz', [variable(1, 2)])
+
+          it('encodes arguments properly', async () => {
+            const encoded = await encoder.encode(call, variables, variables.length)
+            expect(encoded).to.equal(iface.encodeFunctionData('baz', [var4]))
+          })
+        })
+
+        context('when a static value starts with an ABI dynamic offset', () => {
+          const value = 1n
+          const call = dynamicCall('qux', [literal(['uint256'], [value]), variable(1, 3)])
+
+          it('encodes arguments properly', async () => {
+            const encoded = await encoder.encode(call, variables, variables.length)
+            expect(encoded).to.equal(iface.encodeFunctionData('qux', [value, var5]))
+          })
+        })
+
+        context('with an array of structs containing nested arrays', () => {
+          const call = dynamicCall('nested', [variable(1, 4, true)])
+
+          it('encodes arguments properly', async () => {
+            const encoded = await encoder.encode(call, variables, variables.length)
+            expect(encoded).to.equal(iface.encodeFunctionData('nested', [var6]))
+          })
+        })
       })
 
       context('when the variable spec is invalid', () => {
         context('when variable ref is not 64 bytes', () => {
-          const call = dynamicCall('foo', [{ kind: 1, data: '0x11' }])
+          const call = dynamicCall('foo', [{ kind: 1, data: '0x11', isDynamic: false }])
 
           it('reverts with DynamicCallEncoderVariableRefBadLength', async () => {
             await expect(encoder.encode(call, [], 0)).to.be.revertedWithCustomError(
@@ -150,14 +257,14 @@ describe('DynamicCallEncoder', () => {
           })
         })
 
-        context('when variable bytes are too short to be static', () => {
+        context('when variable bytes are not word-aligned', () => {
           const variables = [['0x1234']]
           const call = dynamicCall('transfer', [literal(['address'], [randomEvmAddress()]), variable(0, 0)])
 
-          it('reverts with DynamicCallEncoderVariableTooShort', async () => {
+          it('reverts with DynamicCallEncoderBadLength', async () => {
             await expect(encoder.encode(call, variables, variables.length)).to.be.revertedWithCustomError(
               encoder,
-              'DynamicCallEncoderVariableTooShort'
+              'DynamicCallEncoderBadLength'
             )
           })
         })

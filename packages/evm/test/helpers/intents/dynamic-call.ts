@@ -53,7 +53,9 @@ function getDefaults(): Partial<DynamicCallOperation> {
 
 function encodeDynamicCallData(call: DynamicCallData): string {
   return AbiCoder.defaultAbiCoder().encode(
-    ['tuple(address target, uint256 value, bytes4 selector, tuple(uint8 kind, bytes data)[] arguments)'],
+    [
+      'tuple(address target, uint256 value, bytes4 selector, tuple(uint8 kind, bytes data, bool isDynamic)[] arguments)',
+    ],
     [
       {
         target: toAddress(call.target),
