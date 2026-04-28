@@ -2723,15 +2723,18 @@ describe('Settler', () => {
         })
 
         context('when remaining accounts are not correct', () => {
+          let accountIndex: number
+          let expectedOwner: web3.PublicKey
+          let expectedMint: web3.PublicKey
+
           const itThrowsAnErrorForGivenAccount = (
             contextName: string,
-            getRemainingAccountIndex: () => number,
             getWrongValue: () => web3.PublicKey | Promise<web3.PublicKey>,
             expectedError: string
           ) => {
             context(contextName, () => {
               beforeEach(async () => {
-                remainingAccounts[getRemainingAccountIndex()].pubkey = await getWrongValue()
+                remainingAccounts[accountIndex].pubkey = await getWrongValue()
                 await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
               })
 
@@ -2739,61 +2742,46 @@ describe('Settler', () => {
             })
           }
 
-          const itChecksTokenAccount = (
-            tokenAccountName: string,
-            getExpectedOwner: () => web3.PublicKey,
-            getExpectedMint: () => web3.PublicKey,
-            getAccountNumber: () => number,
-            incorrectTokenAccountError: string,
-            invalidTokenAccountError = 'Account not owned by TokenKeg or Token2022 programs'
-          ) => {
-            context(`when ${tokenAccountName} is incorrect`, () => {
-              itThrowsAnErrorForGivenAccount(
-                `when ${tokenAccountName} is another token account (wrong owner)`,
-                getAccountNumber,
-                async () => (await createFundedAta(adminProvider, admin, randomPubkey(), getExpectedMint(), 0)).ata,
-                incorrectTokenAccountError
-              )
+          const itChecksTokenAccount = (tokenAccountName: string) => {
+            const incorrectTokenAccountError = `Incorrect ${tokenAccountName}: mint or authority do not match expected`
+            const invalidTokenAccountError = 'Account not owned by TokenKeg or Token2022 programs'
 
-              itThrowsAnErrorForGivenAccount(
-                `when ${tokenAccountName} is another token account (wrong mint)`,
-                getAccountNumber,
-                async () =>
-                  (await createFundedAta(adminProvider, admin, getExpectedOwner(), createMint(client, admin).mint, 0))
-                    .ata,
-                incorrectTokenAccountError
-              )
+            itThrowsAnErrorForGivenAccount(
+              `when ${tokenAccountName} is another token account (wrong owner)`,
+              async () => (await createFundedAta(adminProvider, admin, randomPubkey(), expectedMint, 0)).ata,
+              incorrectTokenAccountError
+            )
 
-              itThrowsAnErrorForGivenAccount(
-                `when ${tokenAccountName} is another type of account`,
-                getAccountNumber,
-                () => randomPubkey(),
-                invalidTokenAccountError
-              )
-            })
+            itThrowsAnErrorForGivenAccount(
+              `when ${tokenAccountName} is another token account (wrong mint)`,
+              async () =>
+                (await createFundedAta(adminProvider, admin, expectedOwner, createMint(client, admin).mint, 0))
+                  .ata,
+              incorrectTokenAccountError
+            )
+
+            itThrowsAnErrorForGivenAccount(
+              `when ${tokenAccountName} is another type of account`,
+              () => randomPubkey(),
+              invalidTokenAccountError
+            )
           }
 
-          const itChecksMintAccount = (
-            tokenName: string,
-            getAccountNumber: () => number,
-            incorrectTokenError: string,
-            invalidTokenError = 'Account not owned by TokenKeg or Token2022 programs'
-          ) => {
-            context(`when ${tokenName} is incorrect`, () => {
-              itThrowsAnErrorForGivenAccount(
-                `when ${tokenName} is another token`,
-                getAccountNumber,
-                () => createMint(client, admin).mint,
-                incorrectTokenError
-              )
+          const itChecksMintAccount = (tokenName: string) => {
+            const incorrectTokenError = `Incorrect ${tokenName} mint account`
+            const invalidTokenError = 'Account not owned by TokenKeg or Token2022 programs'
 
-              itThrowsAnErrorForGivenAccount(
-                `when ${tokenName} is another type of account`,
-                getAccountNumber,
-                () => randomPubkey(),
-                invalidTokenError
-              )
-            })
+            itThrowsAnErrorForGivenAccount(
+              `when ${tokenName} is another token`,
+              () => createMint(client, admin).mint,
+              incorrectTokenError
+            )
+
+            itThrowsAnErrorForGivenAccount(
+              `when ${tokenName} is another type of account`,
+              randomPubkey,
+              invalidTokenError
+            )
           }
 
           beforeEach('Set up base data and re-approve', async () => {
@@ -2810,99 +2798,104 @@ describe('Settler', () => {
           })
 
           context('when remaining accounts number is correct', () => {
-            const transferTokenIndex = () => 2
-            const recipientIndex = () => 3
-            const recipientTokenAccountIndex = () => 4
-            const userTokenAccountIndex = () => 5
-
-            const badPubkey = () => randomPubkey()
-            const getUsdc = () => usdc
-            const getRecipient = () => recipient
-            const getUser = () => user.publicKey
-            const getSolver = () => solver.publicKey
-
             context('when token programs are passed correctly', () => {
               context('when transfer accounts are incorrect', () => {
-                itChecksMintAccount('transfer token', transferTokenIndex, 'Incorrect transfer token mint account')
+                context('when transfer token is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 2
+                  })
 
-                itThrowsAnErrorForGivenAccount(
-                  'when recipient is incorrect',
-                  recipientIndex,
-                  badPubkey,
-                  'Incorrect transfer recipient account'
-                )
+                  itChecksMintAccount('transfer token')
+                })
 
-                itChecksTokenAccount(
-                  'recipient token account',
-                  getRecipient,
-                  getUsdc,
-                  recipientTokenAccountIndex,
-                  'Incorrect recipient token account: mint or authority do not match expected'
-                )
+                context('when recipient is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 3
+                  })
 
-                itChecksTokenAccount(
-                  'user token account',
-                  getUser,
-                  getUsdc,
-                  userTokenAccountIndex,
-                  'Incorrect user token account: mint or authority do not match expected'
-                )
+                  itThrowsAnErrorForGivenAccount(
+                    'when recipient is incorrect',
+                    randomPubkey,
+                    'Incorrect transfer recipient account'
+                  )
+                })
+
+                context('when recipient token account is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 4
+                    expectedOwner = recipient
+                    expectedMint = usdc
+                  })
+
+                  itChecksTokenAccount('recipient token account')
+                })
+
+                context('when user token account is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 5
+                    expectedOwner = user.publicKey
+                    expectedMint = usdc
+                  })
+
+                  itChecksTokenAccount('user token account')
+                })
               })
 
               context('when transfer accounts are correct', () => {
-                const solverTokenAccountIndex = () => remainingAccounts.length - 2
-                const userTokenAccountIndex = () => remainingAccounts.length - 1
-
                 context('when fee accounts are incorrect', () => {
-                  itChecksMintAccount(
-                    'fee token',
-                    () => remainingAccounts.length - 3,
-                    'Incorrect fee token mint account'
-                  )
+                  context('when fee token is incorrect', () => {
+                    beforeEach(() => {
+                      accountIndex = remainingAccounts.length - 3
+                    })
 
-                  itChecksTokenAccount(
-                    'solver token account',
-                    getSolver,
-                    getUsdc,
-                    solverTokenAccountIndex,
-                    'Incorrect solver token account: mint or authority do not match expected'
-                  )
+                    itChecksMintAccount('fee token')
+                  })
 
-                  itChecksTokenAccount(
-                    'user token account',
-                    getUser,
-                    getUsdc,
-                    userTokenAccountIndex,
-                    'Incorrect user token account: mint or authority do not match expected'
-                  )
+                  context('when solver token account is incorrect', () => {
+                    beforeEach(() => {
+                      accountIndex = remainingAccounts.length - 2
+                      expectedOwner = solver.publicKey
+                      expectedMint = usdc
+                    })
+
+                    itChecksTokenAccount('solver token account')
+                  })
+
+                  context('when user token account is incorrect', () => {
+                    beforeEach(() => {
+                      accountIndex = remainingAccounts.length - 1
+                      expectedOwner = user.publicKey
+                      expectedMint = usdc
+                    })
+
+                    itChecksTokenAccount('user token account')
+                  })
                 })
               })
             })
 
             context('when token programs are not passed correctly', () => {
-              const firstProgramIndex = () => 0
-              const secondProgramIndex = () => 1
+              context('when first program is wrong', () => {
+                beforeEach(() => {
+                  accountIndex = 0
+                })
 
-              itThrowsAnErrorForGivenAccount(
-                'when first program is wrong',
-                firstProgramIndex,
-                badPubkey,
-                'Incorrect token program account'
-              )
+                itThrowsAnErrorForGivenAccount('when first program is wrong', randomPubkey, 'Incorrect token program account')
+              })
 
-              itThrowsAnErrorForGivenAccount(
-                'when second program is wrong',
-                secondProgramIndex,
-                badPubkey,
-                'Incorrect token program account'
-              )
+              context('when second program is wrong', () => {
+                beforeEach(() => {
+                  accountIndex = 1
+                })
+
+                itThrowsAnErrorForGivenAccount('when second program is wrong', randomPubkey, 'Incorrect token program account')
+              })
 
               context('when both programs are wrong', () => {
                 beforeEach(async () => {
                   remainingAccounts[0].pubkey = randomPubkey()
                   remainingAccounts[1].pubkey = randomPubkey()
-                  await prepareIntentAndProposal()
-                  ix = await createIx(solverSdk, undefined, remainingAccounts)
+                  await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
                 })
 
                 itThrowsAnError('Incorrect token program account')
