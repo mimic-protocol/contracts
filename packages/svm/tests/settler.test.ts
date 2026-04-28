@@ -306,7 +306,7 @@ describe('Settler', () => {
 
             const controllerMinValidations = 3
 
-            before('Set Controller min validations to 3 for tests', async () => {
+            before('set Controller min validations to 3 for tests', async () => {
               const ix = await controllerSdk.setMinValidationsIx(controllerMinValidations)
               await makeTxSignAndSend(adminProvider, ix)
             })
@@ -323,7 +323,7 @@ describe('Settler', () => {
               itWorksAsExpected(controllerMinValidations)
             })
 
-            after('Restore Controller min validations to 1 for future tests', async () => {
+            after('restore Controller min validations to 1 for future tests', async () => {
               const ix = await controllerSdk.setMinValidationsIx(1)
               await makeTxSignAndSend(adminProvider, ix)
             })
@@ -2449,7 +2449,7 @@ describe('Settler', () => {
       await makeTxSignAndSend(adminProvider, ix)
     })
 
-    before('Create validator, Axia, USDC, USDT and fund user', async () => {
+    before('create validator, Axia, USDC, USDT and fund user', async () => {
       user = randomKeypair()
       recipient = randomPubkey()
       userProvider = new LiteSVMProvider(client, new Wallet(user))
@@ -2466,7 +2466,7 @@ describe('Settler', () => {
       await createFundedAta(adminProvider, admin, solver.publicKey, usdc, 0)
     })
 
-    beforeEach('New intent hash for each test case', () => {
+    beforeEach('new intent hash for each test case', () => {
       intentHash = randomHex(32)
     })
 
@@ -2519,7 +2519,7 @@ describe('Settler', () => {
           context('when transfer/s is/are valid', () => {
             context('when protocol has approval', () => {
               context('when user has sufficient funds', () => {
-                beforeEach('Create data and approve delegate', async () => {
+                beforeEach('create data and approve delegate', async () => {
                   await approveDelegate(
                     userProvider,
                     userAta,
@@ -2593,7 +2593,7 @@ describe('Settler', () => {
 
               context('when user does not have sufficient funds', () => {
                 context('when user does not have transfer token sufficient funds', () => {
-                  beforeEach('Create data and approve delegate', async () => {
+                  beforeEach('create data and approve delegate', async () => {
                     transfers = [
                       {
                         amount: '1000000000000',
@@ -2618,7 +2618,7 @@ describe('Settler', () => {
                 })
 
                 context('when user does not have fee token/s sufficient funds', () => {
-                  beforeEach('Create data with new token for fees', async () => {
+                  beforeEach('create data with new token for fees', async () => {
                     const usdt = createMint(client, admin, { decimals: 9, freezeAuthority: null }).mint
                     const usdtUserAta = (await createFundedAta(adminProvider, admin, user.publicKey, usdt, 0)).ata
                     await createFundedAta(adminProvider, admin, solver.publicKey, usdt, 0)
@@ -2653,7 +2653,7 @@ describe('Settler', () => {
 
             context('when protocol does not have approval', () => {
               context('when protocol does not have transfer token approval', () => {
-                beforeEach('Create data and remove delegate', async () => {
+                beforeEach('create data and remove delegate', async () => {
                   await revokeDelegate(userProvider, userAta, user)
                   await prepareAndBuildIx(solverSdk)
                 })
@@ -2662,7 +2662,7 @@ describe('Settler', () => {
               })
 
               context('when protocol does not have fee token/s approval', () => {
-                beforeEach('Create data, new fee token mint, approve Delegate for transfer token only', async () => {
+                beforeEach('create data, new fee token mint, approve Delegate for transfer token only', async () => {
                   const usdt = createMint(client, admin, { decimals: 9, freezeAuthority: null }).mint
                   await createFundedAta(adminProvider, admin, user.publicKey, usdt, 100_000_000_000)
                   await createFundedAta(adminProvider, admin, solver.publicKey, usdt, 0)
@@ -2689,7 +2689,7 @@ describe('Settler', () => {
 
           context('when proposal is not valid', () => {
             context('when proposal intent is not for chain Solana', () => {
-              beforeEach('Create data for Optimism', async () => {
+              beforeEach('create data for Optimism', async () => {
                 transfers = createTestTransfers(n)
                 testIntentData = { ...createTestIntentData(transfers), chainId: Chains.Optimism }
                 intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
@@ -2702,7 +2702,7 @@ describe('Settler', () => {
             })
 
             context('when proposal has data/instructions', () => {
-              beforeEach('Create Proposal and manually edit bytes to add data on-chain', async () => {
+              beforeEach('create Proposal and manually edit bytes to add data on-chain', async () => {
                 await prepareIntentAndProposal()
                 await editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), {
                   instructions: [
@@ -2789,7 +2789,7 @@ describe('Settler', () => {
             })
           }
 
-          beforeEach('Set up base data and re-approve', async () => {
+          beforeEach('set up base data and re-approve', async () => {
             remainingAccounts = sdk.getExecuteProposalRemainingAccountsTransfer(intent, proposal)
 
             // Re-approve Delegate for test
