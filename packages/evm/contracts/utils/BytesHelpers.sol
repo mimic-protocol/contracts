@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 /**
  * @title BytesHelpers
@@ -29,10 +29,8 @@ library BytesHelpers {
      * @param data Bytes array to read from
      * @return result First ABI word of `data`
      */
-    function readWord0(bytes memory data) internal pure returns (uint256 result) {
-        assembly {
-            result := mload(add(data, 32))
-        }
+    function readWord0(bytes memory data) internal pure returns (uint256) {
+        return readWord(data, 0);
     }
 
     /**
@@ -40,24 +38,20 @@ library BytesHelpers {
      * @param data Bytes array to read from
      * @return result Second ABI word of `data`
      */
-    function readWord1(bytes memory data) internal pure returns (uint256 result) {
-        assembly {
-            result := mload(add(data, 64))
-        }
+    function readWord1(bytes memory data) internal pure returns (uint256) {
+        return readWord(data, 1);
     }
 
     /**
-     * @dev Checks whether the last 32-byte word of a bytes array is zero
-     *
-     * Commonly used to validate ABI-encoded static values, which must
-     * end with a zero padding word.
+     * @dev Reads the N-th 32-byte word of a bytes array
+     * @param data Bytes array to read from
+     * @param index Word index to read (0-based)
+     * @return result N-th ABI word of `data`
      */
-    function lastWordIsZero(bytes memory data) internal pure returns (bool) {
-        bytes32 last;
+    function readWord(bytes memory data, uint256 index) private pure returns (uint256 result) {
         assembly {
-            last := mload(add(data, mload(data)))
+            result := mload(add(data, add(32, mul(index, 32))))
         }
-        return last == bytes32(0);
     }
 
     /**
@@ -76,13 +70,7 @@ library BytesHelpers {
         assembly {
             let src := add(add(data, 32), start)
             let dst := add(out, 32)
-            for {
-                let i := 0
-            } lt(i, len) {
-                i := add(i, 32)
-            } {
-                mstore(add(dst, i), mload(add(src, i)))
-            }
+            mcopy(dst, src, len)
         }
     }
 

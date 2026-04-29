@@ -59,27 +59,6 @@ describe('BytesHelpers', () => {
     })
   })
 
-  describe('lastWordIsZero', () => {
-    context('when the last word is zero', () => {
-      const data = ethers.concat([AbiCoder.defaultAbiCoder().encode(['uint256'], [1n]), ethers.ZeroHash])
-
-      it('returns true', async () => {
-        expect(await library.lastWordIsZero(data)).to.equal(true)
-      })
-    })
-
-    context('when the last word is not zero', () => {
-      const data = ethers.concat([
-        AbiCoder.defaultAbiCoder().encode(['uint256'], [1n]),
-        AbiCoder.defaultAbiCoder().encode(['uint256'], [2n]),
-      ])
-
-      it('returns false', async () => {
-        expect(await library.lastWordIsZero(data)).to.equal(false)
-      })
-    })
-  })
-
   describe('slice(bytes)', () => {
     const data = '0x00112233445566778899aabbccddeeff'
 

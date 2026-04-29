@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import '../../utils/BytesHelpers.sol';
 
@@ -25,10 +25,6 @@ contract BytesHelpersMock {
 
     function readWord1(bytes memory data) external pure returns (uint256) {
         return data.readWord1();
-    }
-
-    function lastWordIsZero(bytes memory data) external pure returns (bool) {
-        return data.lastWordIsZero();
     }
 
     function slice(bytes memory data, uint256 start, uint256 end) external pure returns (bytes memory) {
