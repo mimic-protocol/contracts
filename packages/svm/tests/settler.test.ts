@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-import { Address, Program, translateAddress, Wallet } from '@coral-xyz/anchor'
+import { Address, Program, translateAddress, Wallet, web3 } from '@coral-xyz/anchor'
 import {
   bytesToHex,
   Chains,
@@ -10,7 +10,9 @@ import {
   EthersSigner,
   ExtendIntentParams,
   hexToBytes,
+  Intent,
   OpType,
+  Proposal,
   ProposalInstruction,
   ProposalSigner,
   randomHex,
@@ -18,9 +20,14 @@ import {
   SolanaEip712Domain,
   SvmController,
   SvmSettler,
+  TransferIntentData,
+  TransferIntentTransfer,
   ValidatorSigner,
 } from '@mimicprotocol/sdk'
+import { svmEncodeTransferIntent } from '@mimicprotocol/sdk/dist/shared/codec/chains/svm'
+import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import {
+  AccountMeta,
   CreateSecp256k1InstructionWithEthAddressParams,
   Keypair,
   PublicKey,
@@ -68,6 +75,7 @@ import {
   LONG_DEADLINE,
   MEDIUM_DEADLINE,
   PROPOSAL_DEADLINE_OFFSET,
+  ProposalAccount,
   randomKeypair,
   randomPubkey,
   removeEntityFromAllowlist,
@@ -81,6 +89,7 @@ import {
   WARP_TIME_LONG,
   WARP_TIME_SHORT,
 } from './helpers'
+import { approveDelegate, createFundedAta, createMint, getAtaBalance, revokeDelegate } from './helpers/spl'
 import { makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
@@ -297,7 +306,7 @@ describe('Settler', () => {
 
             const controllerMinValidations = 3
 
-            before('Set Controller min validations to 3 for tests', async () => {
+            before('set Controller min validations to 3 for tests', async () => {
               const ix = await controllerSdk.setMinValidationsIx(controllerMinValidations)
               await makeTxSignAndSend(adminProvider, ix)
             })
@@ -314,7 +323,7 @@ describe('Settler', () => {
               itWorksAsExpected(controllerMinValidations)
             })
 
-            after('Restore Controller min validations to 1 for future tests', async () => {
+            after('restore Controller min validations to 1 for future tests', async () => {
               const ix = await controllerSdk.setMinValidationsIx(1)
               await makeTxSignAndSend(adminProvider, ix)
             })
@@ -809,7 +818,7 @@ describe('Settler', () => {
         const ix = await maliciousSdk.extendIntentIx(intentHash, extendParams, false)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-        expectTransactionError(res, `Signer must be intent creator`)
+        expectTransactionError(res, `Incorrect intent creator`)
       })
     })
   })
@@ -955,7 +964,7 @@ describe('Settler', () => {
       it('throws an error', async () => {
         const ix = await maliciousSdk.claimStaleIntentIx(intentHash)
         const res = await makeTxSignAndSend(maliciousProvider, ix)
-        expectTransactionError(res, `Signer must be intent creator`)
+        expectTransactionError(res, `Incorrect intent creator`)
       })
     })
   })
@@ -1523,7 +1532,7 @@ describe('Settler', () => {
           .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-        expectTransactionError(res, `Signer must be proposal creator`)
+        expectTransactionError(res, `Incorrect proposal creator`)
       })
     })
   })
@@ -1644,7 +1653,7 @@ describe('Settler', () => {
           .instruction()
         const res = await makeTxSignAndSend(maliciousProvider, ix)
 
-        expectTransactionError(res, `Signer must be proposal creator`)
+        expectTransactionError(res, `Incorrect proposal creator`)
       })
     })
   })
@@ -2290,6 +2299,752 @@ describe('Settler', () => {
       })
 
       itThrowsAnError('AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized')
+    })
+  })
+
+  describe('execute_proposal', () => {
+    let ix: TransactionInstruction
+    let intentHash: string
+    let intent: Intent
+    let proposal: Proposal
+    let remainingAccounts: AccountMeta[]
+
+    let usdc: web3.PublicKey
+
+    let user: Keypair
+    let recipient: web3.PublicKey
+
+    let userProvider: LiteSVMProvider
+
+    let userAta: web3.PublicKey
+    let recipientAta: web3.PublicKey
+
+    const validator = ethers.Wallet.createRandom()
+    const axia = ethers.Wallet.createRandom()
+
+    const createIx = async (
+      sdk: SvmSettler,
+      accountsPartial: Partial<{
+        solver: web3.PublicKey
+        proposalCreator: web3.PublicKey
+        proposal: web3.PublicKey
+        intentCreator: web3.PublicKey
+        intent: web3.PublicKey
+        fulfilledIntent: web3.PublicKey
+        delegate: web3.PublicKey
+      }> = {},
+      remainingAccounts?: AccountMeta[]
+    ) => {
+      const ix = await settler.methods
+        .executeProposal()
+        .accountsPartial({
+          solver: sdk.getSignerKey(),
+          solverRegistry: sdk.getEntityRegistryKey(EntityType.Solver, sdk.getSignerKey()),
+          proposalCreator: translateAddress(proposal.solver),
+          proposal: sdk.getProposalKey(intentHash, proposal.solver),
+          intentCreator: proposal.solver,
+          intent: sdk.getIntentKey(intentHash),
+          fulfilledIntent: sdk.getFulfilledIntentKey(intentHash),
+          delegate: sdk.getDelegateKey(intent.user),
+          ...accountsPartial,
+        })
+        .remainingAccounts(remainingAccounts ?? sdk.getExecuteProposalRemainingAccountsTransfer(intent, proposal))
+        .instruction()
+      return ix
+    }
+
+    const itThrowsAnError = async (error: string) => {
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expectTransactionError(res.toString(), error)
+      })
+    }
+
+    const createTestIntent = (data: string): Intent => ({
+      configSig: randomHex(32),
+      data,
+      deadline: (Number(client.getClock().unixTimestamp) + 1000).toString(),
+      events: [{ topic: randomHex(32), data: randomHex(50) }],
+      maxFees: [{ token: usdc.toString(), amount: '10000000' }],
+      minValidations: 1,
+      nonce: randomHex(32),
+      op: 1,
+      settler: settler.programId.toString(),
+      user: user.publicKey.toString(),
+    })
+
+    const createTestProposal = (
+      intent: Intent,
+      data = '0x',
+      solver: PublicKey = solverSdk.getSignerKey()
+    ): Proposal => ({
+      data,
+      deadline: intent.deadline,
+      fees: intent.maxFees.map((mf) => mf.amount),
+      solver: solver.toString(),
+    })
+
+    const totalTransferAmount = (transfers: TransferIntentTransfer[]) =>
+      transfers.reduce((prev, curr) => prev + Number(curr.amount), 0)
+
+    const totalFees = (fees: string[]) => fees.reduce((prev, curr) => prev + Number(curr), 0)
+
+    const prepareIntentAndProposal = async (sdk: SvmSettler = solverSdk) => {
+      await makeTxSignAndSend(solverProvider, await sdk.createIntentIx(intentHash, intent, true))
+
+      const validatorSig = await new ValidatorSigner(EthersSigner.fromPrivateKey(validator.privateKey)).signIntentHash({
+        hash: intentHash,
+        settler: '',
+        chainId: Chains.Solana,
+      })
+
+      await makeTxSignAndSend(
+        solverProvider,
+        ...(await sdk.addValidatorSigIxs(intentHash, validator.address, validatorSig))
+      )
+
+      await makeTxSignAndSend(
+        solverProvider,
+        await sdk.createProposalIx(intentHash, {
+          instructions: [],
+          ...proposal,
+          isFinal: true,
+        })
+      )
+
+      const axiaSig = await new ProposalSigner(EthersSigner.fromPrivateKey(axia.privateKey)).signProposal(
+        { ...proposal, intent: intentHash },
+        {
+          address: settler.programId.toString(),
+          chainId: Chains.Solana,
+        }
+      )
+
+      await makeTxSignAndSend(solverProvider, ...(await sdk.addAxiaSigIxs(intentHash, proposal, axia.address, axiaSig)))
+    }
+
+    const prepareAndBuildIx = async (
+      sdk: SvmSettler = solverSdk,
+      accountsPartial: Partial<{
+        solver: web3.PublicKey
+        proposalCreator: web3.PublicKey
+        proposal: web3.PublicKey
+        intentCreator: web3.PublicKey
+        intent: web3.PublicKey
+        fulfilledIntent: web3.PublicKey
+        delegate: web3.PublicKey
+      }> = {},
+      remainingAccounts?: AccountMeta[]
+    ) => {
+      await prepareIntentAndProposal(sdk)
+      ix = await createIx(sdk, accountsPartial, remainingAccounts)
+    }
+
+    before('set correct domain', async () => {
+      client.expireBlockhash()
+      const ix = await adminSdk.updateEip712DomainIx({
+        ...SETTLER_EIP712_DOMAIN,
+        chainId: Chains.Solana,
+      })
+      await makeTxSignAndSend(adminProvider, ix)
+    })
+
+    before('create validator, Axia, USDC, USDT and fund user', async () => {
+      user = randomKeypair()
+      recipient = randomPubkey()
+      userProvider = new LiteSVMProvider(client, new Wallet(user))
+
+      adminProvider.client.airdrop(user.publicKey, toLamports(100))
+
+      await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Validator, hexToBytes(validator.address))
+      await createAllowlistedEntity(controllerSdk, adminProvider, EntityType.Axia, hexToBytes(axia.address))
+
+      usdc = createMint(client, admin, { decimals: 9, freezeAuthority: null }).mint
+
+      userAta = (await createFundedAta(adminProvider, admin, user.publicKey, usdc, 100_000_000_000)).ata
+      recipientAta = (await createFundedAta(adminProvider, admin, recipient, usdc, 0)).ata
+      await createFundedAta(adminProvider, admin, solver.publicKey, usdc, 0)
+    })
+
+    beforeEach('new intent hash for each test case', () => {
+      intentHash = randomHex(32)
+    })
+
+    context('when intent is transfer', () => {
+      let transfers: TransferIntentTransfer[]
+      let testIntentData: TransferIntentData
+
+      const createTestTransfers = (n: number) =>
+        Array.from({ length: n }, () => ({
+          amount: '1000000000',
+          token: usdc.toString(),
+          recipient: recipient.toString(),
+        }))
+
+      const createTestIntentData = (transfers?: TransferIntentTransfer[]): TransferIntentData => ({
+        chainId: Chains.Solana,
+        transfers: transfers ?? [],
+      })
+
+      const editProposal = async (proposalKey: web3.PublicKey, editedProposal: Partial<ProposalAccount>) => {
+        const proposalAccount = await settler.account.proposal.fetch(proposalKey)
+        const proposalInfo = client.getAccount(proposalKey)!
+
+        const modifiedProposal = {
+          ...proposalAccount,
+          ...editedProposal,
+        }
+
+        const serializedProposal = await settler.coder.accounts.encode('proposal', modifiedProposal)
+
+        client.setAccount(proposalKey, {
+          ...proposalInfo,
+          data: serializedProposal,
+        })
+      }
+
+      const createTestData = (n: number, overrideTransfers?: TransferIntentTransfer[]) => {
+        transfers = overrideTransfers ?? createTestTransfers(n)
+        testIntentData = createTestIntentData(transfers)
+        intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+        proposal = createTestProposal(intent)
+      }
+
+      const itWorksAsExpected = (n: number) => {
+        beforeEach(() => {
+          createTestData(n)
+        })
+
+        context('when remaining accounts are correct', () => {
+          context('when transfer/s is/are valid', () => {
+            context('when protocol has approval', () => {
+              context('when user has sufficient funds', () => {
+                beforeEach('create data and approve delegate', async () => {
+                  await approveDelegate(
+                    userProvider,
+                    userAta,
+                    solverSdk.getDelegateKey(user.publicKey),
+                    user,
+                    totalTransferAmount(transfers) + totalFees(proposal.fees)
+                  )
+
+                  await prepareAndBuildIx(solverSdk)
+                })
+
+                it('executes transfer', async () => {
+                  const solverAta = getAssociatedTokenAddressSync(usdc, solver.publicKey)
+                  const proposalKey = sdk.getProposalKey(intentHash, proposal.solver)
+                  const intentKey = sdk.getIntentKey(intentHash)
+                  const fulfilledIntentKey = sdk.getFulfilledIntentKey(intentHash)
+
+                  const proposalBalanceBefore = Number(adminProvider.client.getBalance(proposalKey)) || 0
+                  const intentBalanceBefore = Number(adminProvider.client.getBalance(intentKey)) || 0
+                  const solverBalanceBefore =
+                    Number(adminProvider.client.getBalance(translateAddress(proposal.solver))) || 0
+
+                  const recipientBalanceBefore = getAtaBalance(client, recipientAta)
+                  const userBalanceBefore = getAtaBalance(client, userAta)
+                  const solverAtaBalanceBefore = getAtaBalance(client, solverAta)
+
+                  await makeTxSignAndSend(solverProvider, ix)
+
+                  const recipientBalanceAfter = getAtaBalance(client, recipientAta)
+                  const userBalanceAfter = getAtaBalance(client, userAta)
+                  const solverAtaBalanceAfter = getAtaBalance(client, solverAta)
+
+                  const proposalBalanceAfter = Number(adminProvider.client.getBalance(proposalKey)) || 0
+                  const intentBalanceAfter = Number(adminProvider.client.getBalance(intentKey)) || 0
+                  const solverBalanceAfter =
+                    Number(adminProvider.client.getBalance(translateAddress(proposal.solver))) || 0
+                  const fulfilledIntentBalanceAfter = Number(adminProvider.client.getBalance(fulfilledIntentKey)) || 0
+
+                  try {
+                    await settler.account.intent.fetch(intentKey)
+                    expect.fail('Intent account should be closed')
+                  } catch (error: any) {
+                    expect(error.message).to.include('Account does not exist')
+                  }
+
+                  try {
+                    await settler.account.proposal.fetch(proposalKey)
+                    expect.fail('Proposal account should be closed')
+                  } catch (error: any) {
+                    expect(error.message).to.include('Account does not exist')
+                  }
+
+                  const transfersAmount = totalTransferAmount(transfers)
+                  const feesAmount = totalFees(proposal.fees)
+
+                  expect(client.getAccount(fulfilledIntentKey)?.owner.toString()).to.be.eq(settler.programId.toString())
+                  expect(recipientBalanceAfter).to.be.eq(recipientBalanceBefore + transfersAmount)
+                  expect(userBalanceAfter).to.be.eq(userBalanceBefore - transfersAmount - feesAmount)
+                  expect(solverBalanceAfter).to.be.eq(
+                    solverBalanceBefore +
+                      intentBalanceBefore +
+                      proposalBalanceBefore -
+                      fulfilledIntentBalanceAfter -
+                      5000
+                  )
+                  expect(proposalBalanceAfter).to.be.eq(0)
+                  expect(intentBalanceAfter).to.be.eq(0)
+                  expect(solverAtaBalanceAfter).to.be.eq(solverAtaBalanceBefore + feesAmount)
+                })
+              })
+
+              context('when user does not have sufficient funds', () => {
+                context('when user does not have transfer token sufficient funds', () => {
+                  beforeEach('create data and approve delegate', async () => {
+                    transfers = [
+                      {
+                        amount: '1000000000000',
+                        token: usdc.toString(),
+                        recipient: recipient.toString(),
+                      },
+                    ]
+
+                    await approveDelegate(
+                      userProvider,
+                      userAta,
+                      solverSdk.getDelegateKey(user.publicKey),
+                      user,
+                      Number(transfers[0].amount)
+                    )
+
+                    createTestData(n, transfers)
+                    await prepareAndBuildIx(solverSdk)
+                  })
+
+                  itThrowsAnError('insufficient funds')
+                })
+
+                context('when user does not have fee token/s sufficient funds', () => {
+                  beforeEach('create data with new token for fees', async () => {
+                    const usdt = createMint(client, admin, { decimals: 9, freezeAuthority: null }).mint
+                    const usdtUserAta = (await createFundedAta(adminProvider, admin, user.publicKey, usdt, 0)).ata
+                    await createFundedAta(adminProvider, admin, solver.publicKey, usdt, 0)
+
+                    createTestData(n)
+                    intent = { ...intent, maxFees: [{ token: usdt.toString(), amount: '10000000' }] }
+                    proposal = createTestProposal(intent)
+
+                    await approveDelegate(
+                      userProvider,
+                      userAta,
+                      solverSdk.getDelegateKey(user.publicKey),
+                      user,
+                      totalTransferAmount(transfers)
+                    )
+
+                    await approveDelegate(
+                      userProvider,
+                      usdtUserAta,
+                      solverSdk.getDelegateKey(user.publicKey),
+                      user,
+                      totalFees(proposal.fees)
+                    )
+
+                    await prepareAndBuildIx(solverSdk)
+                  })
+
+                  itThrowsAnError('insufficient funds')
+                })
+              })
+            })
+
+            context('when protocol does not have approval', () => {
+              context('when protocol does not have transfer token approval', () => {
+                beforeEach('create data and remove delegate', async () => {
+                  await revokeDelegate(userProvider, userAta, user)
+                  await prepareAndBuildIx(solverSdk)
+                })
+
+                itThrowsAnError('owner does not match')
+              })
+
+              context('when protocol does not have fee token/s approval', () => {
+                beforeEach('create data, new fee token mint, approve Delegate for transfer token only', async () => {
+                  const usdt = createMint(client, admin, { decimals: 9, freezeAuthority: null }).mint
+                  await createFundedAta(adminProvider, admin, user.publicKey, usdt, 100_000_000_000)
+                  await createFundedAta(adminProvider, admin, solver.publicKey, usdt, 0)
+
+                  createTestData(n)
+                  intent = { ...intent, maxFees: [{ token: usdt.toString(), amount: '100000' }] }
+                  proposal = createTestProposal(intent)
+
+                  await approveDelegate(
+                    userProvider,
+                    userAta,
+                    solverSdk.getDelegateKey(user.publicKey),
+                    user,
+                    totalTransferAmount(transfers) + totalFees(proposal.fees)
+                  )
+
+                  await prepareAndBuildIx(solverSdk)
+                })
+
+                itThrowsAnError('owner does not match')
+              })
+            })
+          })
+
+          context('when proposal is not valid', () => {
+            context('when proposal intent is not for chain Solana', () => {
+              beforeEach('create data for Optimism', async () => {
+                transfers = createTestTransfers(n)
+                testIntentData = { ...createTestIntentData(transfers), chainId: Chains.Optimism }
+                intent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                proposal = createTestProposal(intent)
+
+                await prepareAndBuildIx(solverSdk)
+              })
+
+              itThrowsAnError('Incorrect intent chain id')
+            })
+
+            context('when proposal has data/instructions', () => {
+              beforeEach('create Proposal and manually edit bytes to add data on-chain', async () => {
+                await prepareIntentAndProposal()
+                await editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), {
+                  instructions: [
+                    {
+                      programId: randomPubkey(),
+                      accounts: [],
+                      data: Buffer.from('deadbeef', 'hex'),
+                    },
+                  ],
+                })
+
+                ix = await createIx(solverSdk)
+              })
+
+              itThrowsAnError('Incorrect proposal data')
+            })
+          })
+        })
+
+        context('when remaining accounts are not correct', () => {
+          let accountIndex: number
+          let expectedOwner: web3.PublicKey
+          let expectedMint: web3.PublicKey
+          let wrongValue: web3.PublicKey
+
+          const itThrowsAnErrorForGivenAccount = (expectedError: string) => {
+            beforeEach(async () => {
+              remainingAccounts[accountIndex].pubkey = wrongValue
+              await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
+            })
+
+            itThrowsAnError(expectedError)
+          }
+
+          const itChecksTokenAccount = (tokenAccountName: string) => {
+            const incorrectTokenAccountError = `Incorrect ${tokenAccountName}: mint or authority do not match expected`
+            const invalidTokenAccountError = 'Account not owned by TokenKeg or Token2022 programs'
+
+            context(`when ${tokenAccountName} is another token account (wrong owner)`, () => {
+              beforeEach(async () => {
+                wrongValue = (await createFundedAta(adminProvider, admin, randomPubkey(), expectedMint, 0)).ata
+              })
+
+              itThrowsAnErrorForGivenAccount(incorrectTokenAccountError)
+            })
+
+            context(`when ${tokenAccountName} is another token account (wrong mint)`, () => {
+              beforeEach(async () => {
+                wrongValue = (
+                  await createFundedAta(adminProvider, admin, expectedOwner, createMint(client, admin).mint, 0)
+                ).ata
+              })
+
+              itThrowsAnErrorForGivenAccount(incorrectTokenAccountError)
+            })
+
+            context(`when ${tokenAccountName} is another type of account`, () => {
+              beforeEach(async () => {
+                wrongValue = randomPubkey()
+              })
+
+              itThrowsAnErrorForGivenAccount(invalidTokenAccountError)
+            })
+          }
+
+          const itChecksMintAccount = (tokenName: string) => {
+            const incorrectTokenError = `Incorrect ${tokenName} mint account`
+            const invalidTokenError = 'Account not owned by TokenKeg or Token2022 programs'
+
+            context(`when ${tokenName} is another token`, () => {
+              beforeEach(() => {
+                wrongValue = createMint(client, admin).mint
+              })
+
+              itThrowsAnErrorForGivenAccount(incorrectTokenError)
+            })
+
+            context(`when ${tokenName} is another type of account`, () => {
+              beforeEach(() => {
+                wrongValue = randomPubkey()
+              })
+
+              itThrowsAnErrorForGivenAccount(invalidTokenError)
+            })
+          }
+
+          beforeEach('set up base data and re-approve', async () => {
+            remainingAccounts = sdk.getExecuteProposalRemainingAccountsTransfer(intent, proposal)
+
+            // Re-approve Delegate for test
+            await approveDelegate(
+              userProvider,
+              userAta,
+              solverSdk.getDelegateKey(user.publicKey),
+              user,
+              totalTransferAmount(transfers) + totalFees(proposal.fees)
+            )
+          })
+
+          context('when remaining accounts number is correct', () => {
+            context('when token programs are passed correctly', () => {
+              context('when transfer accounts are incorrect', () => {
+                context('when transfer token is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 2
+                  })
+
+                  itChecksMintAccount('transfer token')
+                })
+
+                context('when recipient is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 3
+                    wrongValue = randomPubkey()
+                  })
+
+                  itThrowsAnErrorForGivenAccount('Incorrect transfer recipient account')
+                })
+
+                context('when recipient token account is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 4
+                    expectedOwner = recipient
+                    expectedMint = usdc
+                  })
+
+                  itChecksTokenAccount('recipient token account')
+                })
+
+                context('when user token account is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 5
+                    expectedOwner = user.publicKey
+                    expectedMint = usdc
+                  })
+
+                  itChecksTokenAccount('user token account')
+                })
+              })
+
+              context('when transfer accounts are correct', () => {
+                context('when fee accounts are incorrect', () => {
+                  context('when fee token is incorrect', () => {
+                    beforeEach(() => {
+                      accountIndex = remainingAccounts.length - 3
+                    })
+
+                    itChecksMintAccount('fee token')
+                  })
+
+                  context('when solver token account is incorrect', () => {
+                    beforeEach(() => {
+                      accountIndex = remainingAccounts.length - 2
+                      expectedOwner = solver.publicKey
+                      expectedMint = usdc
+                    })
+
+                    itChecksTokenAccount('solver token account')
+                  })
+
+                  context('when user token account is incorrect', () => {
+                    beforeEach(() => {
+                      accountIndex = remainingAccounts.length - 1
+                      expectedOwner = user.publicKey
+                      expectedMint = usdc
+                    })
+
+                    itChecksTokenAccount('user token account')
+                  })
+                })
+              })
+            })
+
+            context('when token programs are not passed correctly', () => {
+              context('when first program is wrong', () => {
+                beforeEach(() => {
+                  accountIndex = 0
+                  wrongValue = randomPubkey()
+                })
+
+                itThrowsAnErrorForGivenAccount('Incorrect token program account')
+              })
+
+              context('when second program is wrong', () => {
+                beforeEach(() => {
+                  accountIndex = 1
+                  wrongValue = randomPubkey()
+                })
+
+                itThrowsAnErrorForGivenAccount('Incorrect token program account')
+              })
+
+              context('when both programs are wrong', () => {
+                beforeEach(async () => {
+                  remainingAccounts[0].pubkey = randomPubkey()
+                  remainingAccounts[1].pubkey = randomPubkey()
+                  await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
+                })
+
+                itThrowsAnError('Incorrect token program account')
+              })
+            })
+          })
+
+          context('when remaining accounts number is not correct', () => {
+            context('when there are less remaining accounts than expected', () => {
+              beforeEach(async () => {
+                remainingAccounts.pop()
+                await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
+              })
+
+              itThrowsAnError('ProgramError')
+            })
+
+            context('when there are more remaining accounts than expected', () => {
+              beforeEach(async () => {
+                remainingAccounts.push({ pubkey: randomPubkey(), isWritable: true, isSigner: false })
+                await prepareAndBuildIx(solverSdk, undefined, remainingAccounts)
+              })
+
+              it('works normally', async () => {
+                const res = await makeTxSignAndSend(solverProvider, ix)
+                expect(res.toString()).not.to.include('FailedTransactionMetadata')
+              })
+            })
+          })
+        })
+      }
+
+      beforeEach(() => {
+        createTestData(1)
+      })
+
+      context('when caller is allowlisted solver', () => {
+        context('when intent exists', () => {
+          context('when intent is correct', () => {
+            context('when proposal exists', () => {
+              context('when proposal is correct', () => {
+                context('when intent has one transfer', () => {
+                  itWorksAsExpected(1)
+                })
+
+                context('when intent has more than one transfer', () => {
+                  itWorksAsExpected(2)
+                })
+              })
+
+              context('when proposal is not correct', () => {
+                context('when proposal is for another intent', () => {
+                  beforeEach(async () => {
+                    const otherIntentHash = randomHex(32)
+                    const otherIntent = createTestIntent(svmEncodeTransferIntent(testIntentData))
+                    const otherIntentKey = solverSdk.getIntentKey(otherIntentHash)
+                    const otherFulfilledIntentKey = solverSdk.getFulfilledIntentKey(otherIntentHash)
+                    await makeTxSignAndSend(
+                      solverProvider,
+                      await solverSdk.createIntentIx(otherIntentHash, otherIntent, true)
+                    )
+
+                    await prepareAndBuildIx(solverSdk, {
+                      intent: otherIntentKey,
+                      fulfilledIntent: otherFulfilledIntentKey,
+                    })
+                  })
+
+                  itThrowsAnError('Incorrect intent for proposal')
+                })
+
+                context('when proposal is from another proposal creator', () => {
+                  beforeEach(async () => {
+                    await prepareAndBuildIx(solverSdk, { proposalCreator: randomPubkey() })
+                  })
+
+                  itThrowsAnError('Incorrect proposal creator')
+                })
+
+                context('when proposal is not signed', () => {
+                  beforeEach(async () => {
+                    await prepareIntentAndProposal()
+                    await editProposal(solverSdk.getProposalKey(intentHash, proposal.solver), { isSigned: false })
+                    ix = await createIx(solverSdk)
+                  })
+
+                  itThrowsAnError('Proposal is not signed')
+                })
+
+                context('when proposal is expired', () => {
+                  beforeEach(async () => {
+                    await prepareAndBuildIx(solverSdk)
+
+                    const delta = Number(proposal.deadline) - Number(client.getClock().unixTimestamp)
+                    warpSeconds(solverProvider, delta * 2)
+                  })
+
+                  itThrowsAnError('Proposal has already expired')
+                })
+              })
+            })
+          })
+
+          context('when intent is not correct', () => {
+            context('when intent_creator is not correct', () => {
+              beforeEach(async () => {
+                await prepareAndBuildIx(solverSdk, { intentCreator: randomPubkey() })
+              })
+
+              itThrowsAnError('Incorrect intent creator')
+            })
+          })
+        })
+      })
+
+      context('when caller is not allowlisted solver', () => {
+        beforeEach(async () => {
+          await prepareIntentAndProposal()
+          ix = await createIx(maliciousSdk)
+        })
+
+        it('throws an error', async () => {
+          const res = await makeTxSignAndSend(maliciousProvider, ix)
+          expect(res.toString()).to.include(
+            'AnchorError caused by account: solver_registry. Error Code: AccountNotInitialized'
+          )
+        })
+      })
+    })
+
+    context('when intent is not transfer', () => {
+      beforeEach(async () => {
+        intent = { ...createTestIntent('0xdeadbeef'), op: 2 }
+        proposal = createTestProposal(intent)
+
+        await prepareAndBuildIx(solverSdk, undefined, [
+          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        ])
+      })
+
+      it('throws an error', async () => {
+        const res = await makeTxSignAndSend(solverProvider, ix)
+        expect(res.toString()).to.include('Unsupported intent op')
+      })
     })
   })
 })

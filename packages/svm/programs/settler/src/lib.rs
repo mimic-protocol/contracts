@@ -80,7 +80,9 @@ pub mod settler {
         instructions::create_proposal(ctx, instructions, fees, deadline, is_final)
     }
 
-    pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
+    pub fn execute_proposal<'info>(
+        ctx: Context<'_, '_, '_, 'info, ExecuteProposal<'info>>,
+    ) -> Result<()> {
         instructions::execute_proposal(ctx)
     }
 

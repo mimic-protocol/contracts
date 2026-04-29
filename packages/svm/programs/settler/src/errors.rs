@@ -23,10 +23,10 @@ pub enum SettlerError {
     #[msg("Validator is not allowlisted")]
     ValidatorNotAllowlisted,
 
-    #[msg("Signer must be intent creator")]
+    #[msg("Incorrect intent creator")]
     IncorrectIntentCreator,
 
-    #[msg("Signer must be proposal creator")]
+    #[msg("Incorrect proposal creator")]
     IncorrectProposalCreator,
 
     #[msg("Intent is already final")]
@@ -59,6 +59,9 @@ pub enum SettlerError {
     #[msg("Proposal deadline can't be after the Intent's deadline")]
     ProposalDeadlineExceedsIntentDeadline,
 
+    #[msg("Incorrect proposal data")]
+    IncorrectProposalData,
+
     #[msg("Intent has insufficient validations")]
     InsufficientIntentValidations,
 
@@ -85,6 +88,42 @@ pub enum SettlerError {
 
     #[msg("Fee amount exceeds max fee")]
     FeeAmountExceedsMaxFee,
+
+    #[msg("Unsupported intent op")]
+    UnsupportedIntentOp,
+
+    #[msg("Incorrect intent chain id")]
+    IncorrectChainId,
+
+    #[msg("Invalid transfer recipient: malformed pubkey")]
+    InvalidTransferRecipient,
+
+    #[msg("Incorrect transfer recipient account")]
+    IncorrectTransferRecipient,
+
+    #[msg("Invalid transfer token: malformed pubkey")]
+    InvalidTransferToken,
+
+    #[msg("Incorrect transfer token mint account")]
+    IncorrectTransferToken,
+
+    #[msg("Incorrect fee token mint account")]
+    IncorrectFeeToken,
+
+    #[msg("Account not owned by TokenKeg or Token2022 programs")]
+    AccountNotOwnedByTokenProgram,
+
+    #[msg("Incorrect recipient token account: mint or authority do not match expected")]
+    IncorrectRecipientTokenAccount,
+
+    #[msg("Incorrect user token account: mint or authority do not match expected")]
+    IncorrectUserTokenAccount,
+
+    #[msg("Incorrect solver token account: mint or authority do not match expected")]
+    IncorrectSolverTokenAccount,
+
+    #[msg("Incorrect token program account provided")]
+    IncorrectTokenProgram,
 
     #[msg("Math Error")]
     MathError,

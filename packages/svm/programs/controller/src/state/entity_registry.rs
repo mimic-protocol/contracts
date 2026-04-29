@@ -10,7 +10,7 @@ pub struct EntityRegistry {
 }
 
 impl EntityRegistry {
-    pub fn size(entity_address: &Vec<u8>) -> usize {
+    pub fn size(entity_address: &[u8]) -> usize {
         EntityType::INIT_SPACE + VEC_LEN_SIZE + entity_address.len() + 1
     }
 }

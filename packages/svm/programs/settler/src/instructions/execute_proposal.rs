@@ -5,6 +5,7 @@ use crate::{
     errors::SettlerError,
     state::{FulfilledIntent, Intent, Proposal},
     types::IntentEvent,
+    utils::{handle_intent_execution, pay_solver_fees},
 };
 
 #[derive(Accounts)]
@@ -40,6 +41,7 @@ pub struct ExecuteProposal<'info> {
     #[account(
         mut,
         constraint = intent.creator == intent_creator.key() @ SettlerError::IncorrectIntentCreator,
+        constraint = intent.is_final @ SettlerError::IntentIsNotFinal,
         close = intent_creator
     )]
     pub intent: Box<Account<'info, Intent>>,
@@ -53,24 +55,58 @@ pub struct ExecuteProposal<'info> {
     )]
     pub fulfilled_intent: Box<Account<'info, FulfilledIntent>>,
 
+    #[account(seeds = [b"delegate", intent.user.key().as_ref()], bump)]
+    pub delegate: SystemAccount<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
-pub fn execute_proposal(ctx: Context<ExecuteProposal>) -> Result<()> {
+pub fn execute_proposal<'info>(
+    ctx: Context<'_, '_, '_, 'info, ExecuteProposal<'info>>,
+) -> Result<()> {
     let intent = &ctx.accounts.intent;
+    let proposal = &ctx.accounts.proposal;
 
-    // TODO: Execute proposal
+    let mut remaining_accounts_iter = ctx.remaining_accounts.iter();
+    let token_program = next_account_info(&mut remaining_accounts_iter)?;
+    let token_2022_program = next_account_info(&mut remaining_accounts_iter)?;
 
-    // TODO: Validate execution
+    require_keys_eq!(
+        token_program.key(),
+        anchor_spl::token::ID,
+        SettlerError::IncorrectTokenProgram
+    );
+    require_keys_eq!(
+        token_2022_program.key(),
+        anchor_spl::token_2022::ID,
+        SettlerError::IncorrectTokenProgram
+    );
 
-    // TODO: Emit events
+    handle_intent_execution(
+        intent,
+        proposal,
+        &ctx.accounts.delegate.clone(),
+        &mut remaining_accounts_iter,
+        token_program,
+        token_2022_program,
+        ctx.bumps.delegate,
+    )?;
+
     intent.events.iter().for_each(|event| {
         emit!(IntentEventEvent {
             event: event.clone()
         })
     });
 
-    // TODO: Pay fees to Solver
+    pay_solver_fees(
+        &mut remaining_accounts_iter,
+        intent,
+        proposal,
+        token_program,
+        token_2022_program,
+        &ctx.accounts.delegate.clone(),
+        ctx.bumps.delegate,
+    )?;
 
     Ok(())
 }
