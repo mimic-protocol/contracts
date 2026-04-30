@@ -88,6 +88,18 @@ const config: HardhatUserConfig = {
       apiKey: process.env.ETHERSCAN_KEY || '',
     },
   },
+  chainDescriptors: {
+    146: {
+      name: 'sonic',
+      blockExplorers: {
+        etherscan: {
+          name: 'SonicScan',
+          url: 'https://sonicscan.org/',
+          apiUrl: 'https://api.etherscan.io/v2/api',
+        },
+      },
+    },
+  },
 }
 
 export default config

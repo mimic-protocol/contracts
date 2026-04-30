@@ -20,17 +20,21 @@ async function main(): Promise<void> {
   const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
   const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
 
-  const dynamicCallEncoder = await deployCreate3(DynamicCallEncoderArtifact, [], '0x20')
-  const settlerImplementation = await deployCreate3(SettlerArtifact, [], '0x1801')
+  const dynamicCallEncoder = await deployCreate3(DynamicCallEncoderArtifact, [], '0x04302601')
+  const settlerImplementation = await deployCreate3(SettlerArtifact, [], '0x04302602')
 
   const initializeData = new Interface(SettlerArtifact.abi).encodeFunctionData('initialize', [
     controller.target,
     ADMIN,
     dynamicCallEncoder.target,
   ])
-  const settlerProxy = await deployCreate3(ProxyArtifact, [settlerImplementation.target, ADMIN, initializeData], '0x18')
+  const settlerProxy = await deployCreate3(
+    ProxyArtifact,
+    [settlerImplementation.target, ADMIN, initializeData],
+    '0x04302603'
+  )
 
-  await deployCreate3(SmartAccount7702, [settlerProxy.target], '0x19')
+  await deployCreate3(SmartAccount7702, [settlerProxy.target], '0x04302604')
   await deployCreate3(MimicHelperArtifact, [], '0x42')
 }
 
