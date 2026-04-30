@@ -10,5 +10,9 @@
   "Create3DynamicCallEncoder#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
   "Create3DynamicCallEncoder#DynamicCallEncoder": "0xb3F0F65FA3f94890B7a5Bd17843a6fdfB9407dbD",
   "Create3Proxy#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
-  "Create3Proxy#Proxy": "0x8be430d29a2c5692f9345a28506b849C6a99eDaA"
+  "Create3Proxy#Proxy": "0x8be430d29a2c5692f9345a28506b849C6a99eDaA",
+  "Create3DynamicCallEncoderV1#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
+  "Create3DynamicCallEncoderV1#DynamicCallEncoder": "0x183E61BDE23a80f4D1e003653288d4B4551681ed",
+  "Create3SettlerV1#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
+  "Create3SettlerV1#Settler": "0x3734D7284f46037688252b13ef6d88E3FFDF5e1B"
 }

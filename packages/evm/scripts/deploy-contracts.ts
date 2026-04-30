@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
   const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
 
-  const dynamicCallEncoder = await deployCreate3(DynamicCallEncoderArtifact, [], '0x04302601')
+  const dynamicCallEncoder = await deployCreate3(DynamicCallEncoderArtifact, [], '0x04302606')
   const settlerImplementation = await deployCreate3(SettlerArtifact, [], '0x04302602')
 
   const initializeData = new Interface(SettlerArtifact.abi).encodeFunctionData('initialize', [
