@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     throw Error(`Signer ${signer.address} is not the ProxyAdmin owner ${proxyAdminOwner}`)
   }
 
-  const implementation = await deployCreate3(SettlerArtifact, [], '0x1802')
+  const implementation = await deployCreate3(SettlerArtifact, [], '0x04302605', 'V1')
   const tx = await proxyAdmin.upgradeAndCall(proxy, implementation.target, '0x')
   await tx.wait()
   console.log(`✅ Settler ${proxy} upgraded in tx ${tx.hash}`)
