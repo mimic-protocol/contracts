@@ -31,6 +31,7 @@ import {
   TransferExecutorMock,
 } from '../types/ethers-contracts/index.js'
 import itBehavesLikeOwnable from './behaviors/Ownable.behavior'
+import itBehavesLikeUpgradeable from './behaviors/Upgradeable.behavior'
 import {
   Account,
   CallOperation,
@@ -52,6 +53,7 @@ import {
   createTransferOperation,
   createTransferProposal,
   currentTimestamp,
+  deployProxy,
   DynamicCallOperation,
   hashIntent,
   hashProposal,
@@ -75,15 +77,20 @@ const { ethers } = await network.connect()
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 describe('Settler', () => {
-  let settler: Settler, controller: Controller
-  let user: HardhatEthersSigner, other: HardhatEthersSigner
-  let admin: HardhatEthersSigner, owner: HardhatEthersSigner, solver: HardhatEthersSigner
+  let settler: Settler, controller: Controller, dynamicCallEncoder: DynamicCallEncoder
+  let user: HardhatEthersSigner, other: HardhatEthersSigner, solver: HardhatEthersSigner
+  let admin: HardhatEthersSigner, owner: HardhatEthersSigner, proxyOwner: HardhatEthersSigner
 
   beforeEach('deploy settler', async () => {
     // eslint-disable-next-line prettier/prettier
-    [, admin, owner, user, other, solver] = await ethers.getSigners()
+    [, admin, owner, user, other, solver, proxyOwner] = await ethers.getSigners()
     controller = await ethers.deployContract('Controller', [admin, [], [], [], [], 0])
-    settler = await ethers.deployContract('Settler', [controller, owner])
+    dynamicCallEncoder = await ethers.deployContract('DynamicCallEncoder', [])
+    settler = await deployProxy<Settler>(ethers, 'Settler', proxyOwner, [
+      controller.target,
+      owner.address,
+      dynamicCallEncoder.target,
+    ])
   })
 
   const balanceOf = (token: TokenMock | string, account: Account) => {
@@ -107,8 +114,31 @@ describe('Settler', () => {
     })
 
     it('has a dynamic call decoder', async () => {
-      expect(await settler.dynamicCallEncoder()).to.not.be.equal(ZERO_ADDRESS)
+      expect(await settler.dynamicCallEncoder()).to.be.equal(dynamicCallEncoder)
     })
+  })
+
+  describe('upgradeable', () => {
+    beforeEach('set upgradeable context', function () {
+      this.ethers = ethers
+      this.proxy = settler
+      this.proxyOwner = proxyOwner
+      this.other = other
+      this.implementationNameV1 = 'Settler'
+      this.implementationNameV2 = 'SettlerV2Mock'
+      this.initializeArgs = [ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS]
+      this.assertUpgrade = async (proxy: Settler) => {
+        const upgraded = await ethers.getContractAt('SettlerV2Mock', proxy)
+        expect(await upgraded.someNewFunction()).to.be.equal('Some new function')
+        expect(await upgraded.owner()).to.be.equal(owner)
+        expect(await upgraded.controller()).to.be.equal(controller)
+        expect(await upgraded.operationsValidator()).to.be.equal(ZERO_ADDRESS)
+        expect(await upgraded.smartAccountsHandler()).to.not.be.equal(ZERO_ADDRESS)
+        expect(await upgraded.dynamicCallEncoder()).to.be.equal(dynamicCallEncoder)
+      }
+    })
+
+    itBehavesLikeUpgradeable()
   })
 
   describe('ownable', () => {
@@ -3081,7 +3111,6 @@ describe('Settler', () => {
         let target: Account
         let feeToken: TokenMock
         let proposal: Proposal
-        let dynamicCallEncoder: DynamicCallEncoder
 
         const arg0 = randomEvmAddress()
         const arg1 = randomNumber(2)
@@ -3134,10 +3163,6 @@ describe('Settler', () => {
 
         beforeEach('create proposal', () => {
           proposal = createDynamicCallProposal({ fees: [feeAmount] })
-        })
-
-        beforeEach('set dynamic call encoder', async () => {
-          dynamicCallEncoder = await ethers.deployContract('DynamicCallEncoder', [])
         })
 
         it('executes the intent', async () => {

@@ -14,16 +14,15 @@
 
 pragma solidity ^0.8.20;
 
-import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol';
+import '@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
-import '@openzeppelin/contracts/utils/cryptography/EIP712.sol';
-import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
-import './dynamic-calls/DynamicCallEncoder.sol';
 import './interfaces/IController.sol';
 import './interfaces/IDynamicCallEncoder.sol';
 import './interfaces/IOperationsValidator.sol';
@@ -38,7 +37,7 @@ import './smart-accounts/SmartAccountsHandlerHelpers.sol';
  * @title Settler
  * @dev Contract that provides the appropriate context for solvers to execute proposals that fulfill user intents
  */
-contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
+contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
@@ -46,8 +45,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SmartAccountsHandlerHelpers for address;
 
     // Mimic controller reference
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable override controller;
+    address public override controller;
 
     // Smart accounts handler reference
     address public override smartAccountsHandler;
@@ -74,14 +72,26 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Creates a new Settler contract
+     * @dev Disables initializers to prevent implementation contract from being initialized directly
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @dev Initializes a new Settler contract
      * @param _controller Address of the Settler controller
      * @param _owner Address that will own the contract
+     * @param _dynamicCallEncoder Address of the dynamic call encoder
      */
-    constructor(address _controller, address _owner) Ownable(_owner) EIP712('Mimic Protocol Settler', '1') {
+    function initialize(address _controller, address _owner, address _dynamicCallEncoder) external initializer {
+        __Ownable_init(_owner);
+        __ReentrancyGuard_init();
+        __EIP712_init('Mimic Protocol Settler', '1');
+
         controller = _controller;
         smartAccountsHandler = address(new SmartAccountsHandler());
-        dynamicCallEncoder = address(new DynamicCallEncoder());
+        _setDynamicCallEncoder(_dynamicCallEncoder);
     }
 
     /**
@@ -299,7 +309,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
      * @dev Validates and executes a proposal to fulfill a transfer operation
      * @param intent Intent that contains transfer operation to be fulfilled
      * @param proposal Transfer proposal to be executed
-     * @param index Position where the trasnfer proposal data and operation are located
+     * @param index Position where the transfer proposal data and operation are located
      */
     function _executeTransfer(Intent memory intent, Proposal memory proposal, uint256 index)
         internal

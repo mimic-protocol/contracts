@@ -5,7 +5,7 @@ import { Authorization } from 'ethers'
 import { network } from 'hardhat'
 
 import { CallMock, Controller, Settler, SmartAccount7702, TokenMock } from '../../types/ethers-contracts/index.js'
-import { Account, toAddress } from '../helpers'
+import { Account, deployProxy, toAddress } from '../helpers'
 import { createCallIntent, createTransferIntent } from '../helpers/intents'
 import { createCallProposal, createTransferProposal, signProposal } from '../helpers/proposal'
 
@@ -22,7 +22,11 @@ describe('SmartAccount7702', () => {
     // eslint-disable-next-line prettier/prettier
     [, admin, user, solver] = await ethers.getSigners()
     controller = await ethers.deployContract('Controller', [admin, [solver], [], [admin], [], 0])
-    settler = await ethers.deployContract('Settler', [controller, admin])
+    settler = await deployProxy<Settler>(ethers, 'Settler', admin, [
+      controller.target,
+      admin.address,
+      randomEvmAddress(),
+    ])
     smartAccount = await ethers.deployContract('SmartAccount7702', [settler])
   })
 
