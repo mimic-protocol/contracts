@@ -1,10 +1,10 @@
-import { BigNumberish, encodeTransferIntent, OpType, TransferIntentData } from '@mimicprotocol/sdk'
+import { BigNumberish, encodeTransferOperation, OpType, TransferOperationData } from '@mimicprotocol/sdk'
 
-import { Account, toAddress } from '../addresses'
-import { NAry, toArray } from '../arrays'
-import { createIntent, Intent } from './base'
+import { Account, toAddress } from '../addresses.js'
+import { NAry, toArray } from '../arrays.js'
+import { createIntent, createOperation, Intent, Operation } from './base.js'
 
-export type TransferIntent = Intent & {
+export type TransferOperation = Operation & {
   chainId: BigNumberish
   transfers: NAry<TransferData>
 }
@@ -15,16 +15,26 @@ export interface TransferData {
   recipient: Account
 }
 
-export function createTransferIntent(params?: Partial<TransferIntent>): Intent {
-  const intent = createIntent({ ...params, op: OpType.Transfer })
-  const transferIntent = { ...getDefaults(), ...params, ...intent } as TransferIntent
-  intent.data = encodeTransferIntent(toTransferIntentData(transferIntent))
+export function createTransferIntent(
+  intentParams?: Partial<Intent>,
+  operationParams?: Partial<TransferOperation>
+): Intent {
+  const intent = createIntent({ ...intentParams })
+  const operation = createTransferOperation({ ...operationParams })
+  intent.operations = [operation]
   return intent
 }
 
-function toTransferIntentData(intent: TransferIntent): TransferIntentData {
+export function createTransferOperation(params?: Partial<TransferOperation>): Operation {
+  const operation = createOperation({ ...params, opType: OpType.Transfer })
+  const transferOperation = { ...getDefaults(), ...params, ...operation } as TransferOperation
+  operation.data = encodeTransferOperation(toTransferOperationData(transferOperation))
+  return operation
+}
+
+function toTransferOperationData(intent: TransferOperation): TransferOperationData {
   return {
-    chainId: intent.chainId.toString(),
+    chainId: Number(intent.chainId.toString()),
     transfers: toArray(intent.transfers).map((transfer) => ({
       token: toAddress(transfer.token),
       amount: transfer.amount.toString(),
@@ -33,7 +43,7 @@ function toTransferIntentData(intent: TransferIntent): TransferIntentData {
   }
 }
 
-function getDefaults(): Partial<TransferIntent> {
+function getDefaults(): Partial<TransferOperation> {
   return {
     chainId: 31337,
     transfers: [],

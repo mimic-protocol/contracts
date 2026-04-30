@@ -5,7 +5,7 @@ import { Authorization } from 'ethers'
 import { network } from 'hardhat'
 
 import { CallMock, Controller, Settler, SmartAccount7702, TokenMock } from '../../types/ethers-contracts/index.js'
-import { Account, toAddress } from '../helpers'
+import { Account, deployProxy, toAddress } from '../helpers'
 import { createCallIntent, createTransferIntent } from '../helpers/intents'
 import { createCallProposal, createTransferProposal, signProposal } from '../helpers/proposal'
 
@@ -22,7 +22,11 @@ describe('SmartAccount7702', () => {
     // eslint-disable-next-line prettier/prettier
     [, admin, user, solver] = await ethers.getSigners()
     controller = await ethers.deployContract('Controller', [admin, [solver], [], [admin], [], 0])
-    settler = await ethers.deployContract('Settler', [controller, admin])
+    settler = await deployProxy<Settler>(ethers, 'Settler', admin, [
+      controller.target,
+      admin.address,
+      randomEvmAddress(),
+    ])
     smartAccount = await ethers.deployContract('SmartAccount7702', [settler])
   })
 
@@ -56,11 +60,14 @@ describe('SmartAccount7702', () => {
             const preUserTokenBalance = await balanceOf(token, user)
             const preRecipientBalance = await balanceOf(token, recipient)
 
-            const intent = createTransferIntent({ settler, user, transfers: [{ token, amount, recipient }] })
+            const intent = createTransferIntent(
+              { settler, feePayer: user },
+              { user, transfers: [{ token, amount, recipient }] }
+            )
             const proposal = createTransferProposal()
             const signature = await signProposal(settler, intent, solver, proposal, admin)
             const options = { authorizationList: [authorization] }
-            const tx = await settler.connect(solver).execute([{ intent, proposal, signature }], options)
+            const tx = await settler.connect(solver).execute(intent, proposal, signature, options)
 
             const userSmartAccount = await ethers.getContractAt('ISmartAccount', user)
             const userEvents = await userSmartAccount.queryFilter(smartAccount.filters.Transferred(), tx.blockNumber)
@@ -69,7 +76,7 @@ describe('SmartAccount7702', () => {
             expect(userEvents[0].args.amount).to.be.equal(amount)
             expect(userEvents[0].args.recipient.toLowerCase()).to.be.equal(recipient)
 
-            const postUserTokenBalance = await balanceOf(token, intent.user)
+            const postUserTokenBalance = await balanceOf(token, intent.feePayer)
             expect(preUserTokenBalance - postUserTokenBalance).to.be.eq(amount)
 
             const postRecipientBalance = await balanceOf(token, recipient)
@@ -139,12 +146,15 @@ describe('SmartAccount7702', () => {
             })
 
             it('executes the intent', async () => {
-              const intent = createCallIntent({ settler, user, calls: [{ target: target, data, value }] })
+              const intent = createCallIntent(
+                { settler, feePayer: user },
+                { user, calls: [{ target: target, data, value }] }
+              )
               const proposal = createCallProposal()
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const options = { authorizationList: [authorization] }
 
-              const tx = await settler.connect(solver).execute([{ intent, proposal, signature }], options)
+              const tx = await settler.connect(solver).execute(intent, proposal, signature, options)
 
               const userSmartAccount = await ethers.getContractAt('ISmartAccount', user)
               const userEvents = await userSmartAccount.queryFilter(smartAccount.filters.Called(), tx.blockNumber)
@@ -169,13 +179,13 @@ describe('SmartAccount7702', () => {
             })
 
             it('reverts', async () => {
-              const intent = createCallIntent({ settler, user, calls: [{ target, data, value }] })
+              const intent = createCallIntent({ settler, feePayer: user }, { user, calls: [{ target, data, value }] })
               const proposal = createCallProposal()
               const signature = await signProposal(settler, intent, solver, proposal, admin)
               const options = { authorizationList: [authorization] }
 
               await expect(
-                settler.connect(solver).execute([{ intent, proposal, signature }], options)
+                settler.connect(solver).execute(intent, proposal, signature, options)
               ).to.be.revertedWithCustomError(target, 'CallError')
             })
           })

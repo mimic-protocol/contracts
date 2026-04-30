@@ -6,23 +6,23 @@ import './Safeguards.sol';
 import '../Intents.sol';
 
 /**
- * @title BaseIntentsValidator
+ * @title BaseOperationsValidator
  */
-contract BaseIntentsValidator {
+contract BaseOperationsValidator {
     /**
-     * @dev No intents allowed
+     * @dev No operations allowed
      */
-    error IntentsValidatorNoneAllowed();
+    error OperationsValidatorNoneAllowed();
 
     /**
-     * @dev Intent type unknown
+     * @dev Operation type unknown
      */
-    error IntentsValidatorUnknownIntentType(uint8 opType);
+    error OperationsValidatorUnknownOperationType(uint8 opType);
 
     /**
      * @dev Invalid safeguard mode
      */
-    error IntentsValidatorInvalidSafeguardMode(uint8 mode);
+    error OperationsValidatorInvalidSafeguardMode(uint8 mode);
 
     /**
      * @dev Tells whether a chain is allowed

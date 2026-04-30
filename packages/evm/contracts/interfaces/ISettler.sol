@@ -10,9 +10,9 @@ import '../safeguards/Safeguards.sol';
  */
 interface ISettler {
     /**
-     * @dev The requested intent type is unknown
+     * @dev The requested operation type is unknown
      */
-    error SettlerUnknownIntentType(uint8 op);
+    error SettlerUnknownOperationType(uint8 opType);
 
     /**
      * @dev The simulation has been successful
@@ -55,9 +55,9 @@ interface ISettler {
     error SettlerNonceZero();
 
     /**
-     * @dev The nonce has already been used for the user
+     * @dev The intent has already been executed
      */
-    error SettlerNonceAlreadyUsed(address user, bytes32 nonce);
+    error SettlerIntentAlreadyExecuted(bytes32 hash);
 
     /**
      * @dev The intent deadline is in the past
@@ -105,6 +105,16 @@ interface ISettler {
     error SettlerSolverFeeInvalidLength();
 
     /**
+     * @dev The intent operations array is empty
+     */
+    error SettlerIntentOperationsEmpty();
+
+    /**
+     * @dev The proposal datas length does not match the intent operations length
+     */
+    error SettlerProposalDataInvalidLength();
+
+    /**
      * @dev The solver fee is too high
      */
     error SettlerSolverFeeTooHigh(uint256 fee, uint256 max);
@@ -135,19 +145,36 @@ interface ISettler {
     error SettlerTooManySafeguards(uint256 lengthRequested);
 
     /**
+     * @dev The chains of a swap operation do not match the swap type (single or cross chain)
+     */
+    error SettlerOperationChainsMismatch();
+
+    /**
+     * @dev A CrossChainSwap operation must be the only operation in the intent
+     */
+    error SettlerCrossChainSwapMustBeOnlyOperation();
+
+    /**
      * @dev The new smart accounts handler is zero
      */
     error SmartAccountsHandlerZero();
 
     /**
-     * @dev Custom events emitted for each intent
+     * @dev The new dynamic call encoder is zero
      */
-    event IntentExecuted(
+    error SettlerDynamicCallEncoderZero();
+
+    /**
+     * @dev Custom events emitted for each operation
+     */
+    event OperationExecuted(
         address indexed user,
         bytes32 indexed topic,
-        uint8 indexed op,
-        Intent intent,
+        uint8 indexed opType,
+        Operation operation,
         Proposal proposal,
+        bytes32 intentHash,
+        uint256 index,
         bytes output,
         bytes data
     );
@@ -155,7 +182,7 @@ interface ISettler {
     /**
      * @dev Emitted every time an intent is fulfilled
      */
-    event ProposalExecuted(bytes32 indexed proposal, uint256 index);
+    event ProposalExecuted(bytes32 indexed proposal);
 
     /**
      * @dev Emitted every time tokens are withdrawn from the contract balance
@@ -168,9 +195,14 @@ interface ISettler {
     event SmartAccountsHandlerSet(address indexed smartAccountsHandler);
 
     /**
-     * @dev Emitted every time the intents validator is set
+     * @dev Emitted every time the operations validator is set
      */
-    event IntentsValidatorSet(address indexed intentsValidator);
+    event OperationsValidatorSet(address indexed operationsValidator);
+
+    /**
+     * @dev Emitted every time the dynamic call encoder is set
+     */
+    event DynamicCallEncoderSet(address indexed dynamicCallEncoder);
 
     /**
      * @dev Emitted every time a safeguard is set
@@ -188,16 +220,20 @@ interface ISettler {
     function smartAccountsHandler() external view returns (address);
 
     /**
-     * @dev Tells the reference to the intents validator
+     * @dev Tells the reference to the operations validator
      */
-    function intentsValidator() external view returns (address);
+    function operationsValidator() external view returns (address);
 
     /**
-     * @dev Tells the block at which a user nonce was used. Returns 0 if unused.
-     * @param user Address of the user being queried
-     * @param nonce Nonce being queried
+     * @dev Tells the reference to the dynamic call encoder
      */
-    function getNonceBlock(address user, bytes32 nonce) external view returns (uint256);
+    function dynamicCallEncoder() external view returns (address);
+
+    /**
+     * @dev Tells the block at which an intent was executed. Returns 0 if unexecuted.
+     * @param hash Hash of the intent being queried
+     */
+    function getIntentBlock(bytes32 hash) external view returns (uint256);
 
     /**
      * @dev Tells the safeguard set for a user
@@ -237,10 +273,16 @@ interface ISettler {
     function setSmartAccountsHandler(address newSmartAccountsHandler) external;
 
     /**
-     * @dev Sets a new intents validator address
-     * @param newIntentsValidator New intents validator to be set
+     * @dev Sets a new operations validator address
+     * @param newOperationsValidator New operations validator to be set
      */
-    function setIntentsValidator(address newIntentsValidator) external;
+    function setOperationsValidator(address newOperationsValidator) external;
+
+    /**
+     * @dev Sets a new dynamic call encoder address
+     * @param newDynamicCallEncoder New dynamic call encoder to be set
+     */
+    function setDynamicCallEncoder(address newDynamicCallEncoder) external;
 
     /**
      * @dev Sets a safeguard for a user
@@ -250,14 +292,18 @@ interface ISettler {
 
     /**
      * @dev Executes a proposal to fulfill an intent
-     * @param executions List of executions, each including the intent, proposal, and proposal signature
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param signature Proposal signature
      */
-    function execute(Execution[] memory executions) external;
+    function execute(Intent memory intent, Proposal memory proposal, bytes memory signature) external;
 
     /**
      * @dev Simulates an execution. It will always revert. Successful executions are returned as
      * `SettlerSimulationSuccess` errors. Any other error should be treated as failure.
-     * @param executions List of executions, each including the intent, proposal, and proposal signature
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param signature Proposal signature
      */
-    function simulate(Execution[] memory executions) external;
+    function simulate(Intent memory intent, Proposal memory proposal, bytes memory signature) external;
 }

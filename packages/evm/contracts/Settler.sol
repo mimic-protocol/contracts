@@ -14,17 +14,18 @@
 
 pragma solidity ^0.8.20;
 
-import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol';
+import '@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
-import '@openzeppelin/contracts/utils/cryptography/EIP712.sol';
-import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
-import './interfaces/IIntentsValidator.sol';
+import './interfaces/IDynamicCallEncoder.sol';
+import './interfaces/IOperationsValidator.sol';
 import './interfaces/IExecutor.sol';
 import './interfaces/ISettler.sol';
 import './utils/Denominations.sol';
@@ -36,7 +37,7 @@ import './smart-accounts/SmartAccountsHandlerHelpers.sol';
  * @title Settler
  * @dev Contract that provides the appropriate context for solvers to execute proposals that fulfill user intents
  */
-contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
+contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable {
     using SafeERC20 for IERC20;
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
@@ -44,17 +45,19 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     using SmartAccountsHandlerHelpers for address;
 
     // Mimic controller reference
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable override controller;
+    address public override controller;
 
     // Smart accounts handler reference
     address public override smartAccountsHandler;
 
-    // Intents validator reference
-    address public override intentsValidator;
+    // Operations validator reference
+    address public override operationsValidator;
 
-    // List of block numbers at which a user nonce was used
-    mapping (address => mapping (bytes32 => uint256)) public override getNonceBlock;
+    // Dynamic call encoder reference
+    address public dynamicCallEncoder;
+
+    // List of block numbers at which an intent was executed
+    mapping (bytes32 => uint256) public override getIntentBlock;
 
     // Safeguard config per user
     mapping (address => bytes) internal _userSafeguard;
@@ -69,13 +72,26 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Creates a new Settler contract
+     * @dev Disables initializers to prevent implementation contract from being initialized directly
+     */
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @dev Initializes a new Settler contract
      * @param _controller Address of the Settler controller
      * @param _owner Address that will own the contract
+     * @param _dynamicCallEncoder Address of the dynamic call encoder
      */
-    constructor(address _controller, address _owner) Ownable(_owner) EIP712('Mimic Protocol Settler', '1') {
+    function initialize(address _controller, address _owner, address _dynamicCallEncoder) external initializer {
+        __Ownable_init(_owner);
+        __ReentrancyGuard_init();
+        __EIP712_init('Mimic Protocol Settler', '1');
+
         controller = _controller;
         smartAccountsHandler = address(new SmartAccountsHandler());
+        _setDynamicCallEncoder(_dynamicCallEncoder);
     }
 
     /**
@@ -138,11 +154,19 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Sets a new intents validator address
-     * @param newIntentsValidator New intents validator to be set
+     * @dev Sets a new operations validator address
+     * @param newOperationsValidator New operations validator to be set
      */
-    function setIntentsValidator(address newIntentsValidator) external override onlyOwner {
-        _setIntentsValidator(newIntentsValidator);
+    function setOperationsValidator(address newOperationsValidator) external override onlyOwner {
+        _setOperationsValidator(newOperationsValidator);
+    }
+
+    /**
+     * @dev Sets a new dynamic call encoder address
+     * @param newDynamicCallEncoder New dynamic call encoder to be set
+     */
+    function setDynamicCallEncoder(address newDynamicCallEncoder) external override onlyOwner {
+        _setDynamicCallEncoder(newDynamicCallEncoder);
     }
 
     /**
@@ -155,129 +179,212 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
 
     /**
      * @dev Executes a proposal to fulfill an intent
-     * @param executions List of executions, each including the intent, proposal, and proposal signature
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param signature Proposal signature
      */
-    function execute(Execution[] memory executions) external override onlySolver {
-        _execute(executions, false);
+    function execute(Intent memory intent, Proposal memory proposal, bytes memory signature)
+        external
+        override
+        onlySolver
+    {
+        _execute(intent, proposal, signature, false);
     }
 
     /**
      * @dev Simulates an execution. It will always revert. Successful executions are returned as
      * `SettlerSimulationSuccess` errors. Any other error should be treated as failure.
-     * @param executions List of executions, each including the intent, proposal, and proposal signature
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param signature Proposal signature
      */
-    function simulate(Execution[] memory executions) external override onlySolver {
+    function simulate(Intent memory intent, Proposal memory proposal, bytes memory signature)
+        external
+        override
+        onlySolver
+    {
         uint256 initialGas = gasleft();
-        _execute(executions, true);
+        _execute(intent, proposal, signature, true);
         uint256 gasUsed = initialGas - gasleft();
         revert SettlerSimulationSuccess(gasUsed);
     }
 
     /**
      * @dev Validates and executes a proposal to fulfill an intent
-     * @param executions List of executions, each including the intent, proposal, and proposal signature
+     * @param intent Intent to be fulfilled
+     * @param proposal Proposal to be executed
+     * @param signature Proposal signature
      * @param simulated Whether the execution is a simulation
      */
-    function _execute(Execution[] memory executions, bool simulated) internal nonReentrant {
-        for (uint256 i = 0; i < executions.length; i++) {
-            Intent memory intent = executions[i].intent;
-            Proposal memory proposal = executions[i].proposal;
-            bytes memory signature = executions[i].signature;
+    function _execute(Intent memory intent, Proposal memory proposal, bytes memory signature, bool simulated)
+        internal
+        nonReentrant
+    {
+        _validateIntent(intent, proposal, signature, simulated);
+        getIntentBlock[intent.hash()] = block.number;
 
-            _validateIntent(intent, proposal, signature, simulated);
-            getNonceBlock[intent.user][intent.nonce] = block.number;
-
-            if (intent.op == uint8(OpType.Swap)) _executeSwap(intent, proposal);
-            else if (intent.op == uint8(OpType.Transfer)) _executeTransfer(intent, proposal);
-            else if (intent.op == uint8(OpType.Call)) _executeCall(intent, proposal);
-            else revert SettlerUnknownIntentType(uint8(intent.op));
-
-            emit ProposalExecuted(proposal.hash(intent, _msgSender()), i);
+        bytes[][] memory outputs = new bytes[][](intent.operations.length);
+        for (uint256 i = 0; i < intent.operations.length; i++) {
+            outputs[i] = _executeOperation(intent, proposal, i, outputs);
         }
+
+        _payFees(intent, proposal);
+        emit ProposalExecuted(proposal.hash(intent, _msgSender()));
     }
 
     /**
-     * @dev Validates and executes a proposal to fulfill a swap intent
-     * @param intent Swap intent to be fulfilled
-     * @param proposal Swap proposal to be executed
+     * @dev Executes proposal to fulfill an operation
+     * @param intent Intent being fulfilled
+     * @param proposal Proposal being executed
+     * @param index Position where the operation and its corresponding proposal data are located
+     * @param outputs List of operations outputs
      */
-    function _executeSwap(Intent memory intent, Proposal memory proposal) internal {
-        SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
-        SwapProposal memory swapProposal = abi.decode(proposal.data, (SwapProposal));
-        _validateSwapIntent(swapIntent, swapProposal);
+    function _executeOperation(Intent memory intent, Proposal memory proposal, uint256 index, bytes[][] memory outputs)
+        internal
+        returns (bytes[] memory)
+    {
+        uint8 opType = intent.operations[index].opType;
+        if (opType == uint8(OpType.Swap) || opType == uint8(OpType.CrossChainSwap)) {
+            return _executeSwap(intent, proposal, index);
+        }
+        if (opType == uint8(OpType.Transfer)) return _executeTransfer(intent, proposal, index);
+        if (opType == uint8(OpType.Call)) return _executeCall(intent, proposal, index);
+        if (opType == uint8(OpType.DynamicCall)) return _executeDynamicCall(intent, proposal, index, outputs);
+        revert SettlerUnknownOperationType(opType);
+    }
 
-        bool isSmartAccount = smartAccountsHandler.isSmartAccount(intent.user);
-        if (swapIntent.sourceChain == block.chainid) {
-            for (uint256 i = 0; i < swapIntent.tokensIn.length; i++) {
-                TokenIn memory tokenIn = swapIntent.tokensIn[i];
-                _transferFrom(tokenIn.token, intent.user, swapProposal.executor, tokenIn.amount, isSmartAccount);
+    /**
+     * @dev Validates and executes a proposal to fulfill a swap operation
+     * @param intent Intent that contains swap operation to be fulfilled
+     * @param proposal Proposal with swap data to be executed
+     * @param index Position where the swap proposal data and operation are located
+     */
+    function _executeSwap(Intent memory intent, Proposal memory proposal, uint256 index)
+        internal
+        returns (bytes[] memory outputs)
+    {
+        Operation memory operation = intent.operations[index];
+        SwapOperation memory swapOperation = abi.decode(operation.data, (SwapOperation));
+        SwapProposal memory swapProposal = abi.decode(proposal.datas[index], (SwapProposal));
+        if (operation.opType == uint8(OpType.CrossChainSwap)) {
+            if (intent.operations.length > 1) revert SettlerCrossChainSwapMustBeOnlyOperation();
+            _validateCrossChainSwapOperation(swapOperation, swapProposal);
+        } else _validateSingleChainSwapOperation(swapOperation, swapProposal);
+
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(operation.user);
+        if (swapOperation.sourceChain == block.chainid) {
+            for (uint256 i = 0; i < swapOperation.tokensIn.length; i++) {
+                TokenIn memory tokenIn = swapOperation.tokensIn[i];
+                _transferFrom(tokenIn.token, operation.user, swapProposal.executor, tokenIn.amount, isSmartAccount);
             }
         }
 
-        uint256[] memory preBalancesOut = _getTokensOutBalance(swapIntent);
-        IExecutor(swapProposal.executor).execute(intent, proposal);
+        uint256[] memory preBalancesOut = _getTokensOutBalance(swapOperation);
+        // Using the intent hash as the unique operation hash because cross-chain swap has only one operation per intent and the single swap executor does not use it
+        bytes32 operationHash = intent.hash();
+        IExecutor(swapProposal.executor).execute(operation, operationHash, proposal.datas[index]);
 
-        if (swapIntent.destinationChain == block.chainid) {
-            uint256[] memory outputs = new uint256[](swapIntent.tokensOut.length);
-            for (uint256 i = 0; i < swapIntent.tokensOut.length; i++) {
-                TokenOut memory tokenOut = swapIntent.tokensOut[i];
+        outputs = new bytes[](swapOperation.tokensOut.length);
+        if (swapOperation.destinationChain == block.chainid) {
+            uint256[] memory amounts = new uint256[](swapOperation.tokensOut.length);
+            for (uint256 i = 0; i < swapOperation.tokensOut.length; i++) {
+                TokenOut memory tokenOut = swapOperation.tokensOut[i];
                 uint256 postBalanceOut = ERC20Helpers.balanceOf(tokenOut.token, address(this));
                 uint256 preBalanceOut = preBalancesOut[i];
                 if (postBalanceOut < preBalanceOut) revert SettlerPostBalanceOutLtPre(i, postBalanceOut, preBalanceOut);
 
-                outputs[i] = postBalanceOut - preBalanceOut;
+                amounts[i] = postBalanceOut - preBalanceOut;
                 uint256 proposedAmount = swapProposal.amountsOut[i];
-                if (outputs[i] < proposedAmount) revert SettlerAmountOutLtProposed(i, outputs[i], proposedAmount);
+                if (amounts[i] < proposedAmount) revert SettlerAmountOutLtProposed(i, amounts[i], proposedAmount);
 
-                ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, outputs[i]);
+                ERC20Helpers.transfer(tokenOut.token, tokenOut.recipient, amounts[i]);
+                outputs[i] = abi.encode(amounts[i]);
             }
 
-            _emitIntentEvents(intent, proposal, abi.encode(outputs));
-            _payFees(intent, proposal, isSmartAccount);
+            _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(amounts));
         }
     }
 
     /**
-     * @dev Validates and executes a proposal to fulfill a transfer intent
-     * @param intent Transfer intent to be fulfilled
+     * @dev Validates and executes a proposal to fulfill a transfer operation
+     * @param intent Intent that contains transfer operation to be fulfilled
      * @param proposal Transfer proposal to be executed
+     * @param index Position where the transfer proposal data and operation are located
      */
-    function _executeTransfer(Intent memory intent, Proposal memory proposal) internal {
-        TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
-        _validateTransferIntent(transferIntent, proposal);
+    function _executeTransfer(Intent memory intent, Proposal memory proposal, uint256 index)
+        internal
+        returns (bytes[] memory outputs)
+    {
+        Operation memory operation = intent.operations[index];
+        TransferOperation memory transferOperation = abi.decode(operation.data, (TransferOperation));
+        _validateTransferOperation(transferOperation, proposal.datas[index]);
 
-        bool isSmartAccount = smartAccountsHandler.isSmartAccount(intent.user);
-        for (uint256 i = 0; i < transferIntent.transfers.length; i++) {
-            TransferData memory transfer = transferIntent.transfers[i];
-            _transferFrom(transfer.token, intent.user, transfer.recipient, transfer.amount, isSmartAccount);
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(operation.user);
+        for (uint256 i = 0; i < transferOperation.transfers.length; i++) {
+            TransferData memory transfer = transferOperation.transfers[i];
+            _transferFrom(transfer.token, operation.user, transfer.recipient, transfer.amount, isSmartAccount);
         }
 
-        _emitIntentEvents(intent, proposal, new bytes(0));
-        _payFees(intent, proposal, isSmartAccount);
+        outputs = new bytes[](0);
+        _emitOperationEvents(operation, proposal, intent.hash(), index, new bytes(0));
     }
 
     /**
-     * @dev Validates and executes a proposal to fulfill a call intent
-     * @param intent Call intent to be fulfilled
+     * @dev Validates and executes a proposal to fulfill a call operation
+     * @param intent Intent that contains call operation to be fulfilled
      * @param proposal Call proposal to be executed
+     * @param index Position where the call proposal data and operation are located
      */
-    function _executeCall(Intent memory intent, Proposal memory proposal) internal {
-        CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
-        _validateCallIntent(callIntent, proposal, intent.user);
+    function _executeCall(Intent memory intent, Proposal memory proposal, uint256 index)
+        internal
+        returns (bytes[] memory outputs)
+    {
+        Operation memory operation = intent.operations[index];
+        CallOperation memory callOperation = abi.decode(operation.data, (CallOperation));
+        _validateCallOperation(callOperation, proposal.datas[index], operation.user);
 
-        bytes[] memory outputs = new bytes[](callIntent.calls.length);
-        for (uint256 i = 0; i < callIntent.calls.length; i++) {
-            CallData memory call = callIntent.calls[i];
+        outputs = new bytes[](callOperation.calls.length);
+        for (uint256 i = 0; i < callOperation.calls.length; i++) {
+            CallData memory call = callOperation.calls[i];
             // solhint-disable-next-line avoid-low-level-calls
-            outputs[i] = smartAccountsHandler.call(intent.user, call.target, call.data, call.value);
+            outputs[i] = smartAccountsHandler.call(operation.user, call.target, call.data, call.value);
         }
 
-        _emitIntentEvents(intent, proposal, abi.encode(outputs));
-        _payFees(intent, proposal, true);
+        _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(outputs));
+    }
+
+    /**
+     * @dev Validates and executes a proposal to fulfill a dynamic call operation
+     * @param intent Intent that contains dynamic call operation to be fulfilled
+     * @param proposal Dynamic call proposal to be executed
+     * @param index Position where the dynamic call proposal data and operation are located
+     * @param variables List of operations outputs
+     */
+    function _executeDynamicCall(
+        Intent memory intent,
+        Proposal memory proposal,
+        uint256 index,
+        bytes[][] memory variables
+    ) internal returns (bytes[] memory outputs) {
+        Operation memory operation = intent.operations[index];
+        DynamicCallOperation memory dynamicCallOperation = abi.decode(operation.data, (DynamicCallOperation));
+        _validateDynamicCallOperation(dynamicCallOperation, proposal.datas[index], operation.user);
+
+        outputs = new bytes[](dynamicCallOperation.calls.length);
+        for (uint256 i = 0; i < dynamicCallOperation.calls.length; i++) {
+            DynamicCall memory dynamicCall = abi.decode(dynamicCallOperation.calls[i], (DynamicCall));
+            bytes memory data = IDynamicCallEncoder(dynamicCallEncoder).encode(dynamicCall, variables, index);
+            // solhint-disable-next-line avoid-low-level-calls
+            outputs[i] = smartAccountsHandler.call(operation.user, dynamicCall.target, data, dynamicCall.value);
+        }
+
+        _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(outputs));
     }
 
     /**
      * @dev Validates an intent and its corresponding proposal
+            The off-chain validators are assuring that:
+                - The trigger signer has authorization over the intent.feePayer and each operations[i].user
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed
      * @param signature Proposal signature
@@ -289,11 +396,18 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     {
         if (intent.settler != address(this)) revert SettlerInvalidSettler(intent.settler);
         if (intent.nonce == bytes32(0)) revert SettlerNonceZero();
-        if (getNonceBlock[intent.user][intent.nonce] != 0) revert SettlerNonceAlreadyUsed(intent.user, intent.nonce);
+        bytes32 intentHash = intent.hash();
+        if (getIntentBlock[intentHash] != 0) revert SettlerIntentAlreadyExecuted(intentHash);
 
-        if (intentsValidator != address(0)) {
-            bytes memory safeguard = _userSafeguard[intent.user];
-            if (safeguard.length > 0) IIntentsValidator(intentsValidator).validate(intent, safeguard);
+        if (intent.operations.length == 0) revert SettlerIntentOperationsEmpty();
+        if (intent.operations.length != proposal.datas.length) revert SettlerProposalDataInvalidLength();
+
+        if (operationsValidator != address(0)) {
+            for (uint256 i = 0; i < intent.operations.length; i++) {
+                Operation memory operation = intent.operations[i];
+                bytes memory safeguard = _userSafeguard[operation.user];
+                if (safeguard.length > 0) IOperationsValidator(operationsValidator).validate(operation, safeguard);
+            }
         }
 
         bool shouldValidateDeadlines = _shouldValidateDeadlines(intent);
@@ -318,7 +432,7 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
         }
 
         address lastValidator = address(0);
-        Validation memory validation = Validation(intent.hash());
+        Validation memory validation = Validation(intentHash);
         bytes32 typedDataHash = _hashTypedDataV4(validation.hash());
         for (uint256 i = 0; i < intent.validations.length; i++) {
             address validator = ECDSA.recover(typedDataHash, intent.validations[i]);
@@ -336,18 +450,15 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Validates a swap intent and its corresponding proposal
-     * @param intent Swap intent to be fulfilled
+     * @dev Validates a swap operation and its corresponding proposal
+     * @param operation Swap operation to be fulfilled
      * @param proposal Proposal to be executed
      */
-    function _validateSwapIntent(SwapIntent memory intent, SwapProposal memory proposal) internal view {
-        bool isChainInvalid = intent.sourceChain != block.chainid && intent.destinationChain != block.chainid;
-        if (isChainInvalid) revert SettlerInvalidChain(block.chainid);
+    function _validateSwapOperation(SwapOperation memory operation, SwapProposal memory proposal) internal view {
+        if (proposal.amountsOut.length != operation.tokensOut.length) revert SettlerInvalidProposedAmounts();
 
-        if (proposal.amountsOut.length != intent.tokensOut.length) revert SettlerInvalidProposedAmounts();
-
-        for (uint256 i = 0; i < intent.tokensOut.length; i++) {
-            TokenOut memory tokenOut = intent.tokensOut[i];
+        for (uint256 i = 0; i < operation.tokensOut.length; i++) {
+            TokenOut memory tokenOut = operation.tokensOut[i];
             address recipient = tokenOut.recipient;
             if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
 
@@ -355,93 +466,155 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
             uint256 proposedAmount = proposal.amountsOut[i];
             if (proposedAmount < minAmount) revert SettlerProposedAmountLtMinAmount(i, proposedAmount, minAmount);
         }
-
-        if (intent.sourceChain != intent.destinationChain) {
-            bool isExecutorInvalid = !IController(controller).isExecutorAllowed(proposal.executor);
-            if (isExecutorInvalid) revert SettlerExecutorNotAllowed(proposal.executor);
-        }
     }
 
     /**
-     * @dev Validates a transfer intent and its corresponding proposal
-     * @param intent Transfer intent to be fulfilled
+     * @dev Validates a single-chain swap operation and its corresponding proposal
+     * @param operation Swap operation to be fulfilled
      * @param proposal Proposal to be executed
      */
-    function _validateTransferIntent(TransferIntent memory intent, Proposal memory proposal) internal view {
-        if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
-        if (proposal.data.length > 0) revert SettlerProposalDataNotEmpty();
-        for (uint256 i = 0; i < intent.transfers.length; i++) {
-            address recipient = intent.transfers[i].recipient;
+    function _validateSingleChainSwapOperation(SwapOperation memory operation, SwapProposal memory proposal)
+        internal
+        view
+    {
+        if (operation.sourceChain != operation.destinationChain) revert SettlerOperationChainsMismatch();
+        if (operation.sourceChain != block.chainid) revert SettlerInvalidChain(block.chainid);
+        _validateSwapOperation(operation, proposal);
+    }
+
+    /**
+     * @dev Validates a transfer operation and its corresponding proposal
+     * @param operation Transfer operation to be fulfilled
+     * @param proposalData data of the proposal
+     */
+    function _validateTransferOperation(TransferOperation memory operation, bytes memory proposalData) internal view {
+        if (operation.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+        if (proposalData.length > 0) revert SettlerProposalDataNotEmpty();
+        for (uint256 i = 0; i < operation.transfers.length; i++) {
+            address recipient = operation.transfers[i].recipient;
             if (recipient == address(this)) revert SettlerInvalidRecipient(recipient);
         }
     }
 
     /**
-     * @dev Validates a call intent and its corresponding proposal
-     * @param intent Call intent to be fulfilled
-     * @param proposal Proposal to be executed
-     * @param user The originator of the intent
+     * @dev Validates a call operation and its corresponding proposal
+     * @param operation Call operation to be fulfilled
+     * @param proposalData data of the proposal
+     * @param user The originator of the operation
      */
-    function _validateCallIntent(CallIntent memory intent, Proposal memory proposal, address user) internal view {
-        if (intent.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
-        if (proposal.data.length > 0) revert SettlerProposalDataNotEmpty();
+    function _validateCallOperation(CallOperation memory operation, bytes memory proposalData, address user)
+        internal
+        view
+    {
+        if (operation.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+        if (proposalData.length > 0) revert SettlerProposalDataNotEmpty();
         if (!smartAccountsHandler.isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
     }
 
     /**
-     * @dev Tells the contract balance for each token out of a swap intent
-     * @param intent Swap intent containing the list of tokens out
+     * @dev Validates a dynamic call operation and its corresponding proposal
+     * @param operation Dynamic call operation to be fulfilled
+     * @param proposalData data of the proposal
+     * @param user The originator of the operation
      */
-    function _getTokensOutBalance(SwapIntent memory intent) internal view returns (uint256[] memory balances) {
-        balances = new uint256[](intent.tokensOut.length);
-        if (intent.destinationChain == block.chainid) {
-            for (uint256 i = 0; i < intent.tokensOut.length; i++) {
-                balances[i] = ERC20Helpers.balanceOf(intent.tokensOut[i].token, address(this));
+    function _validateDynamicCallOperation(
+        DynamicCallOperation memory operation,
+        bytes memory proposalData,
+        address user
+    ) internal view {
+        if (operation.chainId != block.chainid) revert SettlerInvalidChain(block.chainid);
+        if (proposalData.length > 0) revert SettlerProposalDataNotEmpty();
+        if (!smartAccountsHandler.isSmartAccount(user)) revert SettlerUserNotSmartAccount(user);
+    }
+
+    /**
+     * @dev Validates a cross-chain swap operation and its corresponding proposal
+     * @param operation Swap operation to be fulfilled
+     * @param proposal Proposal to be executed
+     */
+    function _validateCrossChainSwapOperation(SwapOperation memory operation, SwapProposal memory proposal)
+        internal
+        view
+    {
+        if (operation.sourceChain == operation.destinationChain) revert SettlerOperationChainsMismatch();
+        bool isChainInvalid = operation.sourceChain != block.chainid && operation.destinationChain != block.chainid;
+        if (isChainInvalid) revert SettlerInvalidChain(block.chainid);
+        _validateSwapOperation(operation, proposal);
+        bool isExecutorInvalid = !IController(controller).isExecutorAllowed(proposal.executor);
+        if (isExecutorInvalid) revert SettlerExecutorNotAllowed(proposal.executor);
+    }
+
+    /**
+     * @dev Tells the contract balance for each token out of a swap operation
+     * @param operation Swap operation containing the list of tokens out
+     */
+    function _getTokensOutBalance(SwapOperation memory operation) internal view returns (uint256[] memory balances) {
+        balances = new uint256[](operation.tokensOut.length);
+        if (operation.destinationChain == block.chainid) {
+            for (uint256 i = 0; i < operation.tokensOut.length; i++) {
+                balances[i] = ERC20Helpers.balanceOf(operation.tokensOut[i].token, address(this));
             }
         }
     }
 
     /**
      * @dev Tells if the intent and proposal deadlines should be validated
+            In the case the intent is being executed on the destination chain of a cross-chain swap, the deadlines are ignored
      * @param intent Intent to be fulfilled
      */
     function _shouldValidateDeadlines(Intent memory intent) internal view returns (bool) {
-        if (intent.op != uint8(OpType.Swap)) return true;
-        SwapIntent memory swapIntent = abi.decode(intent.data, (SwapIntent));
-        if (swapIntent.sourceChain == swapIntent.destinationChain) return true;
+        // Cross-chain operation can only be the first (and only) operation
+        Operation memory operation = intent.operations[0];
+        if (operation.opType != uint8(OpType.CrossChainSwap)) return true;
+        SwapOperation memory swapIntent = abi.decode(operation.data, (SwapOperation));
         return swapIntent.sourceChain == block.chainid;
     }
 
     /**
-     * @dev Emits intent custom events
-     * @param intent Intent to emit the custom events for
-     * @param proposal Proposal that fulfills the intent
+     * @dev Emits operation custom events
+     * @param operation Operation to emit the custom events for
+     * @param proposal Proposal that fulfills the operation
+     * @param intentHash Hash of the intent the operation belongs to
+     * @param index Position of the operation on operations
      * @param output Encoded array of outputs
      */
-    function _emitIntentEvents(Intent memory intent, Proposal memory proposal, bytes memory output) internal {
-        for (uint256 i = 0; i < intent.events.length; i++) {
-            IntentEvent memory intentEvent = intent.events[i];
-            emit IntentExecuted(
-                intent.user,
-                intentEvent.topic,
-                uint8(intent.op),
-                intent,
+    function _emitOperationEvents(
+        Operation memory operation,
+        Proposal memory proposal,
+        bytes32 intentHash,
+        uint256 index,
+        bytes memory output
+    ) internal {
+        for (uint256 i = 0; i < operation.events.length; i++) {
+            OperationEvent memory operationEvent = operation.events[i];
+            emit OperationExecuted(
+                operation.user,
+                operationEvent.topic,
+                uint8(operation.opType),
+                operation,
                 proposal,
+                intentHash,
+                index,
                 output,
-                intentEvent.data
+                operationEvent.data
             );
         }
     }
 
     /**
-     * @dev Pays fees
+     * @dev Pays fees from the intent feePayer
      * @param intent Intent to be fulfilled
      * @param proposal Proposal to be executed
-     * @param isSmartAccount Whether the intent user is a smart account
      */
-    function _payFees(Intent memory intent, Proposal memory proposal, bool isSmartAccount) internal {
-        address from = intent.user;
+    function _payFees(Intent memory intent, Proposal memory proposal) internal {
+        // A CrossChainSwap only pays fees on destination chain and must be the only operation
+        if (intent.operations[0].opType == uint8(OpType.CrossChainSwap)) {
+            SwapOperation memory swapOperation = abi.decode(intent.operations[0].data, (SwapOperation));
+            if (swapOperation.sourceChain == block.chainid) return;
+        }
+        address from = intent.feePayer;
         address to = _msgSender();
+        bool isSmartAccount = smartAccountsHandler.isSmartAccount(from);
         for (uint256 i = 0; i < intent.maxFees.length; i++) {
             address token = intent.maxFees[i].token;
             if (!Denominations.isUSD(token)) _transferFrom(token, from, to, proposal.fees[i], isSmartAccount);
@@ -475,12 +648,22 @@ contract Settler is ISettler, Ownable, ReentrancyGuard, EIP712 {
     }
 
     /**
-     * @dev Sets the intents validator
-     * @param newIntentsValidator New intents validator to be set
+     * @dev Sets the operations validator
+     * @param newOperationsValidator New operations validator to be set
      */
-    function _setIntentsValidator(address newIntentsValidator) internal {
-        intentsValidator = newIntentsValidator;
-        emit IntentsValidatorSet(newIntentsValidator);
+    function _setOperationsValidator(address newOperationsValidator) internal {
+        operationsValidator = newOperationsValidator;
+        emit OperationsValidatorSet(newOperationsValidator);
+    }
+
+    /**
+     * @dev Sets the dynamic call encoder
+     * @param newDynamicCallEncoder New dynamic call encoder to be set
+     */
+    function _setDynamicCallEncoder(address newDynamicCallEncoder) internal {
+        if (newDynamicCallEncoder == address(0)) revert SettlerDynamicCallEncoderZero();
+        dynamicCallEncoder = newDynamicCallEncoder;
+        emit DynamicCallEncoderSet(newDynamicCallEncoder);
     }
 
     /**

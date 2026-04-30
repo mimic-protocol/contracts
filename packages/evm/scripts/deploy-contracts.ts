@@ -1,4 +1,8 @@
+import { Interface } from 'ethers'
+
 import ControllerArtifact from '../artifacts/contracts/Controller.sol/Controller.json'
+import DynamicCallEncoderArtifact from '../artifacts/contracts/dynamic-calls/DynamicCallEncoder.sol/DynamicCallEncoder.json'
+import ProxyArtifact from '../artifacts/contracts/proxy/Proxy.sol/Proxy.json'
 import SettlerArtifact from '../artifacts/contracts/Settler.sol/Settler.json'
 import SmartAccount7702 from '../artifacts/contracts/smart-accounts/SmartAccount7702.sol/SmartAccount7702.json'
 import MimicHelperArtifact from '../artifacts/contracts/utils/MimicHelper.sol/MimicHelper.json'
@@ -15,8 +19,22 @@ async function main(): Promise<void> {
 
   const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
   const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
-  const settler = await deployCreate3(SettlerArtifact, [controller.target, ADMIN], '0x18')
-  await deployCreate3(SmartAccount7702, [settler.target], '0x19')
+
+  const dynamicCallEncoder = await deployCreate3(DynamicCallEncoderArtifact, [], '0x04302601')
+  const settlerImplementation = await deployCreate3(SettlerArtifact, [], '0x04302602')
+
+  const initializeData = new Interface(SettlerArtifact.abi).encodeFunctionData('initialize', [
+    controller.target,
+    ADMIN,
+    dynamicCallEncoder.target,
+  ])
+  const settlerProxy = await deployCreate3(
+    ProxyArtifact,
+    [settlerImplementation.target, ADMIN, initializeData],
+    '0x04302603'
+  )
+
+  await deployCreate3(SmartAccount7702, [settlerProxy.target], '0x04302604')
   await deployCreate3(MimicHelperArtifact, [], '0x42')
 }
 

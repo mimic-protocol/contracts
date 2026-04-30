@@ -8,6 +8,7 @@ dotenv.config()
 const config: HardhatUserConfig = {
   plugins: [hardhatVerify, hardhatToolboxMochaEthersPlugin],
   solidity: {
+    dependenciesToCompile: ['@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol'],
     profiles: {
       default: {
         version: '0.8.28',
@@ -85,6 +86,18 @@ const config: HardhatUserConfig = {
   verify: {
     etherscan: {
       apiKey: process.env.ETHERSCAN_KEY || '',
+    },
+  },
+  chainDescriptors: {
+    146: {
+      name: 'sonic',
+      blockExplorers: {
+        etherscan: {
+          name: 'SonicScan',
+          url: 'https://sonicscan.org/',
+          apiUrl: 'https://api.etherscan.io/v2/api',
+        },
+      },
     },
   },
 }

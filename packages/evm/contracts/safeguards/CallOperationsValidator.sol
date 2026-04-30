@@ -3,11 +3,11 @@
 pragma solidity ^0.8.20;
 
 import './Safeguards.sol';
-import './BaseIntentsValidator.sol';
+import './BaseOperationsValidator.sol';
 import '../Intents.sol';
 
 /**
- * @dev Call safeguard modes to validate call intents
+ * @dev Call safeguard modes to validate call operations
  * @param None To ensure no calls are allowed
  * @param Chain To validate that the chain where calls execute is allowed
  * @param Target To validate that the call targets (contract addresses) are allowed
@@ -21,24 +21,28 @@ enum CallSafeguardMode {
 }
 
 /**
- * @title CallIntentsValidator
- * @dev Performs call intents validations based on safeguards
+ * @title CallOperationsValidator
+ * @dev Performs call operations validations based on safeguards
  */
-contract CallIntentsValidator is BaseIntentsValidator {
+contract CallOperationsValidator is BaseOperationsValidator {
     /**
-     * @dev Tells whether a call intent is valid for a safeguard
-     * @param intent Call intent to be validated
-     * @param safeguard Safeguard to validate the intent with
+     * @dev Tells whether a call operation is valid for a safeguard
+     * @param operation Call operation to be validated
+     * @param safeguard Safeguard to validate the operation with
      */
-    function _isCallIntentValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
-        CallIntent memory callIntent = abi.decode(intent.data, (CallIntent));
+    function _isCallOperationValid(Operation memory operation, Safeguard memory safeguard)
+        internal
+        pure
+        returns (bool)
+    {
+        CallOperation memory callOperation = abi.decode(operation.data, (CallOperation));
         if (safeguard.mode == uint8(CallSafeguardMode.Chain))
-            return _isChainAllowed(callIntent.chainId, safeguard.config);
+            return _isChainAllowed(callOperation.chainId, safeguard.config);
         if (safeguard.mode == uint8(CallSafeguardMode.Target))
-            return _areCallTargetsValid(callIntent.calls, safeguard.config);
+            return _areCallTargetsValid(callOperation.calls, safeguard.config);
         if (safeguard.mode == uint8(CallSafeguardMode.Selector))
-            return _areCallSelectorsValid(callIntent.calls, safeguard.config);
-        revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
+            return _areCallSelectorsValid(callOperation.calls, safeguard.config);
+        revert OperationsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**

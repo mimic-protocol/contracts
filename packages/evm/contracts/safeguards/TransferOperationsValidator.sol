@@ -2,12 +2,12 @@
 
 pragma solidity ^0.8.20;
 
-import './BaseIntentsValidator.sol';
+import './BaseOperationsValidator.sol';
 import './Safeguards.sol';
 import '../Intents.sol';
 
 /**
- * @dev Transfer safeguard modes to validate transfer intents
+ * @dev Transfer safeguard modes to validate transfer operations
  * @param None To ensure no transfers are allowed
  * @param Chain To validate that the chain where transfers execute is allowed
  * @param Token To validate that the tokens being transferred are allowed
@@ -21,24 +21,28 @@ enum TransferSafeguardMode {
 }
 
 /**
- * @title TransferIntentsValidator
- * @dev Performs transfer intents validations based on safeguards
+ * @title TransferOperationsValidator
+ * @dev Performs transfer operations validations based on safeguards
  */
-contract TransferIntentsValidator is BaseIntentsValidator {
+contract TransferOperationsValidator is BaseOperationsValidator {
     /**
-     * @dev Tells whether a transfer intent is valid for a safeguard
-     * @param intent Transfer intent to be validated
-     * @param safeguard Safeguard to validate the intent with
+     * @dev Tells whether a transfer operation is valid for a safeguard
+     * @param operation Transfer operation to be validated
+     * @param safeguard Safeguard to validate the operation with
      */
-    function _isTransferIntentValid(Intent memory intent, Safeguard memory safeguard) internal pure returns (bool) {
-        TransferIntent memory transferIntent = abi.decode(intent.data, (TransferIntent));
+    function _isTransferOperationValid(Operation memory operation, Safeguard memory safeguard)
+        internal
+        pure
+        returns (bool)
+    {
+        TransferOperation memory transferOperation = abi.decode(operation.data, (TransferOperation));
         if (safeguard.mode == uint8(TransferSafeguardMode.Chain))
-            return _isChainAllowed(transferIntent.chainId, safeguard.config);
+            return _isChainAllowed(transferOperation.chainId, safeguard.config);
         if (safeguard.mode == uint8(TransferSafeguardMode.Token))
-            return _areTransferTokensValid(transferIntent.transfers, safeguard.config);
+            return _areTransferTokensValid(transferOperation.transfers, safeguard.config);
         if (safeguard.mode == uint8(TransferSafeguardMode.Recipient))
-            return _areTransferRecipientsValid(transferIntent.transfers, safeguard.config);
-        revert IntentsValidatorInvalidSafeguardMode(safeguard.mode);
+            return _areTransferRecipientsValid(transferOperation.transfers, safeguard.config);
+        revert OperationsValidatorInvalidSafeguardMode(safeguard.mode);
     }
 
     /**

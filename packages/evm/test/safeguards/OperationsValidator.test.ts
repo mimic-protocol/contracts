@@ -2,32 +2,34 @@ import { randomEvmAddress, randomHex } from '@mimicprotocol/sdk'
 import { expect } from 'chai'
 import { network } from 'hardhat'
 
-import { IntentsValidator } from '../../types/ethers-contracts/index.js'
+import { OperationsValidator } from '../../types/ethers-contracts/index.js'
 import {
   CallSafeguardMode,
-  createCallIntent,
+  createCallOperation,
+  createCrossChainSwapOperation,
   createDeniedAccountSafeguard,
   createDeniedChainSafeguard,
   createDeniedSelectorSafeguard,
+  createDynamicCallOperation,
   createListSafeguard,
   createOnlyAccountSafeguard,
   createOnlyChainSafeguard,
   createOnlySelectorSafeguard,
   createSafeguardNone,
-  createSwapIntent,
-  createTransferIntent,
+  createSwapOperation,
+  createTransferOperation,
   createTreeSafeguard,
   SafeguardGroupLogic,
   SwapSafeguardMode,
   TransferSafeguardMode,
-} from '../helpers'
+} from '../helpers/index.js'
 
 const { ethers } = await network.connect()
 
 /* eslint-disable no-secrets/no-secrets */
 
-describe('IntentsValidator', () => {
-  let validator: IntentsValidator
+describe('OperationsValidator', () => {
+  let validator: OperationsValidator
 
   const CHAIN_LOCAL = 31337
   const CHAIN_OTHER = 100
@@ -37,31 +39,30 @@ describe('IntentsValidator', () => {
   const account2 = randomEvmAddress()
 
   beforeEach('deploy contract', async () => {
-    validator = await ethers.deployContract('IntentsValidator')
+    validator = await ethers.deployContract('OperationsValidator')
   })
 
   describe('List', () => {
     describe('Swap modes', () => {
       context('None', () => {
-        const intent = createSwapIntent()
+        const operation = createSwapOperation()
         const safeguard = createSafeguardNone()
 
-        it('always reverts with IntentsValidatorNoneAllowed', async () => {
-          await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+        it('always reverts with OperationsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorNoneAllowed'
+            'OperationsValidatorNoneAllowed'
           )
         })
       })
 
       context('SourceChain', () => {
-        const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
-
+        const operation = createSwapOperation({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
         context('when the source chain is not denied', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -69,9 +70,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_LOCAL)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -80,22 +81,22 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.SourceChain, CHAIN_OTHER)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
       })
 
       context('DestinationChain', () => {
-        const intent = createSwapIntent({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
+        const operation = createSwapOperation({ sourceChain: CHAIN_LOCAL, destinationChain: CHAIN_LOCAL })
 
         context('when the destination chain is allowed', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -103,9 +104,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_LOCAL)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -114,22 +115,22 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(SwapSafeguardMode.DestinationChain, CHAIN_OTHER)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
       })
 
       context('TokenIn', () => {
-        const intent = createSwapIntent({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
+        const operation = createCrossChainSwapOperation({ tokensIn: [{ token: token1, amount: 1n }], tokensOut: [] })
 
         context('when the token in is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -137,9 +138,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenIn, token1)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -148,22 +149,22 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenIn, token2)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
       })
 
       context('TokenOut', () => {
-        const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
+        const operation = createSwapOperation({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
 
         context('when the token out is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -171,9 +172,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.TokenOut, token1)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -182,22 +183,22 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.TokenOut, token2)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
       })
 
       context('Recipient', () => {
-        const intent = createSwapIntent({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
+        const operation = createSwapOperation({ tokensOut: [{ token: token1, minAmount: 0, recipient: account1 }] })
 
         context('when the recipient is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account1)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -205,9 +206,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedAccountSafeguard(SwapSafeguardMode.Recipient, account1)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -216,9 +217,9 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(SwapSafeguardMode.Recipient, account2)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -227,25 +228,25 @@ describe('IntentsValidator', () => {
 
     describe('Transfer modes', () => {
       context('None', () => {
-        const intent = createTransferIntent()
+        const operation = createTransferOperation()
         const safeguard = createSafeguardNone()
 
-        it('always reverts with IntentsValidatorNoneAllowed', async () => {
-          await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+        it('always reverts with OperationsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorNoneAllowed'
+            'OperationsValidatorNoneAllowed'
           )
         })
       })
 
       context('Chain', () => {
-        const intent = createTransferIntent({ chainId: CHAIN_LOCAL, transfers: [] })
+        const operation = createTransferOperation({ chainId: CHAIN_LOCAL, transfers: [] })
 
         context('when the chain is not denied', () => {
           const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -253,9 +254,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedChainSafeguard(TransferSafeguardMode.Chain, CHAIN_LOCAL)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -264,22 +265,22 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(TransferSafeguardMode.Chain, CHAIN_OTHER)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
       })
 
       context('Token', () => {
-        const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+        const operation = createTransferOperation({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
 
         context('when all tokens are not denied', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token1)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -287,9 +288,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Token, token1)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -298,22 +299,22 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Token, token2)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
       })
 
       context('Recipient', () => {
-        const intent = createTransferIntent({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
+        const operation = createTransferOperation({ transfers: [{ token: token1, amount: 1n, recipient: account1 }] })
 
         context('when the recipient is allowed', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account1)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -321,9 +322,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedAccountSafeguard(TransferSafeguardMode.Recipient, account1)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -332,9 +333,9 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(TransferSafeguardMode.Recipient, account2)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -346,25 +347,25 @@ describe('IntentsValidator', () => {
       const target2 = randomEvmAddress()
 
       context('None', () => {
-        const intent = createCallIntent()
+        const operation = createCallOperation()
         const safeguard = createSafeguardNone()
 
-        it('always reverts with IntentsValidatorNoneAllowed', async () => {
-          await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+        it('always reverts with OperationsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
             validator,
-            'IntentsValidatorNoneAllowed'
+            'OperationsValidatorNoneAllowed'
           )
         })
       })
 
       context('Chain', () => {
-        const intent = createCallIntent({ chainId: CHAIN_LOCAL, calls: [] })
+        const operation = createCallOperation({ chainId: CHAIN_LOCAL, calls: [] })
 
         context('when the chain is not denied', () => {
           const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -372,9 +373,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -383,22 +384,22 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_OTHER)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
       })
 
       context('Target', () => {
-        const intent = createCallIntent({ calls: [{ target: target1, data: '0x', value: 0 }] })
+        const operation = createCallOperation({ calls: [{ target: target1, data: '0x', value: 0 }] })
 
         context('when all targets are not denied', () => {
           const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -406,9 +407,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedAccountSafeguard(CallSafeguardMode.Target, target1)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -417,9 +418,9 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target2)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -427,13 +428,13 @@ describe('IntentsValidator', () => {
 
       context('Selector', () => {
         const selector = '0xa9059cbb'
-        const intent = createCallIntent({ calls: [{ target: target1, data: selector, value: 0 }] })
+        const operation = createCallOperation({ calls: [{ target: target1, data: selector, value: 0 }] })
 
         context('when the selector is allowed', () => {
           const safeguard = createOnlySelectorSafeguard(selector)
 
           it('passes', async () => {
-            expect(await validator.validate(intent, createListSafeguard(safeguard))).to.not.be.reverted
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
           })
         })
 
@@ -441,9 +442,9 @@ describe('IntentsValidator', () => {
           const safeguard = createDeniedSelectorSafeguard(selector)
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -452,9 +453,133 @@ describe('IntentsValidator', () => {
           const safeguard = createOnlySelectorSafeguard(randomHex(4))
 
           it('reverts', async () => {
-            await expect(validator.validate(intent, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
               validator,
-              'IntentsValidatorSafeguardFailed'
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+    })
+
+    describe('Dynamic call modes', () => {
+      const target1 = randomEvmAddress()
+      const target2 = randomEvmAddress()
+      const selector = '0xa9059cbb'
+
+      context('None', () => {
+        const operation = createDynamicCallOperation()
+        const safeguard = createSafeguardNone()
+
+        it('always reverts with OperationsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            validator,
+            'OperationsValidatorNoneAllowed'
+          )
+        })
+      })
+
+      context('Chain', () => {
+        const operation = createDynamicCallOperation({ chainId: CHAIN_LOCAL, calls: [] })
+
+        context('when the chain is not denied', () => {
+          const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+
+          it('passes', async () => {
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the chain is denied', () => {
+          const safeguard = createDeniedChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the chain is not allowed', () => {
+          const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_OTHER)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('Target', () => {
+        const operation = createDynamicCallOperation({
+          calls: [{ target: target1, selector, arguments: [], value: 0 }],
+        })
+
+        context('when all targets are not denied', () => {
+          const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
+
+          it('passes', async () => {
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the target is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(CallSafeguardMode.Target, target1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the target is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('Selector', () => {
+        const operation = createDynamicCallOperation({
+          calls: [{ target: target1, selector, arguments: [], value: 0 }],
+        })
+
+        context('when the selector is allowed', () => {
+          const safeguard = createOnlySelectorSafeguard(selector)
+
+          it('passes', async () => {
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the selector is denied', () => {
+          const safeguard = createDeniedSelectorSafeguard(selector)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the selector is not allowed', () => {
+          const safeguard = createOnlySelectorSafeguard(randomHex(4))
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
             )
           })
         })
@@ -463,7 +588,7 @@ describe('IntentsValidator', () => {
   })
 
   describe('Tree', () => {
-    const intent = createSwapIntent({
+    const operation = createSwapOperation({
       sourceChain: CHAIN_LOCAL,
       destinationChain: CHAIN_LOCAL,
       tokensIn: [{ token: token1, amount: 1n }],
@@ -479,7 +604,7 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.AND, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(operation, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
@@ -492,10 +617,9 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.AND, leaves: [0, 1], children: [] }]
 
         it('reverts', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSafeguardFailed'
-          )
+          await expect(
+            validator.validate(operation, createTreeSafeguard(groups, leaves))
+          ).to.be.revertedWithCustomError(validator, 'OperationsValidatorSafeguardFailed')
         })
       })
     })
@@ -510,7 +634,7 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.OR, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(operation, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
@@ -523,10 +647,9 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.OR, leaves: [0, 1], children: [] }]
 
         it('reverts', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSafeguardFailed'
-          )
+          await expect(
+            validator.validate(operation, createTreeSafeguard(groups, leaves))
+          ).to.be.revertedWithCustomError(validator, 'OperationsValidatorSafeguardFailed')
         })
       })
     })
@@ -541,7 +664,7 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.XOR, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(operation, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
@@ -554,10 +677,9 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.XOR, leaves: [0, 1], children: [] }]
 
         it('reverts', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSafeguardFailed'
-          )
+          await expect(
+            validator.validate(operation, createTreeSafeguard(groups, leaves))
+          ).to.be.revertedWithCustomError(validator, 'OperationsValidatorSafeguardFailed')
         })
       })
 
@@ -566,10 +688,9 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.XOR, leaves: [0], children: [] }]
 
         it('reverts', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSafeguardFailed'
-          )
+          await expect(
+            validator.validate(operation, createTreeSafeguard(groups, leaves))
+          ).to.be.revertedWithCustomError(validator, 'OperationsValidatorSafeguardFailed')
         })
       })
     })
@@ -584,7 +705,7 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.NOT, leaves: [0, 1], children: [] }]
 
         it('passes', async () => {
-          expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+          expect(await validator.validate(operation, createTreeSafeguard(groups, leaves))).to.not.be.reverted
         })
       })
 
@@ -594,10 +715,9 @@ describe('IntentsValidator', () => {
         const groups = [{ logic: SafeguardGroupLogic.NOT, leaves: [0], children: [] }]
 
         it('reverts', async () => {
-          await expect(validator.validate(intent, createTreeSafeguard(groups, leaves))).to.be.revertedWithCustomError(
-            validator,
-            'IntentsValidatorSafeguardFailed'
-          )
+          await expect(
+            validator.validate(operation, createTreeSafeguard(groups, leaves))
+          ).to.be.revertedWithCustomError(validator, 'OperationsValidatorSafeguardFailed')
         })
       })
     })
@@ -615,7 +735,7 @@ describe('IntentsValidator', () => {
       ]
 
       it('passes', async () => {
-        expect(await validator.validate(intent, createTreeSafeguard(groups, leaves))).to.not.be.reverted
+        expect(await validator.validate(operation, createTreeSafeguard(groups, leaves))).to.not.be.reverted
       })
     })
   })
