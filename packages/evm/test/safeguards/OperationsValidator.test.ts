@@ -10,6 +10,7 @@ import {
   createDeniedAccountSafeguard,
   createDeniedChainSafeguard,
   createDeniedSelectorSafeguard,
+  createDynamicCallOperation,
   createListSafeguard,
   createOnlyAccountSafeguard,
   createOnlyChainSafeguard,
@@ -428,6 +429,130 @@ describe('OperationsValidator', () => {
       context('Selector', () => {
         const selector = '0xa9059cbb'
         const operation = createCallOperation({ calls: [{ target: target1, data: selector, value: 0 }] })
+
+        context('when the selector is allowed', () => {
+          const safeguard = createOnlySelectorSafeguard(selector)
+
+          it('passes', async () => {
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the selector is denied', () => {
+          const safeguard = createDeniedSelectorSafeguard(selector)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the selector is not allowed', () => {
+          const safeguard = createOnlySelectorSafeguard(randomHex(4))
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+    })
+
+    describe('Dynamic call modes', () => {
+      const target1 = randomEvmAddress()
+      const target2 = randomEvmAddress()
+      const selector = '0xa9059cbb'
+
+      context('None', () => {
+        const operation = createDynamicCallOperation()
+        const safeguard = createSafeguardNone()
+
+        it('always reverts with OperationsValidatorNoneAllowed', async () => {
+          await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+            validator,
+            'OperationsValidatorNoneAllowed'
+          )
+        })
+      })
+
+      context('Chain', () => {
+        const operation = createDynamicCallOperation({ chainId: CHAIN_LOCAL, calls: [] })
+
+        context('when the chain is not denied', () => {
+          const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+
+          it('passes', async () => {
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the chain is denied', () => {
+          const safeguard = createDeniedChainSafeguard(CallSafeguardMode.Chain, CHAIN_LOCAL)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the chain is not allowed', () => {
+          const safeguard = createOnlyChainSafeguard(CallSafeguardMode.Chain, CHAIN_OTHER)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('Target', () => {
+        const operation = createDynamicCallOperation({
+          calls: [{ target: target1, selector, arguments: [], value: 0 }],
+        })
+
+        context('when all targets are not denied', () => {
+          const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target1)
+
+          it('passes', async () => {
+            expect(await validator.validate(operation, createListSafeguard(safeguard))).to.not.be.reverted
+          })
+        })
+
+        context('when the target is denied', () => {
+          const safeguard = createDeniedAccountSafeguard(CallSafeguardMode.Target, target1)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+
+        context('when the target is not allowed', () => {
+          const safeguard = createOnlyAccountSafeguard(CallSafeguardMode.Target, target2)
+
+          it('reverts', async () => {
+            await expect(validator.validate(operation, createListSafeguard(safeguard))).to.be.revertedWithCustomError(
+              validator,
+              'OperationsValidatorSafeguardFailed'
+            )
+          })
+        })
+      })
+
+      context('Selector', () => {
+        const operation = createDynamicCallOperation({
+          calls: [{ target: target1, selector, arguments: [], value: 0 }],
+        })
 
         context('when the selector is allowed', () => {
           const safeguard = createOnlySelectorSafeguard(selector)

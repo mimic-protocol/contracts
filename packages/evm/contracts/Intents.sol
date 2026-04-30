@@ -8,12 +8,14 @@ pragma solidity ^0.8.20;
  * - Transfer: Transfer tokens to one or more recipients.
  * - Call: Execute arbitrary contract calls.
  * - CrossChainSwap: Swap tokens between chains.
+ * - DynamicCall: Execute arbitrary dynamic contract calls.
  */
 enum OpType {
     Swap,
     Transfer,
     Call,
-    CrossChainSwap
+    CrossChainSwap,
+    DynamicCall
 }
 
 /**
@@ -160,6 +162,16 @@ struct CallData {
     address target;
     bytes data;
     uint256 value;
+}
+
+/**
+ * @dev Represents a generic dynamic call operation consisting of one or more dynamic contract calls.
+ * @param chainId Chain ID where the calls should be executed.
+ * @param calls List of ABI-encoded low-level dynamic contract calls to be executed.
+ */
+struct DynamicCallOperation {
+    uint256 chainId;
+    bytes[] calls;
 }
 
 /**
