@@ -8,12 +8,11 @@ use crate::{
     },
     errors::SettlerError,
     state::Intent,
-    types::{IntentEvent, OpType, TokenFee},
+    types::{Operation, TokenFee},
 };
 
 #[derive(Accounts)]
-// TODO: can we optimize this deser? we just need the three Vec<T> for their length
-#[instruction(intent_hash: [u8; 32], data: Vec<u8>, max_fees: Vec<TokenFee>, events: Vec<IntentEvent>, min_validations: u16)]
+#[instruction(intent_hash: [u8; 32], operations: Vec<Operation>, max_fees: Vec<TokenFee>, min_validations: u16)]
 pub struct CreateIntent<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
@@ -30,10 +29,12 @@ pub struct CreateIntent<'info> {
         seeds = [b"intent", intent_hash.as_ref()],
         bump,
         payer = solver,
-        space = Intent::total_size(data.len(), max_fees.len(), &events, min_validations.max(controller_settings.min_validations))?
+        space = Intent::total_size(
+            max_fees.len(),
+            &operations,
+            min_validations.max(controller_settings.min_validations)
+        )?
     )]
-    // TODO: change to AccountLoader?
-    // TODO: init within the handler body to save compute?
     pub intent: Box<Account<'info, Intent>>,
 
     #[account(
@@ -56,12 +57,10 @@ pub struct CreateIntent<'info> {
 pub fn create_intent(
     ctx: Context<CreateIntent>,
     intent_hash: [u8; 32],
-    data: Vec<u8>,
+    operations: Vec<Operation>,
     max_fees: Vec<TokenFee>,
-    events: Vec<IntentEvent>,
     min_validations: u16,
-    op: OpType,
-    user: Pubkey,
+    fee_payer: Pubkey,
     nonce: [u8; 32],
     deadline: u64,
     is_final: bool,
@@ -75,18 +74,16 @@ pub fn create_intent(
     let intent = &mut ctx.accounts.intent;
     let controller_min_validations = ctx.accounts.controller_settings.min_validations;
 
-    intent.op = op;
-    intent.user = user;
+    intent.fee_payer = fee_payer;
     intent.creator = ctx.accounts.solver.key();
     intent.hash = intent_hash;
     intent.nonce = nonce;
     intent.deadline = deadline;
     intent.min_validations = min_validations.max(controller_min_validations);
     intent.is_final = is_final;
-    intent.data = data;
     intent.max_fees = max_fees;
-    intent.events = events;
     intent.validators = vec![];
+    intent.operations = operations;
     intent.bump = ctx.bumps.intent;
 
     Ok(())

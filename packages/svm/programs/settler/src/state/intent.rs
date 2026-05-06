@@ -1,14 +1,13 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    types::{IntentEvent, OpType, TokenFee},
+    types::{Operation, TokenFee},
     utils::{add, mul, sub},
 };
 
 #[account]
 pub struct Intent {
-    pub op: OpType,
-    pub user: Pubkey,
+    pub fee_payer: Pubkey,
     pub creator: Pubkey,
     pub hash: [u8; 32],
     pub nonce: [u8; 32],
@@ -16,17 +15,15 @@ pub struct Intent {
     pub min_validations: u16,
     pub is_final: bool,
     pub validators: Vec<[u8; 20]>, // TODO: how to store more efficiently?
-    pub data: Vec<u8>,
     pub max_fees: Vec<TokenFee>,
-    pub events: Vec<IntentEvent>,
+    pub operations: Vec<Operation>,
     pub bump: u8,
 }
 
 impl Intent {
     /// Doesn't take into account size of variable fields
     pub const BASE_LEN: usize =
-        1 + // op
-        32 + // user
+        32 + // fee_payer
         32 + // creator
         32 + // hash
         32 + // nonce
@@ -39,32 +36,15 @@ impl Intent {
     pub const VALIDATOR_ADDRESS_SIZE: usize = 20;
 
     pub fn total_size(
-        data_len: usize,
         max_fees_len: usize,
-        events: &[IntentEvent],
+        operations: &Vec<Operation>,
         min_validations: u16,
     ) -> Result<usize> {
         let size = add(8, Intent::BASE_LEN)?;
-        let size = add(size, Intent::data_size(data_len)?)?;
-        let size = add(size, Intent::max_fees_size(max_fees_len)?)?;
-        let size = add(size, Intent::events_size(events)?)?;
         let size = add(size, Intent::validators_size(min_validations)?)?;
+        let size = add(size, Intent::max_fees_size(max_fees_len)?)?;
+        let size = add(size, Intent::operations_size(operations)?)?;
         Ok(size)
-    }
-
-    pub fn data_size(len: usize) -> Result<usize> {
-        add(4, len)
-    }
-
-    pub fn max_fees_size(len: usize) -> Result<usize> {
-        add(4, mul(TokenFee::INIT_SPACE, len)?)
-    }
-
-    pub fn events_size(events: &[IntentEvent]) -> Result<usize> {
-        let sum = events
-            .iter()
-            .try_fold(0usize, |acc, e| add(acc, e.size()))?;
-        add(4, sum)
     }
 
     pub fn validators_size(min_validations: u16) -> Result<usize> {
@@ -74,24 +54,32 @@ impl Intent {
         )
     }
 
+    pub fn max_fees_size(len: usize) -> Result<usize> {
+        add(4, mul(TokenFee::INIT_SPACE, len)?)
+    }
+
+    pub fn operations_size(operations: &Vec<Operation>) -> Result<usize> {
+        add(
+            4,
+            operations
+                .iter()
+                .try_fold(0usize, |acc, op| add(acc, op.total_size()?))?
+        )
+    }
+
     pub fn extended_size(
         size: usize,
-        more_data: &Option<Vec<u8>>,
         more_max_fees: &Option<Vec<TokenFee>>,
-        more_events: &Option<Vec<IntentEvent>>,
+        more_operations: &Option<Vec<Operation>>,
     ) -> Result<usize> {
         let mut size = size;
-
-        if let Some(v) = more_data {
-            size = add(size, sub(Intent::data_size(v.len())?, 4)?)?;
-        }
 
         if let Some(v) = more_max_fees {
             size = add(size, sub(Intent::max_fees_size(v.len())?, 4)?)?;
         }
 
-        if let Some(v) = more_events {
-            size = add(size, sub(Intent::events_size(v)?, 4)?)?;
+        if let Some(v) = more_operations {
+            size = add(size, Intent::operations_size(v)?)?;
         }
 
         Ok(size)

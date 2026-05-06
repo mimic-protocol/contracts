@@ -4,7 +4,7 @@ use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::{FulfilledIntent, Intent, Proposal},
-    types::IntentEvent,
+    types::OperationEvent,
     utils::{handle_intent_execution, pay_solver_fees},
 };
 
@@ -113,5 +113,5 @@ pub fn execute_proposal<'info>(
 
 #[event]
 pub struct IntentEventEvent {
-    event: IntentEvent,
+    event: OperationEvent,
 }

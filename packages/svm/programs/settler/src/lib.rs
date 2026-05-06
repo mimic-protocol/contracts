@@ -45,12 +45,10 @@ pub mod settler {
     pub fn create_intent(
         ctx: Context<CreateIntent>,
         intent_hash: [u8; 32],
-        data: Vec<u8>,
+        operations: Vec<Operation>,
         max_fees: Vec<TokenFee>,
-        events: Vec<IntentEvent>,
         min_validations: u16,
-        op: OpType,
-        user: Pubkey,
+        fee_payer: Pubkey,
         nonce: [u8; 32],
         deadline: u64,
         is_final: bool,
@@ -58,12 +56,10 @@ pub mod settler {
         instructions::create_intent(
             ctx,
             intent_hash,
-            data,
+            operations,
             max_fees,
-            events,
             min_validations,
-            op,
-            user,
+            fee_payer,
             nonce,
             deadline,
             is_final,
@@ -90,7 +86,7 @@ pub mod settler {
         ctx: Context<ExtendIntent>,
         more_data: Option<Vec<u8>>,
         more_max_fees: Option<Vec<TokenFee>>,
-        more_events: Option<Vec<IntentEvent>>,
+        more_events: Option<Vec<OperationEvent>>,
         finalize: bool,
     ) -> Result<()> {
         instructions::extend_intent(ctx, more_data, more_max_fees, more_events, finalize)
