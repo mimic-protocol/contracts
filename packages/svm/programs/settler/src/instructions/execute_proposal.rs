@@ -5,7 +5,7 @@ use crate::{
     errors::SettlerError,
     state::{FulfilledIntent, Intent, Proposal},
     types::OperationEvent,
-    utils::{handle_intent_execution, pay_solver_fees},
+    utils::{handle_intent_execution, handle_operation_execution, pay_solver_fees},
 };
 
 #[derive(Accounts)]
@@ -55,8 +55,8 @@ pub struct ExecuteProposal<'info> {
     )]
     pub fulfilled_intent: Box<Account<'info, FulfilledIntent>>,
 
-    #[account(seeds = [b"delegate", intent.user.key().as_ref()], bump)]
-    pub delegate: SystemAccount<'info>,
+    #[account(seeds = [b"delegate", intent.fee_payer.key().as_ref()], bump)]
+    pub fee_payer_delegate: SystemAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -83,20 +83,13 @@ pub fn execute_proposal<'info>(
     );
 
     handle_intent_execution(
-        intent,
-        proposal,
-        &ctx.accounts.delegate.clone(),
+        &intent,
+        &proposal,
         &mut remaining_accounts_iter,
         token_program,
         token_2022_program,
-        ctx.bumps.delegate,
+        ctx.program_id,
     )?;
-
-    intent.events.iter().for_each(|event| {
-        emit!(IntentEventEvent {
-            event: event.clone()
-        })
-    });
 
     pay_solver_fees(
         &mut remaining_accounts_iter,
@@ -104,14 +97,14 @@ pub fn execute_proposal<'info>(
         proposal,
         token_program,
         token_2022_program,
-        &ctx.accounts.delegate.clone(),
-        ctx.bumps.delegate,
+        &ctx.accounts.fee_payer_delegate.clone(),
+        ctx.bumps.fee_payer_delegate,
     )?;
 
     Ok(())
 }
 
 #[event]
-pub struct IntentEventEvent {
-    event: OperationEvent,
+pub struct OperationEventEvent {
+    pub event: OperationEvent,
 }
