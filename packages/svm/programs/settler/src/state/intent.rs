@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    types::{Operation, TokenFee},
-    utils::{add, mul, sub},
+    constants::DISCRIMINATOR_LEN, types::{Operation, TokenFee}, utils::{add, mul, sub}
 };
 
 #[account]
@@ -40,7 +39,7 @@ impl Intent {
         operations: &Vec<Operation>,
         min_validations: u16,
     ) -> Result<usize> {
-        let size = add(8, Intent::BASE_LEN)?;
+        let size = add(DISCRIMINATOR_LEN, Intent::BASE_LEN)?;
         let size = add(size, Intent::validators_size(min_validations)?)?;
         let size = add(size, Intent::max_fees_size(max_fees_len)?)?;
         let size = add(size, Intent::operations_size(operations)?)?;

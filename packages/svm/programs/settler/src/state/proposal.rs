@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::utils::{add, mul, sub, Proposal as Eip712Proposal};
+use crate::{constants::DISCRIMINATOR_LEN, utils::{Proposal as Eip712Proposal, add, mul, sub}};
 
 #[account]
 pub struct Proposal {
@@ -26,7 +26,7 @@ impl Proposal {
     ;
 
     pub fn total_size(instructions: &[ProposalInstruction], fees_len: usize) -> Result<usize> {
-        let size = add(8, Proposal::BASE_LEN)?;
+        let size = add(DISCRIMINATOR_LEN, Proposal::BASE_LEN)?;
         let size = add(size, Proposal::instructions_size(instructions)?)?;
         let size = add(size, Proposal::fees_size(fees_len)?)?;
         Ok(size)
