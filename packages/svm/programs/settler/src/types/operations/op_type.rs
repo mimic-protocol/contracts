@@ -7,6 +7,6 @@ pub enum OpType {
     Transfer = 1,
     EvmCall = 2,
     CrossChainSwap = 3,
-    DynamicCall = 4,
+    EvmDynamicCall = 4,
     SvmCall = 5,
 }
