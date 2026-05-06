@@ -24,7 +24,6 @@ pub fn handle_intent_execution<'info>(
     delegate_bump: u8,
 ) -> Result<()> {
     match intent.op {
-        OpType::Swap => err!(SettlerError::UnsupportedIntentOp),
         OpType::Transfer => handle_transfer(
             intent,
             proposal,
@@ -34,8 +33,7 @@ pub fn handle_intent_execution<'info>(
             token_2022_program,
             delegate_bump,
         ),
-        OpType::EvmCall => err!(SettlerError::UnsupportedIntentOp),
-        OpType::SvmCall => err!(SettlerError::UnsupportedIntentOp),
+        _ => err!(SettlerError::UnsupportedIntentOp),
     }
 }
 
