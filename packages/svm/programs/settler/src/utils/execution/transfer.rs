@@ -7,7 +7,11 @@ use anchor_spl::{
 use core::slice::Iter;
 
 use crate::{
-    constants::CHAIN_ID, errors::SettlerError, state::Proposal, types::{Operation, SvmTransfer, SvmTransferIntentData}, utils::check_owner_is_token_program
+    constants::CHAIN_ID,
+    errors::SettlerError,
+    state::Proposal,
+    types::{Operation, SvmTransfer, SvmTransferIntentData},
+    utils::check_owner_is_token_program,
 };
 
 pub fn handle_transfer<'info>(
@@ -211,7 +215,11 @@ fn check_token_accounts(
 }
 
 fn validate_transfer(proposal: &Proposal, intent_data: &SvmTransferIntentData) -> Result<()> {
-    require_eq!(intent_data.chain_id, CHAIN_ID, SettlerError::IncorrectChainId);
+    require_eq!(
+        intent_data.chain_id,
+        CHAIN_ID,
+        SettlerError::IncorrectChainId
+    );
     require_eq!(
         proposal.instructions.len(),
         0,

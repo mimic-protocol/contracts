@@ -5,7 +5,7 @@ use crate::{
     errors::SettlerError,
     state::{FulfilledIntent, Intent, Proposal},
     types::OperationEvent,
-    utils::{handle_intent_execution, handle_operation_execution, pay_solver_fees},
+    utils::{handle_intent_execution, pay_solver_fees},
 };
 
 #[derive(Accounts)]
@@ -83,8 +83,8 @@ pub fn execute_proposal<'info>(
     );
 
     handle_intent_execution(
-        &intent,
-        &proposal,
+        intent,
+        proposal,
         &mut remaining_accounts_iter,
         token_program,
         token_2022_program,

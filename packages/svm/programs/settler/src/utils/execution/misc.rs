@@ -8,7 +8,11 @@ use anchor_spl::{
 use core::slice::Iter;
 
 use crate::{
-    errors::SettlerError, instructions::OperationEventEvent, state::{Intent, Proposal}, types::{OpType, Operation}, utils::handle_transfer
+    errors::SettlerError,
+    instructions::OperationEventEvent,
+    state::{Intent, Proposal},
+    types::{OpType, Operation},
+    utils::handle_transfer,
 };
 
 pub fn handle_intent_execution<'info>(

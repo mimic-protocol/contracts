@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 
-use crate::{constants::DISCRIMINATOR_LEN, utils::{Proposal as Eip712Proposal, add, mul, sub}};
+use crate::{
+    constants::DISCRIMINATOR_LEN,
+    utils::{add, mul, sub, Proposal as Eip712Proposal},
+};
 
 #[account]
 pub struct Proposal {

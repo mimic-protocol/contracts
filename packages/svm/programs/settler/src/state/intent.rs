@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constants::DISCRIMINATOR_LEN, types::{Operation, TokenFee}, utils::{add, mul, sub}
+    constants::DISCRIMINATOR_LEN,
+    types::{Operation, TokenFee},
+    utils::{add, mul, sub},
 };
 
 #[account]
@@ -36,7 +38,7 @@ impl Intent {
 
     pub fn total_size(
         max_fees_len: usize,
-        operations: &Vec<Operation>,
+        operations: &[Operation],
         min_validations: u16,
     ) -> Result<usize> {
         let size = add(DISCRIMINATOR_LEN, Intent::BASE_LEN)?;
@@ -57,12 +59,12 @@ impl Intent {
         add(4, mul(TokenFee::INIT_SPACE, len)?)
     }
 
-    pub fn operations_size(operations: &Vec<Operation>) -> Result<usize> {
+    pub fn operations_size(operations: &[Operation]) -> Result<usize> {
         add(
             4,
             operations
                 .iter()
-                .try_fold(0usize, |acc, op| add(acc, op.total_size()?))?
+                .try_fold(0usize, |acc, op| add(acc, op.total_size()?))?,
         )
     }
 

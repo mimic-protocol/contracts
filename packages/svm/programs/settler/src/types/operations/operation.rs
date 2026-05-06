@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 
-use crate::{types::{OpType, OperationEvent}, utils::add};
+use crate::{
+    types::{OpType, OperationEvent},
+    utils::add,
+};
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct Operation {
@@ -25,7 +28,8 @@ impl Operation {
     }
 
     pub fn events_size(&self) -> Result<usize> {
-        let sum = self.events
+        let sum = self
+            .events
             .iter()
             .try_fold(0usize, |acc, e| add(acc, e.size()))?;
         add(4, sum)
