@@ -84,12 +84,11 @@ pub mod settler {
 
     pub fn extend_intent(
         ctx: Context<ExtendIntent>,
-        more_data: Option<Vec<u8>>,
         more_max_fees: Option<Vec<TokenFee>>,
-        more_events: Option<Vec<OperationEvent>>,
+        more_operations: Option<Vec<Operation>>,
         finalize: bool,
     ) -> Result<()> {
-        instructions::extend_intent(ctx, more_data, more_max_fees, more_events, finalize)
+        instructions::extend_intent(ctx, more_max_fees, more_operations, finalize)
     }
 
     pub fn initialize(ctx: Context<Initialize>, domain: Eip712Domain) -> Result<()> {
