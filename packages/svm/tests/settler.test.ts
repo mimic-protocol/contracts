@@ -90,7 +90,7 @@ import {
   WARP_TIME_SHORT,
 } from './helpers'
 import { approveDelegate, createFundedAta, createMint, getAtaBalance, revokeDelegate } from './helpers/spl'
-import { makeTxSignAndSend, warpSeconds } from './utils'
+import { getLamports, makeTxSignAndSend, warpSeconds } from './utils'
 
 describe('Settler', () => {
   let client: LiteSVM
@@ -794,14 +794,14 @@ describe('Settler', () => {
 
             it('claims the stale intent', async () => {
               const intentBefore = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
-              const intentBalanceBefore = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceBefore = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
+              const intentBalanceBefore = getLamports(client, sdk.getIntentKey(intentHash))
+              const intentCreatorBalanceBefore = getLamports(client, intentBefore.creator)
 
               const ix = await solverSdk.claimStaleIntentIx(intentHash)
               await makeTxSignAndSend(solverProvider, ix)
 
-              const intentBalanceAfter = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceAfter = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
+              const intentBalanceAfter = getLamports(client, sdk.getIntentKey(intentHash))
+              const intentCreatorBalanceAfter = getLamports(client, intentBefore.creator)
 
               try {
                 await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -834,14 +834,14 @@ describe('Settler', () => {
 
             it('claims the stale intent', async () => {
               const intentBefore = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
-              const intentBalanceBefore = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceBefore = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
+              const intentBalanceBefore = getLamports(client, sdk.getIntentKey(intentHash))
+              const intentCreatorBalanceBefore = getLamports(client, intentBefore.creator)
 
               const ix = await solverSdk.claimStaleIntentIx(intentHash)
               await makeTxSignAndSend(solverProvider, ix)
 
-              const intentBalanceAfter = Number(adminProvider.client.getBalance(sdk.getIntentKey(intentHash))) || 0
-              const intentCreatorBalanceAfter = Number(adminProvider.client.getBalance(intentBefore.creator)) || 0
+              const intentBalanceAfter = getLamports(client, sdk.getIntentKey(intentHash))
+              const intentCreatorBalanceAfter = getLamports(client, intentBefore.creator)
 
               try {
                 await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
@@ -1525,14 +1525,14 @@ describe('Settler', () => {
 
           it('claims the stale proposal', async () => {
             const proposalBefore = await settler.account.proposal.fetch(proposalKey)
-            const proposalBalanceBefore = Number(adminProvider.client.getBalance(proposalKey)) || 0
-            const proposalCreatorBalanceBefore = Number(adminProvider.client.getBalance(proposalBefore.creator)) || 0
+            const proposalBalanceBefore = getLamports(client, proposalKey)
+            const proposalCreatorBalanceBefore = getLamports(client, proposalBefore.creator)
 
             const ix = await solverSdk.claimStaleProposalIx(intentHash)
             await makeTxSignAndSend(solverProvider, ix)
 
-            const proposalBalanceAfter = Number(adminProvider.client.getBalance(proposalKey)) || 0
-            const proposalCreatorBalanceAfter = Number(adminProvider.client.getBalance(proposalBefore.creator)) || 0
+            const proposalBalanceAfter = getLamports(client, proposalKey)
+            const proposalCreatorBalanceAfter = getLamports(client, proposalBefore.creator)
 
             try {
               await settler.account.proposal.fetch(proposalKey)
@@ -2498,10 +2498,9 @@ describe('Settler', () => {
                     const intentKey = sdk.getIntentKey(intentHash)
                     const fulfilledIntentKey = sdk.getFulfilledIntentKey(intentHash)
 
-                    const proposalBalanceBefore = Number(adminProvider.client.getBalance(proposalKey)) || 0
-                    const intentBalanceBefore = Number(adminProvider.client.getBalance(intentKey)) || 0
-                    const solverBalanceBefore =
-                      Number(adminProvider.client.getBalance(translateAddress(proposal.solver))) || 0
+                    const proposalBalanceBefore = getLamports(client, proposalKey)
+                    const intentBalanceBefore = getLamports(client, intentKey)
+                    const solverBalanceBefore = getLamports(client, translateAddress(proposal.solver))
 
                     const recipientBalanceBefore = getAtaBalance(client, recipientAta)
                     const userBalanceBefore = getAtaBalance(client, userAta)
@@ -2513,11 +2512,10 @@ describe('Settler', () => {
                     const userBalanceAfter = getAtaBalance(client, userAta)
                     const solverAtaBalanceAfter = getAtaBalance(client, solverAta)
 
-                    const proposalBalanceAfter = Number(adminProvider.client.getBalance(proposalKey)) || 0
-                    const intentBalanceAfter = Number(adminProvider.client.getBalance(intentKey)) || 0
-                    const solverBalanceAfter =
-                      Number(adminProvider.client.getBalance(translateAddress(proposal.solver))) || 0
-                    const fulfilledIntentBalanceAfter = Number(adminProvider.client.getBalance(fulfilledIntentKey)) || 0
+                    const proposalBalanceAfter = getLamports(client, proposalKey)
+                    const intentBalanceAfter = getLamports(client, intentKey)
+                    const solverBalanceAfter = getLamports(client, translateAddress(proposal.solver))
+                    const fulfilledIntentBalanceAfter = getLamports(client, fulfilledIntentKey)
 
                     try {
                       await settler.account.intent.fetch(intentKey)

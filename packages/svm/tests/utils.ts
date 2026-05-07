@@ -1,6 +1,6 @@
-import { web3 } from '@coral-xyz/anchor'
+import { Address, translateAddress, web3 } from '@coral-xyz/anchor'
 import { LiteSVMProvider } from 'anchor-litesvm'
-import { Clock, FailedTransactionMetadata, TransactionMetadata } from 'litesvm'
+import { Clock, FailedTransactionMetadata, LiteSVM, TransactionMetadata } from 'litesvm'
 
 export async function signAndSendTx(
   provider: LiteSVMProvider,
@@ -34,4 +34,8 @@ export function warpSeconds(provider: LiteSVMProvider, seconds: number): void {
       clock.unixTimestamp + BigInt(seconds)
     )
   )
+}
+
+export function getLamports(client: LiteSVM, key: Address): number {
+  return Number(client.getBalance(translateAddress(key))) || 0
 }
