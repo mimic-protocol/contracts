@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constants::DISCRIMINATOR_LEN,
+    constants::{DISCRIMINATOR_LEN, VEC_SIZE_LEN},
     utils::{add, mul, sub, Proposal as Eip712Proposal},
 };
 
@@ -39,17 +39,17 @@ impl Proposal {
         let sum = instructions
             .iter()
             .try_fold(0usize, |acc, ix| add(acc, ix.size()))?;
-        add(4, sum)
+        add(VEC_SIZE_LEN, sum)
     }
 
     pub fn fees_size(len: usize) -> Result<usize> {
-        add(4, mul(8, len)?)
+        add(VEC_SIZE_LEN, mul(8, len)?)
     }
 
     pub fn extended_size(size: usize, more_instructions: &[ProposalInstruction]) -> Result<usize> {
         sub(
             add(size, Proposal::instructions_size(more_instructions)?)?,
-            4,
+            VEC_SIZE_LEN,
         )
     }
 
@@ -75,8 +75,8 @@ pub struct ProposalInstruction {
 
 impl ProposalInstruction {
     pub fn size(&self) -> usize {
-        let accounts_size = 4 + self.accounts.len() * (32 + 1 + 1);
-        let data_size = 4 + self.data.len();
+        let accounts_size = VEC_SIZE_LEN + self.accounts.len() * (32 + 1 + 1);
+        let data_size = VEC_SIZE_LEN + self.data.len();
 
         32 + accounts_size + data_size
     }

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    constants::DISCRIMINATOR_LEN,
+    constants::{DISCRIMINATOR_LEN, VEC_SIZE_LEN},
     types::{Operation, TokenFee},
     utils::{add, mul, sub},
 };
@@ -50,18 +50,18 @@ impl Intent {
 
     pub fn validators_size(min_validations: u16) -> Result<usize> {
         add(
-            4,
+            VEC_SIZE_LEN,
             mul(min_validations as usize, Self::VALIDATOR_ADDRESS_SIZE)?,
         )
     }
 
     pub fn max_fees_size(len: usize) -> Result<usize> {
-        add(4, mul(TokenFee::INIT_SPACE, len)?)
+        add(VEC_SIZE_LEN, mul(TokenFee::INIT_SPACE, len)?)
     }
 
     pub fn operations_size(operations: &[Operation]) -> Result<usize> {
         add(
-            4,
+            VEC_SIZE_LEN,
             operations
                 .iter()
                 .try_fold(0usize, |acc, op| add(acc, op.total_size()?))?,
@@ -76,11 +76,11 @@ impl Intent {
         let mut size = size;
 
         if let Some(v) = more_max_fees {
-            size = add(size, sub(Intent::max_fees_size(v.len())?, 4)?)?;
+            size = add(size, sub(Intent::max_fees_size(v.len())?, VEC_SIZE_LEN)?)?;
         }
 
         if let Some(v) = more_operations {
-            size = add(size, sub(Intent::operations_size(v)?, 4)?)?;
+            size = add(size, sub(Intent::operations_size(v)?, VEC_SIZE_LEN)?)?;
         }
 
         Ok(size)

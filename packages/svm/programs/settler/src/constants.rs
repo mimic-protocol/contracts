@@ -6,3 +6,5 @@ pub const DEPLOYER_KEY: &str = env!(
 pub const CHAIN_ID: u32 = 507424;
 
 pub const DISCRIMINATOR_LEN: usize = 8;
+
+pub const VEC_SIZE_LEN: usize = 4;
