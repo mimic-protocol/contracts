@@ -60,7 +60,7 @@ impl Proposal {
             intent: intent_hash.into(),
             solver: self.creator.to_string(),
             deadline: U256::from(self.deadline),
-            datas: vec![vec![].into()].into(),
+            datas: vec![vec![].into()],
             fees: self.fees.iter().map(|&fee| U256::from(fee)).collect(),
         }
     }

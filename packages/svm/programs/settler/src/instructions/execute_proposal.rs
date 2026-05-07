@@ -61,6 +61,21 @@ pub struct ExecuteProposal<'info> {
     pub system_program: Program<'info, System>,
 }
 
+////////////////////////////////////////////////////////
+//          REMAINING ACCOUNTS                        //
+//                                                    //
+// [token_program, token_2022_program]                //
+//                                                    //
+// for operation in intent.operations:                //
+//   [user_delegate(operation.user)]                  //
+//                                                    //
+//   for transfer in operation.transfers:             //
+//     [token_mint, recipient, recipient_ta, user_ta] //
+//                                                    //
+// for each fee in proposal.fees / intent.max_fees:   //
+//   [fee_token_mint, solver_ta, user_ta]             //
+////////////////////////////////////////////////////////
+
 pub fn execute_proposal<'info>(
     ctx: Context<'_, '_, '_, 'info, ExecuteProposal<'info>>,
 ) -> Result<()> {

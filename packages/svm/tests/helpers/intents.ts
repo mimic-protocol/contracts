@@ -44,7 +44,7 @@ export function createIntentParams(client: LiteSVM, params: Partial<CreateIntent
 export function createOperationParams(params: Partial<CreateOperationParams> = {}): CreateOperationParams {
   return {
     ...DEFAULT_OPERATION_PARAMS,
-    ...params
+    ...params,
   }
 }
 

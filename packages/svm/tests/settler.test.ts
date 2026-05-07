@@ -24,6 +24,7 @@ import {
   TransferOperationTransfer,
   ValidatorSigner,
 } from '@mimicprotocol/sdk'
+import { svmEncodeTransferOperation } from '@mimicprotocol/sdk/dist/shared/codec/chains/svm'
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import {
   AccountMeta,
@@ -90,7 +91,6 @@ import {
 } from './helpers'
 import { approveDelegate, createFundedAta, createMint, getAtaBalance, revokeDelegate } from './helpers/spl'
 import { makeTxSignAndSend, warpSeconds } from './utils'
-import { svmEncodeTransferOperation } from '@mimicprotocol/sdk/dist/shared/codec/chains/svm'
 
 describe('Settler', () => {
   let client: LiteSVM
@@ -306,8 +306,12 @@ describe('Settler', () => {
 
                   expect(intent.operations[0].opType).to.deep.include({ transfer: {} })
                   expect(intent.operations[0].events.length).to.be.eq(1)
-                  expect(Buffer.from(intent.operations[0].data).toString('hex')).to.be.eq(intentOptions.operations![0].data)
-                  expect(Buffer.from(intent.operations[0].events[0].data).toString('hex')).to.be.eq(intentOptions.operations![0].events![0].data)
+                  expect(Buffer.from(intent.operations[0].data).toString('hex')).to.be.eq(
+                    intentOptions.operations![0].data
+                  )
+                  expect(Buffer.from(intent.operations[0].events[0].data).toString('hex')).to.be.eq(
+                    intentOptions.operations![0].events![0].data
+                  )
                 })
               }
 
@@ -339,7 +343,7 @@ describe('Settler', () => {
             context('when creating an intent with an operation with empty data', () => {
               intentHash = generateIntentHash()
               const intentOptions: CreateIntentOptions = {
-                operations: [createOperationParams({data: EMPTY_DATA_HEX})]
+                operations: [createOperationParams({ data: EMPTY_DATA_HEX })],
               }
 
               it('creates the intent', async () => {
@@ -354,7 +358,7 @@ describe('Settler', () => {
             context('when creating an intent with an operation with empty events', () => {
               intentHash = generateIntentHash()
               const intentOptions: CreateIntentOptions = {
-                operations: [createOperationParams({events: []})],
+                operations: [createOperationParams({ events: [] })],
               }
 
               it('creates the intent', async () => {
@@ -457,14 +461,14 @@ describe('Settler', () => {
               [Buffer.from('intent'), hexToBytes(intentHash)],
               settler.programId
             )[0]
-            const operationsAnchor = operations.map(operation => ({
+            const operationsAnchor = operations.map((operation) => ({
               opType: solverSdk.opTypeToAnchorEnum(operation.opType),
               data: hexToBytes(operation.data),
               user: translateAddress(operation.user),
-              events: operation.events.map(event => ({
+              events: operation.events.map((event) => ({
                 topic: Array.from(Uint8Array.from(hexToBytes(event.topic))),
                 data: hexToBytes(event.data),
-              }))
+              })),
             }))
 
             ix = await settler.methods
@@ -584,15 +588,18 @@ describe('Settler', () => {
                   const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
                   expect(intent.operations.length).to.be.eq(2)
                   expect(intent.operations[1].opType).to.deep.include({ transfer: {} })
-                  expect(Buffer.from(intent.operations[1].data).toString('hex')).to.be.eq(extendParams.moreOperations![0].data)
-                  expect(Buffer.from(intent.operations[1].events[0].data).toString('hex')).to.be.eq(extendParams.moreOperations![0].events![0].data)
-                
+                  expect(Buffer.from(intent.operations[1].data).toString('hex')).to.be.eq(
+                    extendParams.moreOperations![0].data
+                  )
+                  expect(Buffer.from(intent.operations[1].events[0].data).toString('hex')).to.be.eq(
+                    extendParams.moreOperations![0].events![0].data
+                  )
                 })
               })
 
               context('when extending with all optional fields', () => {
                 beforeEach('create intent and extend params', async () => {
-                  intentHash = await createTestIntent(solverSdk, solverProvider, {isFinal: false})
+                  intentHash = await createTestIntent(solverSdk, solverProvider, { isFinal: false })
                   extendParams = {
                     moreMaxFees: [
                       {
@@ -600,10 +607,7 @@ describe('Settler', () => {
                         amount: '3000',
                       },
                     ],
-                    moreOperations: [
-                      createOperationParams(),
-                      createOperationParams(),
-                    ],
+                    moreOperations: [createOperationParams(), createOperationParams()],
                   }
                 })
 
@@ -625,11 +629,7 @@ describe('Settler', () => {
                 const EXTEND_MAX_FEES_LOOPS = 18
 
                 extendParams = {
-                  moreOperations: [
-                    createOperationParams(),
-                    createOperationParams(),
-                    createOperationParams(),
-                  ],
+                  moreOperations: [createOperationParams(), createOperationParams(), createOperationParams()],
                   moreMaxFees: [
                     { token: randomPubkey(), amount: '1' },
                     { token: randomPubkey(), amount: `${1 + 1000}` },
@@ -660,7 +660,9 @@ describe('Settler', () => {
                   })
                 }
 
-                itExtendsIntentWithoutFailing('operations', EXTEND_OPERATION_LOOPS, {moreOperations: extendParams.moreOperations})
+                itExtendsIntentWithoutFailing('operations', EXTEND_OPERATION_LOOPS, {
+                  moreOperations: extendParams.moreOperations,
+                })
 
                 itExtendsIntentWithoutFailing('max fees', EXTEND_MAX_FEES_LOOPS, {
                   moreMaxFees: extendParams.moreMaxFees,
@@ -2020,7 +2022,7 @@ describe('Settler', () => {
                     let proposal = await settler.account.proposal.fetch(proposalKey)
                     expect(proposal.isSigned).to.be.false
 
-                    const res = await makeTxSignAndSend(solverProvider, ...ixs)
+                    await makeTxSignAndSend(solverProvider, ...ixs)
 
                     proposal = await settler.account.proposal.fetch(proposalKey)
                     expect(proposal.isSigned).to.be.true
@@ -2236,7 +2238,7 @@ describe('Settler', () => {
     })
   })
 
-  describe.skip('execute_proposal', () => {
+  describe('execute_proposal', () => {
     let ix: TransactionInstruction
     let intentHash: string
     let intent: Intent
@@ -2302,12 +2304,14 @@ describe('Settler', () => {
       nonce: randomHex(32),
       settler: settler.programId.toString(),
       feePayer: user.publicKey.toString(),
-      operations: [{
-        opType: OpType.Transfer,
-        user: user.publicKey.toString(),
-        data,
-        events: [{ topic: randomHex(32), data: randomHex(50) }],
-      }],
+      operations: [
+        {
+          opType: OpType.Transfer,
+          user: user.publicKey.toString(),
+          data,
+          events: [{ topic: randomHex(32), data: randomHex(50) }],
+        },
+      ],
     })
 
     const createTestProposal = (
@@ -2742,9 +2746,18 @@ describe('Settler', () => {
           context('when remaining accounts number is correct', () => {
             context('when token programs are passed correctly', () => {
               context('when transfer accounts are incorrect', () => {
-                context('when transfer token is incorrect', () => {
+                context('when user delegate is incorrect', () => {
                   beforeEach(() => {
                     accountIndex = 2
+                    wrongValue = randomPubkey()
+                  })
+
+                  itThrowsAnErrorForGivenAccount('Incorrect user delegate')
+                })
+
+                context('when transfer token is incorrect', () => {
+                  beforeEach(() => {
+                    accountIndex = 3
                   })
 
                   itChecksMintAccount('transfer token')
@@ -2752,7 +2765,7 @@ describe('Settler', () => {
 
                 context('when recipient is incorrect', () => {
                   beforeEach(() => {
-                    accountIndex = 3
+                    accountIndex = 4
                     wrongValue = randomPubkey()
                   })
 
@@ -2761,7 +2774,7 @@ describe('Settler', () => {
 
                 context('when recipient token account is incorrect', () => {
                   beforeEach(() => {
-                    accountIndex = 4
+                    accountIndex = 5
                     expectedOwner = recipient
                     expectedMint = usdc
                   })
@@ -2771,7 +2784,7 @@ describe('Settler', () => {
 
                 context('when user token account is incorrect', () => {
                   beforeEach(() => {
-                    accountIndex = 5
+                    accountIndex = 6
                     expectedOwner = user.publicKey
                     expectedMint = usdc
                   })
@@ -2800,14 +2813,14 @@ describe('Settler', () => {
                     itChecksTokenAccount('solver token account')
                   })
 
-                  context('when user token account is incorrect', () => {
+                  context('when fee payer token account is incorrect', () => {
                     beforeEach(() => {
                       accountIndex = remainingAccounts.length - 1
-                      expectedOwner = user.publicKey
+                      expectedOwner = translateAddress(intent.feePayer)
                       expectedMint = usdc
                     })
 
-                    itChecksTokenAccount('user token account')
+                    itChecksTokenAccount('fee payer token account')
                   })
                 })
               })
@@ -2970,12 +2983,13 @@ describe('Settler', () => {
     context('when intent is not transfer', () => {
       beforeEach(async () => {
         intent = createTestIntent('0xdeadbeef')
-        intent = {...intent, operations: [{...intent.operations[0], opType: 2}]}
+        intent = { ...intent, operations: [{ ...intent.operations[0], opType: 2 }] }
         proposal = createTestProposal(intent)
 
         await prepareAndBuildIx(solverSdk, undefined, [
           { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
           { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: solverSdk.getDelegateKey(intent.operations[0].user), isSigner: false, isWritable: false },
         ])
       })
 
