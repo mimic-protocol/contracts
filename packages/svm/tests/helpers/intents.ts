@@ -21,6 +21,8 @@ export type IntentAccount = NonNullable<Awaited<ReturnType<Program<Settler>['acc
 
 export type CreateIntentOptions = Partial<CreateIntentParams> & { isFinal?: boolean }
 
+export type CreateOperationParams = CreateIntentParams['operations'][number]
+
 /**
  * Generate a random 32-byte hex string for intent hash
  */
@@ -36,6 +38,13 @@ export function createIntentParams(client: LiteSVM, params: Partial<CreateIntent
   return {
     ...getDefaultCreateIntentParams(client),
     ...params,
+  }
+}
+
+export function createOperationParams(params: Partial<CreateOperationParams> = {}): CreateOperationParams {
+  return {
+    ...DEFAULT_OPERATION_PARAMS,
+    ...params
   }
 }
 
@@ -128,24 +137,29 @@ export function mapIntentFeesToTokenFees(intent: IntentAccount): SvmTokenFee[] {
   }))
 }
 
-const DEFAULT_CREATE_INTENT_PARAMS: Omit<CreateIntentParams, 'deadline'> = {
-  op: OpType.Transfer,
-  user: randomPubkey(),
-  nonce: generateNonce(),
-  minValidations: DEFAULT_MIN_VALIDATIONS,
+const DEFAULT_OPERATION_PARAMS: CreateOperationParams = {
+  opType: OpType.Transfer,
   data: DEFAULT_DATA_HEX,
-  maxFees: [
-    {
-      token: randomPubkey(),
-      amount: DEFAULT_MAX_FEE.toString(),
-    },
-  ],
   events: [
     {
       topic: DEFAULT_TOPIC_HEX,
       data: DEFAULT_EVENT_DATA_HEX,
     },
   ],
+  user: randomPubkey(),
+}
+
+const DEFAULT_CREATE_INTENT_PARAMS: Omit<CreateIntentParams, 'deadline'> = {
+  feePayer: randomPubkey(),
+  nonce: generateNonce(),
+  minValidations: DEFAULT_MIN_VALIDATIONS,
+  maxFees: [
+    {
+      token: randomPubkey(),
+      amount: DEFAULT_MAX_FEE.toString(),
+    },
+  ],
+  operations: [DEFAULT_OPERATION_PARAMS],
 }
 
 function getDefaultCreateIntentParams(client: LiteSVM): CreateIntentParams {

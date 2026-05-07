@@ -7,7 +7,7 @@ solidity! {
         bytes32 intent;
         string solver;
         uint256 deadline;
-        bytes data;
+        bytes[] datas;
         uint256[] fees;
     }
 }

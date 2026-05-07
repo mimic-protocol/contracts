@@ -80,7 +80,7 @@ impl Intent {
         }
 
         if let Some(v) = more_operations {
-            size = add(size, Intent::operations_size(v)?)?;
+            size = add(size, sub(Intent::operations_size(v)?, 4)?)?;
         }
 
         Ok(size)
