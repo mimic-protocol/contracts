@@ -73,7 +73,7 @@ pub struct ExecuteProposal<'info> {
 //     [token_mint, recipient, recipient_ta, user_ta] //
 //                                                    //
 // for each fee in proposal.fees / intent.max_fees:   //
-//   [fee_token_mint, solver_ta, user_ta]             //
+//   [fee_token_mint, solver_ta, fee_payer_ta]        //
 ////////////////////////////////////////////////////////
 
 pub fn execute_proposal<'info>(

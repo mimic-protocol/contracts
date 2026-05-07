@@ -92,10 +92,10 @@ pub fn handle_operation_execution<'info>(
 ///
 /// #[account(
 ///     mut,
-///     token::owner = user,
+///     token::owner = fee_payer,
 ///     token::mint = fee_token,
 /// )]
-/// pub user_ta: Account<'info, ITokenAccount>,
+/// pub fee_payer_ta: Account<'info, ITokenAccount>,
 ///
 pub fn pay_solver_fees<'info>(
     remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
