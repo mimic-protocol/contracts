@@ -2273,6 +2273,7 @@ describe('Settler', () => {
 
     let userAta: web3.PublicKey
     let recipientAta: web3.PublicKey
+    let solverAta: web3.PublicKey
 
     const validator = ethers.Wallet.createRandom()
     const axia = ethers.Wallet.createRandom()
@@ -2400,6 +2401,18 @@ describe('Settler', () => {
       ix = await createIx(sdk, accountsPartial, remainingAccounts)
     }
 
+    const createTestTransfers = (n: number) =>
+      Array.from({ length: n }, () => ({
+        amount: '1000000000',
+        token: usdc.toString(),
+        recipient: recipient.toString(),
+      }))
+
+    const createTestIntentData = (transfers?: TransferOperationTransfer[]): TransferOperationData => ({
+      chainId: Chains.Solana,
+      transfers: transfers ?? [],
+    })
+
     before('set correct domain', async () => {
       client.expireBlockhash()
       const ix = await adminSdk.updateEip712DomainIx({
@@ -2423,7 +2436,7 @@ describe('Settler', () => {
 
       userAta = (await createFundedAta(adminProvider, admin, user.publicKey, usdc, 100_000_000_000)).ata
       recipientAta = (await createFundedAta(adminProvider, admin, recipient, usdc, 0)).ata
-      await createFundedAta(adminProvider, admin, solver.publicKey, usdc, 0)
+      solverAta = (await createFundedAta(adminProvider, admin, solver.publicKey, usdc, 0)).ata
     })
 
     beforeEach('new intent hash for each test case', () => {
@@ -2434,18 +2447,6 @@ describe('Settler', () => {
       context('when operation is transfer', () => {
         let transfers: TransferOperationTransfer[]
         let testIntentData: TransferOperationData
-
-        const createTestTransfers = (n: number) =>
-          Array.from({ length: n }, () => ({
-            amount: '1000000000',
-            token: usdc.toString(),
-            recipient: recipient.toString(),
-          }))
-
-        const createTestIntentData = (transfers?: TransferOperationTransfer[]): TransferOperationData => ({
-          chainId: Chains.Solana,
-          transfers: transfers ?? [],
-        })
 
         const editProposal = async (proposalKey: web3.PublicKey, editedProposal: Partial<ProposalAccount>) => {
           const proposalAccount = await settler.account.proposal.fetch(proposalKey)
@@ -2493,7 +2494,6 @@ describe('Settler', () => {
                   })
 
                   it('executes transfer', async () => {
-                    const solverAta = getAssociatedTokenAddressSync(usdc, solver.publicKey)
                     const proposalKey = sdk.getProposalKey(intentHash, proposal.solver)
                     const intentKey = sdk.getIntentKey(intentHash)
                     const fulfilledIntentKey = sdk.getFulfilledIntentKey(intentHash)
@@ -3023,7 +3023,48 @@ describe('Settler', () => {
     })
 
     context('when intent does not have one operation', () => {
-      context('when intent has more than one operation', () => {})
+      context('when intent has more than one operation', () => {
+        let transfer: TransferOperationTransfer[]
+
+        beforeEach(async () => {
+          transfer = createTestTransfers(1)
+          intent = createTestIntent(svmEncodeTransferOperation(createTestIntentData(transfer)))
+          intent.operations = [intent.operations[0], intent.operations[0]]
+          proposal = createTestProposal(intent)
+
+          await prepareAndBuildIx(solverSdk)
+
+          await approveDelegate(
+            userProvider,
+            userAta,
+            solverSdk.getDelegateKey(user.publicKey),
+            user,
+            2 * totalTransferAmount(transfer) + totalFees(proposal.fees)
+          )
+        })
+
+        it('executes two operations', async () => {
+          const userBalanceBefore = getAtaBalance(client, userAta)
+          const recipientBalanceBefore = getAtaBalance(client, recipientAta)
+          const solverBalanceBefore = getAtaBalance(client, solverAta)
+
+          const res = await makeTxSignAndSend(solverProvider, ix)
+
+          const userBalanceAfter = getAtaBalance(client, userAta)
+          const recipientBalanceAfter = getAtaBalance(client, recipientAta)
+          const solverBalanceAfter = getAtaBalance(client, solverAta)
+
+          const totalTransfers = totalTransferAmount(transfer) * 2
+          const proposalFee = totalFees(proposal.fees)
+
+          // Logs events of two operations
+          expect(res.toString().split('Program data:').length).to.be.eq(3)
+
+          expect(userBalanceAfter).to.be.eq(userBalanceBefore - totalTransfers - proposalFee)
+          expect(recipientBalanceAfter).to.be.eq(recipientBalanceBefore + totalTransfers)
+          expect(solverBalanceAfter).to.be.eq(solverBalanceBefore + proposalFee)
+        })
+      })
 
       context('when intent has no operations', () => {
         beforeEach(async () => {
@@ -3042,7 +3083,6 @@ describe('Settler', () => {
         })
 
         it('executes noop', async () => {
-          const solverAta = getAssociatedTokenAddressSync(usdc, solver.publicKey)
           const feePayerAta = getAssociatedTokenAddressSync(usdc, translateAddress(intent.feePayer))
 
           const solverBalanceBefore = getAtaBalance(client, solverAta)
@@ -3052,7 +3092,7 @@ describe('Settler', () => {
 
           const solverBalanceAfter = getAtaBalance(client, solverAta)
           const feePayerBalanceAfter = getAtaBalance(client, feePayerAta)
-          const proposalFee = Number(proposal.fees[0])
+          const proposalFee = totalFees(proposal.fees)
 
           // Only accounts in context and other remaining accounts (no operations)
           expect(ix.keys.length).to.be.eq(14)
