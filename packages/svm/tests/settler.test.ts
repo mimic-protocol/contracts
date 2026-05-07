@@ -396,7 +396,26 @@ describe('Settler', () => {
           })
 
           context('when intent has no operations', () => {
-            // TODO
+            beforeEach(() => {
+              intentOptions = { operations: [], isFinal: true }
+            })
+
+            it('creates the intent with correct properties', async () => {
+              intentHash = await createTestIntent(solverSdk, solverProvider, intentOptions)
+              const intent = await settler.account.intent.fetch(sdk.getIntentKey(intentHash))
+
+              const expectedIntent = createIntentParams(client, intentOptions)
+              expect(intent.feePayer.toString()).to.be.eq(expectedIntent.feePayer!.toString())
+              expect(intent.creator.toString()).to.be.eq(solver.publicKey.toString())
+              expect(bytesToHex(Buffer.from(intent.nonce))).to.be.eq(expectedIntent.nonce)
+              expect(intent.deadline.toString()).to.be.eq(expectedIntent.deadline)
+              expect(intent.minValidations).to.be.eq(Math.max(1, expectedIntent.minValidations ?? 0))
+              expect(intent.isFinal).to.be.true
+              expect(intent.maxFees.length).to.be.eq(1)
+              expect(intent.maxFees[0].amount.toNumber()).to.be.eq(1000)
+              expect(intent.validators.length).to.be.eq(0)
+              expect(intent.operations.length).to.be.eq(0)
+            })
           })
         })
 
