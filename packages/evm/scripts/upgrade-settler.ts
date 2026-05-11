@@ -2,7 +2,7 @@ import { HardhatEthers, HardhatEthersSigner } from '@nomicfoundation/hardhat-eth
 import SafeApiKit from '@safe-global/api-kit'
 import Safe from '@safe-global/protocol-kit'
 import { MetaTransactionData as Transaction } from '@safe-global/types-kit'
-import { Contract, getAddress, Wallet } from 'ethers'
+import { Contract, Eip1193Provider, getAddress } from 'ethers'
 import { network } from 'hardhat'
 
 import ProxyAdminArtifact from '../artifacts/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol/ProxyAdmin.json'
@@ -12,7 +12,7 @@ import { deployCreate3 } from './deploy-create3'
 const ERC1967_ADMIN_SLOT = '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103'
 
 async function main(): Promise<void> {
-  const { ethers, networkConfig } = await network.connect()
+  const { ethers, networkConfig, provider } = await network.connect()
   const [signer] = await ethers.getSigners()
 
   if (!process.env.SETTLER_PROXY) throw Error('SETTLER_PROXY env variable not provided')
@@ -36,8 +36,7 @@ async function main(): Promise<void> {
     const to = await proxyAdmin.getAddress()
     const data = proxyAdmin.interface.encodeFunctionData('upgradeAndCall', [proxy, implementation.target, '0x'])
     const transactions = [{ to, value: '0', data }]
-    const rpcUrl = await networkConfig.url.getUrl()
-    await proposeSafeTransaction(safeAddress, transactions, chainId, rpcUrl)
+    await proposeSafeTransaction(safeAddress, transactions, chainId, signer, provider)
   } else {
     const tx = await proxyAdmin.upgradeAndCall(proxy, implementation.target, '0x')
     await tx.wait()
@@ -49,31 +48,23 @@ async function proposeSafeTransaction(
   safeAddress: string,
   transactions: Transaction[],
   chainId: bigint,
-  rpcUrl: string
+  signer: HardhatEthersSigner,
+  provider: Eip1193Provider
 ): Promise<void> {
   if (!process.env.SAFE_API_KEY) throw Error('SAFE_API_KEY env variable required for Safe proposal')
-
-  if (!process.env.DEPLOYER_PRIVATE_KEY) throw Error('DEPLOYER_PRIVATE_KEY env variable required for Safe proposal')
-  const signer = new Wallet(process.env.DEPLOYER_PRIVATE_KEY)
-
-  const safe = await Safe.init({
-    provider: rpcUrl,
-    safeAddress,
-  })
-
   const apiKit = new SafeApiKit({ chainId, apiKey: process.env.SAFE_API_KEY })
 
-  const safeTransaction = await safe.createTransaction({ transactions })
-
-  const safeTxHash = await safe.getTransactionHash(safeTransaction)
-  const senderSignature = signer.signingKey.sign(safeTxHash).serialized
+  const safe = await Safe.init({ safeAddress, signer: signer.address, provider })
+  const safeTx = await safe.createTransaction({ transactions })
+  const safeTxHash = await safe.getTransactionHash(safeTx)
+  const senderSignature = await safe.signHash(safeTxHash)
 
   await apiKit.proposeTransaction({
     safeAddress,
-    safeTransactionData: safeTransaction.data,
+    safeTransactionData: safeTx.data,
     safeTxHash,
     senderAddress: signer.address,
-    senderSignature,
+    senderSignature: senderSignature.data,
   })
 
   console.log(`✅ Upgrade proposed to Safe ${safeAddress}`)
