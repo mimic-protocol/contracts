@@ -1,6 +1,7 @@
 import { HardhatEthers, HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import SafeApiKit from '@safe-global/api-kit'
 import Safe from '@safe-global/protocol-kit'
+import { MetaTransactionData as Transaction } from '@safe-global/types-kit'
 import { Contract, getAddress, Wallet } from 'ethers'
 import { network } from 'hardhat'
 
@@ -32,8 +33,11 @@ async function main(): Promise<void> {
   if (safeAddress) {
     const { chainId } = await ethers.provider.getNetwork()
     if (networkConfig.type !== 'http') throw Error('Safe proposal requires an HTTP network')
+    const to = await proxyAdmin.getAddress()
+    const data = proxyAdmin.interface.encodeFunctionData('upgradeAndCall', [proxy, implementation.target, '0x'])
+    const transactions = [{ to, value: '0', data }]
     const rpcUrl = await networkConfig.url.getUrl()
-    await proposeTransaction(safeAddress, proxyAdmin, proxy, implementation.target, chainId, rpcUrl)
+    await proposeSafeTransaction(safeAddress, transactions, chainId, rpcUrl)
   } else {
     const tx = await proxyAdmin.upgradeAndCall(proxy, implementation.target, '0x')
     await tx.wait()
@@ -41,11 +45,9 @@ async function main(): Promise<void> {
   }
 }
 
-async function proposeTransaction(
+async function proposeSafeTransaction(
   safeAddress: string,
-  proxyAdmin: Contract,
-  proxy: string,
-  implementation: string,
+  transactions: Transaction[],
   chainId: bigint,
   rpcUrl: string
 ): Promise<void> {
@@ -61,12 +63,7 @@ async function proposeTransaction(
 
   const apiKit = new SafeApiKit({ chainId, apiKey: process.env.SAFE_API_KEY })
 
-  const data = proxyAdmin.interface.encodeFunctionData('upgradeAndCall', [proxy, implementation, '0x'])
-  const to = String(await proxyAdmin.getAddress())
-
-  const safeTransaction = await safe.createTransaction({
-    transactions: [{ to, value: '0', data }],
-  })
+  const safeTransaction = await safe.createTransaction({ transactions })
 
   const safeTxHash = await safe.getTransactionHash(safeTransaction)
   const senderSignature = signer.signingKey.sign(safeTxHash).serialized
