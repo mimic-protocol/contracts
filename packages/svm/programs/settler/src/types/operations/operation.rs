@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    types::{OpType, OperationEvent},
-    utils::add,
+    constants::VEC_SIZE_LEN, types::{OpType, OperationEvent}, utils::add
 };
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
@@ -24,7 +23,7 @@ impl Operation {
     }
 
     pub fn data_size(&self) -> Result<usize> {
-        add(4, self.data.len())
+        add(VEC_SIZE_LEN, self.data.len())
     }
 
     pub fn events_size(&self) -> Result<usize> {
@@ -32,6 +31,6 @@ impl Operation {
             .events
             .iter()
             .try_fold(0usize, |acc, e| add(acc, e.size()))?;
-        add(4, sum)
+        add(VEC_SIZE_LEN, sum)
     }
 }
