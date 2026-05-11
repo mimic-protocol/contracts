@@ -4,7 +4,7 @@ use crate::{
     controller::{self, accounts::EntityRegistry, types::EntityType},
     errors::SettlerError,
     state::{FulfilledIntent, Intent, Proposal},
-    types::IntentEvent,
+    types::OperationEvent,
     utils::{handle_intent_execution, pay_solver_fees},
 };
 
@@ -55,11 +55,26 @@ pub struct ExecuteProposal<'info> {
     )]
     pub fulfilled_intent: Box<Account<'info, FulfilledIntent>>,
 
-    #[account(seeds = [b"delegate", intent.user.key().as_ref()], bump)]
-    pub delegate: SystemAccount<'info>,
+    #[account(seeds = [b"delegate", intent.fee_payer.key().as_ref()], bump)]
+    pub fee_payer_delegate: SystemAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
+
+////////////////////////////////////////////////////////
+//          REMAINING ACCOUNTS                        //
+//                                                    //
+// [token_program, token_2022_program]                //
+//                                                    //
+// for operation in intent.operations:                //
+//   [user_delegate(operation.user)]                  //
+//                                                    //
+//   for transfer in operation.transfers:             //
+//     [token_mint, recipient, recipient_ta, user_ta] //
+//                                                    //
+// for each fee in proposal.fees / intent.max_fees:   //
+//   [fee_token_mint, solver_ta, fee_payer_ta]        //
+////////////////////////////////////////////////////////
 
 pub fn execute_proposal<'info>(
     ctx: Context<'_, '_, '_, 'info, ExecuteProposal<'info>>,
@@ -85,18 +100,11 @@ pub fn execute_proposal<'info>(
     handle_intent_execution(
         intent,
         proposal,
-        &ctx.accounts.delegate.clone(),
         &mut remaining_accounts_iter,
         token_program,
         token_2022_program,
-        ctx.bumps.delegate,
+        ctx.program_id,
     )?;
-
-    intent.events.iter().for_each(|event| {
-        emit!(IntentEventEvent {
-            event: event.clone()
-        })
-    });
 
     pay_solver_fees(
         &mut remaining_accounts_iter,
@@ -104,14 +112,14 @@ pub fn execute_proposal<'info>(
         proposal,
         token_program,
         token_2022_program,
-        &ctx.accounts.delegate.clone(),
-        ctx.bumps.delegate,
+        &ctx.accounts.fee_payer_delegate.clone(),
+        ctx.bumps.fee_payer_delegate,
     )?;
 
     Ok(())
 }
 
 #[event]
-pub struct IntentEventEvent {
-    event: IntentEvent,
+pub struct OperationEventEvent {
+    pub event: OperationEvent,
 }

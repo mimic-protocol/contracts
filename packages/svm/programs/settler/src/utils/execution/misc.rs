@@ -9,13 +9,53 @@ use core::slice::Iter;
 
 use crate::{
     errors::SettlerError,
+    instructions::OperationEventEvent,
     state::{Intent, Proposal},
-    types::OpType,
+    types::{OpType, Operation},
     utils::handle_transfer,
 };
 
 pub fn handle_intent_execution<'info>(
     intent: &Intent,
+    proposal: &Proposal,
+    remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
+    token_program: &AccountInfo<'info>,
+    token_2022_program: &AccountInfo<'info>,
+    program_id: &Pubkey,
+) -> Result<()> {
+    intent.operations.iter().try_for_each(|operation| {
+        let user_delegate = next_account_info(remaining_accounts_iter)?;
+        let (expected_delegate, delegate_bump) =
+            Pubkey::find_program_address(&[b"delegate", operation.user.as_ref()], program_id);
+
+        require_keys_eq!(
+            user_delegate.key(),
+            expected_delegate,
+            SettlerError::IncorrectUserDelegate
+        );
+
+        handle_operation_execution(
+            operation,
+            proposal,
+            user_delegate,
+            remaining_accounts_iter,
+            token_program,
+            token_2022_program,
+            delegate_bump,
+        )?;
+
+        operation.events.iter().for_each(|event| {
+            emit!(OperationEventEvent {
+                event: event.clone()
+            })
+        });
+
+        Ok(())
+    })
+}
+
+pub fn handle_operation_execution<'info>(
+    operation: &Operation,
     proposal: &Proposal,
     delegate: &AccountInfo<'info>,
     remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
@@ -23,10 +63,9 @@ pub fn handle_intent_execution<'info>(
     token_2022_program: &AccountInfo<'info>,
     delegate_bump: u8,
 ) -> Result<()> {
-    match intent.op {
-        OpType::Swap => err!(SettlerError::UnsupportedIntentOp),
+    match operation.op_type {
         OpType::Transfer => handle_transfer(
-            intent,
+            operation,
             proposal,
             delegate,
             remaining_accounts_iter,
@@ -34,8 +73,7 @@ pub fn handle_intent_execution<'info>(
             token_2022_program,
             delegate_bump,
         ),
-        OpType::EvmCall => err!(SettlerError::UnsupportedIntentOp),
-        OpType::SvmCall => err!(SettlerError::UnsupportedIntentOp),
+        _ => err!(SettlerError::UnsupportedIntentOp),
     }
 }
 
@@ -54,10 +92,10 @@ pub fn handle_intent_execution<'info>(
 ///
 /// #[account(
 ///     mut,
-///     token::owner = user,
+///     token::owner = fee_payer,
 ///     token::mint = fee_token,
 /// )]
-/// pub user_ta: Account<'info, ITokenAccount>,
+/// pub fee_payer_ta: Account<'info, ITokenAccount>,
 ///
 pub fn pay_solver_fees<'info>(
     remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
@@ -68,7 +106,7 @@ pub fn pay_solver_fees<'info>(
     delegate: &AccountInfo<'info>,
     delegate_bump: u8,
 ) -> Result<()> {
-    let delegate_seeds: &[&[u8]] = &[b"delegate", intent.user.as_ref(), &[delegate_bump]];
+    let delegate_seeds: &[&[u8]] = &[b"delegate", intent.fee_payer.as_ref(), &[delegate_bump]];
     let signer_seeds = [delegate_seeds];
 
     for (fee, max_fee) in proposal.fees.iter().zip(&intent.max_fees) {
@@ -102,13 +140,13 @@ pub fn pay_solver_fees<'info>(
         );
         require_keys_eq!(
             user_ta.owner,
-            intent.user,
-            SettlerError::IncorrectUserTokenAccount
+            intent.fee_payer,
+            SettlerError::IncorrectFeePayerTokenAccount
         );
         require_keys_eq!(
             user_ta.mint,
             max_fee.token,
-            SettlerError::IncorrectUserTokenAccount
+            SettlerError::IncorrectFeePayerTokenAccount
         );
         require_keys_eq!(
             solver_ta.owner,

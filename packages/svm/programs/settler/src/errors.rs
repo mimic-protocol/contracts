@@ -116,6 +116,9 @@ pub enum SettlerError {
     #[msg("Incorrect recipient token account: mint or authority do not match expected")]
     IncorrectRecipientTokenAccount,
 
+    #[msg("Incorrect fee payer token account: mint or authority do not match expected")]
+    IncorrectFeePayerTokenAccount,
+
     #[msg("Incorrect user token account: mint or authority do not match expected")]
     IncorrectUserTokenAccount,
 
@@ -124,6 +127,9 @@ pub enum SettlerError {
 
     #[msg("Incorrect token program account provided")]
     IncorrectTokenProgram,
+
+    #[msg("Incorrect user delegate")]
+    IncorrectUserDelegate,
 
     #[msg("Math Error")]
     MathError,

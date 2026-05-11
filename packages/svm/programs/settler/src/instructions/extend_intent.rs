@@ -3,11 +3,11 @@ use anchor_lang::prelude::*;
 use crate::{
     errors::SettlerError,
     state::Intent,
-    types::{IntentEvent, TokenFee},
+    types::{Operation, TokenFee},
 };
 
 #[derive(Accounts)]
-#[instruction(more_data: Option<Vec<u8>>, more_max_fees: Option<Vec<TokenFee>>, more_events: Option<Vec<IntentEvent>>)]
+#[instruction(more_max_fees: Option<Vec<TokenFee>>, more_operations: Option<Vec<Operation>>)]
 pub struct ExtendIntent<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -18,7 +18,11 @@ pub struct ExtendIntent<'info> {
         constraint = !intent.is_final @ SettlerError::IntentIsFinal,
         constraint = intent.deadline > Clock::get()?.unix_timestamp as u64 @ SettlerError::IntentIsExpired,
         realloc =
-            Intent::extended_size(intent.to_account_info().data_len(), &more_data, &more_max_fees, &more_events)?,
+            Intent::extended_size(
+                intent.to_account_info().data_len(),
+                &more_max_fees,
+                &more_operations
+            )?,
         realloc::payer = creator,
         realloc::zero = true
     )]
@@ -29,23 +33,18 @@ pub struct ExtendIntent<'info> {
 
 pub fn extend_intent(
     ctx: Context<ExtendIntent>,
-    more_data: Option<Vec<u8>>,
     more_max_fees: Option<Vec<TokenFee>>,
-    more_events: Option<Vec<IntentEvent>>,
+    more_operations: Option<Vec<Operation>>,
     finalize: bool,
 ) -> Result<()> {
     let intent = &mut ctx.accounts.intent;
-
-    if let Some(_more_data) = more_data {
-        intent.data.extend_from_slice(&_more_data);
-    }
 
     if let Some(_more_max_fees) = more_max_fees {
         intent.max_fees.extend_from_slice(&_more_max_fees);
     }
 
-    if let Some(_more_events) = more_events {
-        intent.events.extend_from_slice(&_more_events);
+    if let Some(_more_operations) = more_operations {
+        intent.operations.extend_from_slice(&_more_operations);
     }
 
     if finalize {

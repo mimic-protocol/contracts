@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 
-use crate::utils::{add, mul, sub, Proposal as Eip712Proposal};
+use crate::{
+    constants::{DISCRIMINATOR_LEN, VEC_SIZE_LEN},
+    utils::{add, mul, sub, Proposal as Eip712Proposal},
+};
 
 #[account]
 pub struct Proposal {
@@ -26,7 +29,7 @@ impl Proposal {
     ;
 
     pub fn total_size(instructions: &[ProposalInstruction], fees_len: usize) -> Result<usize> {
-        let size = add(8, Proposal::BASE_LEN)?;
+        let size = add(DISCRIMINATOR_LEN, Proposal::BASE_LEN)?;
         let size = add(size, Proposal::instructions_size(instructions)?)?;
         let size = add(size, Proposal::fees_size(fees_len)?)?;
         Ok(size)
@@ -36,17 +39,17 @@ impl Proposal {
         let sum = instructions
             .iter()
             .try_fold(0usize, |acc, ix| add(acc, ix.size()))?;
-        add(4, sum)
+        add(VEC_SIZE_LEN, sum)
     }
 
     pub fn fees_size(len: usize) -> Result<usize> {
-        add(4, mul(8, len)?)
+        add(VEC_SIZE_LEN, mul(8, len)?)
     }
 
     pub fn extended_size(size: usize, more_instructions: &[ProposalInstruction]) -> Result<usize> {
         sub(
             add(size, Proposal::instructions_size(more_instructions)?)?,
-            4,
+            VEC_SIZE_LEN,
         )
     }
 
@@ -57,7 +60,7 @@ impl Proposal {
             intent: intent_hash.into(),
             solver: self.creator.to_string(),
             deadline: U256::from(self.deadline),
-            data: vec![].into(),
+            datas: vec![vec![].into()],
             fees: self.fees.iter().map(|&fee| U256::from(fee)).collect(),
         }
     }
@@ -72,8 +75,8 @@ pub struct ProposalInstruction {
 
 impl ProposalInstruction {
     pub fn size(&self) -> usize {
-        let accounts_size = 4 + self.accounts.len() * (32 + 1 + 1);
-        let data_size = 4 + self.data.len();
+        let accounts_size = VEC_SIZE_LEN + self.accounts.len() * (32 + 1 + 1);
+        let data_size = VEC_SIZE_LEN + self.data.len();
 
         32 + accounts_size + data_size
     }

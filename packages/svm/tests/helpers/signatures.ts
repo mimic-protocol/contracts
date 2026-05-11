@@ -33,7 +33,7 @@ export async function createAxiaSignature(
     intent: Buffer.from(intentHash),
     solver: proposal.creator.toString(),
     deadline: proposal.deadline.toString(),
-    data: '0x', // TODO
+    datas: ['0x'], // TODO
     fees: proposal.fees.map((fee) => fee.toString()),
   }
 

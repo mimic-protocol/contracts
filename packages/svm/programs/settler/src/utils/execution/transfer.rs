@@ -7,11 +7,15 @@ use anchor_spl::{
 use core::slice::Iter;
 
 use crate::{
-    constants::CHAIN_ID, errors::SettlerError, state::{Intent, Proposal}, types::{SvmTransfer, SvmTransferIntentData}, utils::check_owner_is_token_program
+    constants::CHAIN_ID,
+    errors::SettlerError,
+    state::Proposal,
+    types::{Operation, SvmTransfer, SvmTransferIntentData},
+    utils::check_owner_is_token_program,
 };
 
 pub fn handle_transfer<'info>(
-    intent: &Intent,
+    operation: &Operation,
     proposal: &Proposal,
     delegate: &AccountInfo<'info>,
     remaining_accounts_iter: &mut Iter<'_, AccountInfo<'info>>,
@@ -19,13 +23,13 @@ pub fn handle_transfer<'info>(
     token_2022_program: &AccountInfo<'info>,
     delegate_bump: u8,
 ) -> Result<()> {
-    let decoded_intent_data = SvmTransferIntentData::try_from_slice(&intent.data)?;
+    let decoded_intent_data = SvmTransferIntentData::try_from_slice(&operation.data)?;
 
     validate_transfer(proposal, &decoded_intent_data)?;
 
-    let delegate_seeds: &[&[u8]] = &[b"delegate", intent.user.as_ref(), &[delegate_bump]];
+    let delegate_seeds: &[&[u8]] = &[b"delegate", operation.user.as_ref(), &[delegate_bump]];
     execute_transfers(
-        intent.user,
+        operation.user,
         delegate,
         remaining_accounts_iter,
         &decoded_intent_data,
@@ -211,7 +215,11 @@ fn check_token_accounts(
 }
 
 fn validate_transfer(proposal: &Proposal, intent_data: &SvmTransferIntentData) -> Result<()> {
-    require_eq!(intent_data.chain_id, CHAIN_ID, SettlerError::IncorrectChainId);
+    require_eq!(
+        intent_data.chain_id,
+        CHAIN_ID,
+        SettlerError::IncorrectChainId
+    );
     require_eq!(
         proposal.instructions.len(),
         0,
