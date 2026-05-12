@@ -15,7 +15,8 @@ async function main(): Promise<void> {
   if (!process.env.ADMIN) throw Error('ADMIN env variable not provided')
   if (!process.env.SOLVER) throw Error('SOLVER env variable not provided')
   if (!process.env.VALIDATOR) throw Error('VALIDATOR env variable not provided')
-  const { ADMIN, SOLVER, AXIA, VALIDATOR } = process.env
+  if (!process.env.SAFE) throw Error('SAFE env variable not provided')
+  const { ADMIN, SOLVER, AXIA, VALIDATOR, SAFE } = process.env
 
   const controllerArgs = [ADMIN, [SOLVER], [], [AXIA], [VALIDATOR], MIN_VALIDATORS]
   const controller = await deployCreate3(ControllerArtifact, controllerArgs, '0x17')
@@ -25,12 +26,16 @@ async function main(): Promise<void> {
 
   const initializeData = new Interface(SettlerArtifact.abi).encodeFunctionData('initialize', [
     controller.target,
-    ADMIN,
+    ADMIN, // settler owner
     dynamicCallEncoder.target,
   ])
   const settlerProxy = await deployCreate3(
     ProxyArtifact,
-    [settlerImplementation.target, ADMIN, initializeData],
+    [
+      settlerImplementation.target,
+      SAFE, // proxy owner
+      initializeData,
+    ],
     '0x04302603'
   )
 
