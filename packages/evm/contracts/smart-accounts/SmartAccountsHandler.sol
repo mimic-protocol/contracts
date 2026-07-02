@@ -16,6 +16,7 @@ pragma solidity ^0.8.20;
 
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
+import '@openzeppelin/contracts/utils/introspection/ERC165Checker.sol';
 
 import '../interfaces/ISafe.sol';
 import '../interfaces/ISmartAccount.sol';
@@ -23,6 +24,8 @@ import '../interfaces/ISmartAccountsHandler.sol';
 import '../utils/Denominations.sol';
 
 contract SmartAccountsHandler is ISmartAccountsHandler {
+    using ERC165Checker for address;
+
     /**
      * @dev Tells whether an account is a supported smart account
      * @param account Address of the account being queried
@@ -90,11 +93,7 @@ contract SmartAccountsHandler is ISmartAccountsHandler {
      * @param account Address of the account being queried
      */
     function _isMimicSmartAccount(address account) internal view returns (bool) {
-        try ISmartAccount(account).supportsInterface(type(ISmartAccount).interfaceId) returns (bool ok) {
-            return ok;
-        } catch {
-            return false;
-        }
+        return account.supportsInterface(type(ISmartAccount).interfaceId);
     }
 
     /**
@@ -102,10 +101,7 @@ contract SmartAccountsHandler is ISmartAccountsHandler {
      * @param account Address of the account being queried
      */
     function _isSafe(address account) internal view returns (bool) {
-        try ISafe(account).getThreshold() returns (uint256) {
-            return true;
-        } catch {
-            return false;
-        }
+        (bool success, bytes memory data) = account.staticcall(abi.encodeWithSelector(ISafe.getThreshold.selector));
+        return success && data.length == 32;
     }
 }

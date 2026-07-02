@@ -45,6 +45,12 @@ describe('SmartAccountsHandler', () => {
       expect(await handler.isSmartAccount(handler)).to.be.false
     })
 
+    it('returns false for contracts with a fallback only', async () => {
+      const fallback = await ethers.deployContract('FallbackMock')
+
+      expect(await handler.isSmartAccount(fallback)).to.be.false
+    })
+
     it('returns true for a Mimic SmartAccount', async () => {
       expect(await handler.isSmartAccount(smartAccountContract)).to.be.true
     })
