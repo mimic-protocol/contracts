@@ -14,6 +14,8 @@
 
 pragma solidity ^0.8.20;
 
+import { Math } from '@openzeppelin/contracts/utils/math/Math.sol';
+
 /**
  * @title Mimic Helper
  * @dev Collection of helper functions for the Mimic Protocol
@@ -26,6 +28,16 @@ contract MimicHelper {
      * @dev Emitted every time the storage is set
      */
     event StorageSet(address indexed user, string indexed key, bytes indexed data);
+
+    /**
+     * @dev The percents add up to 100 or more
+     */
+    error MimicHelperInvalidPercent();
+
+    /**
+     * @dev The percents array is empty
+     */
+    error MimicHelperEmptyPercents();
 
     /**
      * @dev Tells the native token balance of an address
@@ -60,5 +72,31 @@ contract MimicHelper {
     function setStorage(string calldata key, bytes memory data) external {
         _customStorage[msg.sender][key] = data;
         emit StorageSet(msg.sender, key, data);
+    }
+
+    /**
+     * @dev Splits an amount by specified percentages.
+     * All remainder goes to the last split.
+     * @param amount Amount to be split
+     * @param percents Array of percents
+     * @return splits Array of `percents.length + 1` amounts; the last element holds the remainder
+     */
+    function pct(uint256 amount, uint8[] calldata percents) external pure returns (uint256[] memory splits) {
+        uint256 len = percents.length;
+        if (len == 0) revert MimicHelperEmptyPercents();
+
+        splits = new uint256[](len + 1);
+        uint256 pctSum = 0;
+        uint256 amountSum = 0;
+
+        for (uint256 i = 0; i < len; i++) {
+            splits[i] = Math.mulDiv(amount, percents[i], 100);
+            amountSum += splits[i];
+            pctSum += percents[i];
+        }
+        if (pctSum >= 100) revert MimicHelperInvalidPercent();
+
+        splits[len] = amount - amountSum; // absorbs rounding dust; never underflows since pctSum < 100
+        return splits;
     }
 }

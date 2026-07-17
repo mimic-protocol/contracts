@@ -116,4 +116,59 @@ describe('MimicHelper', () => {
       })
     })
   })
+
+  describe('pct', () => {
+    context('when the percents leave a remainder', () => {
+      const amount = 101n
+      const percents = [50]
+
+      it('returns splits that add up to the total', async () => {
+        const splits = await mimicHelper.pct(amount, percents)
+
+        expect(splits).to.have.lengthOf(percents.length + 1)
+        expect(splits[0]).to.be.equal(50n)
+        expect(splits[1]).to.be.equal(51n)
+        expect(splits.reduce((total, split) => total + split, 0n)).to.be.equal(amount)
+      })
+    })
+
+    context('when there are multiple percents', () => {
+      const amount = 100n
+      const percents = [30, 30]
+
+      it('returns a split per percent plus the remainder', async () => {
+        const splits = await mimicHelper.pct(amount, percents)
+
+        expect(splits).to.have.lengthOf(percents.length + 1)
+        expect(splits[0]).to.be.equal(30n)
+        expect(splits[1]).to.be.equal(30n)
+        expect(splits[2]).to.be.equal(40n)
+        expect(splits.reduce((total, split) => total + split, 0n)).to.be.equal(amount)
+      })
+    })
+
+    context('when the percents sum to 100% or more', () => {
+      const amount = 101n
+      const percents = [50, 50]
+
+      it('reverts', async () => {
+        await expect(mimicHelper.pct(amount, percents)).to.be.revertedWithCustomError(
+          mimicHelper,
+          'MimicHelperInvalidPercent'
+        )
+      })
+    })
+
+    context('when the percents array is empty', () => {
+      const amount = 101n
+      const percents: number[] = []
+
+      it('reverts', async () => {
+        await expect(mimicHelper.pct(amount, percents)).to.be.revertedWithCustomError(
+          mimicHelper,
+          'MimicHelperEmptyPercents'
+        )
+      })
+    })
+  })
 })
