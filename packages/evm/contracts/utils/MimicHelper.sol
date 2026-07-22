@@ -30,7 +30,7 @@ contract MimicHelper {
     event StorageSet(address indexed user, string indexed key, bytes indexed data);
 
     /**
-     * @dev The percents add up to 100 or more
+     * @dev A single percent is greater than 100, or a list of percents adds up to 100 or more
      */
     error MimicHelperInvalidPercent();
 
@@ -75,28 +75,34 @@ contract MimicHelper {
     }
 
     /**
-     * @dev Splits an amount by specified percentages.
-     * All remainder goes to the last split.
-     * @param amount Amount to be split
-     * @param percents Array of percents
-     * @return splits Array of `percents.length + 1` amounts; the last element holds the remainder
+     * @dev Tells a percentage of an amount, rounding down
+     * @param amount Amount to compute the percentage of
+     * @param percent Percentage to apply, expressed as an integer between 0 and 100
      */
-    function pct(uint256 amount, uint8[] calldata percents) external pure returns (uint256[] memory splits) {
+    function pct(uint256 amount, uint8 percent) external pure returns (uint256) {
+        if (percent > 100) revert MimicHelperInvalidPercent();
+        return Math.mulDiv(amount, percent, 100);
+    }
+
+    /**
+     * @dev Tells the amount left after allocating a list of percentages, capturing any rounding dust.
+     *      The result equals `amount` minus the sum of `pct(amount, percents[i])`, so a set of `pct`
+     *      calls plus this remainder always add up to exactly `amount`.
+     * @param amount Amount to compute the remainder of
+     * @param percents List of percentages already allocated, each expressed as an integer.
+     */
+    function pctRemainder(uint256 amount, uint8[] calldata percents) external pure returns (uint256) {
         uint256 len = percents.length;
         if (len == 0) revert MimicHelperEmptyPercents();
 
-        splits = new uint256[](len + 1);
+        uint256 allocated = 0;
         uint256 pctSum = 0;
-        uint256 amountSum = 0;
-
         for (uint256 i = 0; i < len; i++) {
-            splits[i] = Math.mulDiv(amount, percents[i], 100);
-            amountSum += splits[i];
+            allocated += Math.mulDiv(amount, percents[i], 100);
             pctSum += percents[i];
         }
         if (pctSum >= 100) revert MimicHelperInvalidPercent();
 
-        splits[len] = amount - amountSum; // absorbs rounding dust; never underflows since pctSum < 100
-        return splits;
+        return amount - allocated;
     }
 }

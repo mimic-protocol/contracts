@@ -118,14 +118,41 @@ describe('MimicHelper', () => {
   })
 
   describe('pct', () => {
+    const amount = 101n
+
+    context('when the percent is between 0 and 100', () => {
+      it('returns the percentage rounding down', async () => {
+        expect(await mimicHelper.pct(amount, 0)).to.be.equal(0n)
+        expect(await mimicHelper.pct(amount, 50)).to.be.equal(50n)
+        expect(await mimicHelper.pct(amount, 100)).to.be.equal(amount)
+      })
+    })
+
+    context('when the percent is greater than 100', () => {
+      it('reverts', async () => {
+        await expect(mimicHelper.pct(amount, 101)).to.be.revertedWithCustomError(
+          mimicHelper,
+          'MimicHelperInvalidPercent'
+        )
+      })
+    })
+  })
+
+  describe('pct and pctRemainder', () => {
+    async function getSplits(amount: bigint, percents: number[]): Promise<bigint[]> {
+      const splits = []
+      for (let i = 0; i < percents.length; i++) splits.push(await mimicHelper.pct(amount, percents[i]))
+      splits.push(await mimicHelper.pctRemainder(amount, percents))
+      return splits
+    }
+
     context('when the percents leave a remainder', () => {
       const amount = 101n
       const percents = [50]
 
-      it('returns splits that add up to the total', async () => {
-        const splits = await mimicHelper.pct(amount, percents)
+      it('returns the correct pcts', async () => {
+        const splits = await getSplits(amount, percents)
 
-        expect(splits).to.have.lengthOf(percents.length + 1)
         expect(splits[0]).to.be.equal(50n)
         expect(splits[1]).to.be.equal(51n)
         expect(splits.reduce((total, split) => total + split, 0n)).to.be.equal(amount)
@@ -133,17 +160,29 @@ describe('MimicHelper', () => {
     })
 
     context('when there are multiple percents', () => {
-      const amount = 100n
+      const amount = 101n
       const percents = [30, 30]
 
-      it('returns a split per percent plus the remainder', async () => {
-        const splits = await mimicHelper.pct(amount, percents)
+      it('returns the correct pcts', async () => {
+        const splits = await getSplits(amount, percents)
 
-        expect(splits).to.have.lengthOf(percents.length + 1)
         expect(splits[0]).to.be.equal(30n)
         expect(splits[1]).to.be.equal(30n)
-        expect(splits[2]).to.be.equal(40n)
+        expect(splits[2]).to.be.equal(41n)
         expect(splits.reduce((total, split) => total + split, 0n)).to.be.equal(amount)
+      })
+    })
+
+    context('when the amount is zero', () => {
+      const amount = 0n
+      const percents = [30, 30]
+
+      it('returns zero for every split', async () => {
+        const splits = await getSplits(amount, percents)
+
+        expect(splits[0]).to.be.equal(0n)
+        expect(splits[1]).to.be.equal(0n)
+        expect(splits[2]).to.be.equal(0n)
       })
     })
 
@@ -152,7 +191,7 @@ describe('MimicHelper', () => {
       const percents = [50, 50]
 
       it('reverts', async () => {
-        await expect(mimicHelper.pct(amount, percents)).to.be.revertedWithCustomError(
+        await expect(mimicHelper.pctRemainder(amount, percents)).to.be.revertedWithCustomError(
           mimicHelper,
           'MimicHelperInvalidPercent'
         )
@@ -164,7 +203,7 @@ describe('MimicHelper', () => {
       const percents: number[] = []
 
       it('reverts', async () => {
-        await expect(mimicHelper.pct(amount, percents)).to.be.revertedWithCustomError(
+        await expect(mimicHelper.pctRemainder(amount, percents)).to.be.revertedWithCustomError(
           mimicHelper,
           'MimicHelperEmptyPercents'
         )
