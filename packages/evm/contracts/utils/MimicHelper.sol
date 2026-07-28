@@ -83,26 +83,4 @@ contract MimicHelper {
         if (percent > 100) revert MimicHelperInvalidPercent();
         return Math.mulDiv(amount, percent, 100);
     }
-
-    /**
-     * @dev Tells the amount left after allocating a list of percentages, capturing any rounding dust.
-     *      The result equals `amount` minus the sum of `pct(amount, percents[i])`, so a set of `pct`
-     *      calls plus this remainder always add up to exactly `amount`.
-     * @param amount Amount to compute the remainder of
-     * @param percents List of percentages already allocated, each expressed as an integer.
-     */
-    function pctRemainder(uint256 amount, uint8[] calldata percents) external pure returns (uint256) {
-        uint256 len = percents.length;
-        if (len == 0) revert MimicHelperEmptyPercents();
-
-        uint256 allocated = 0;
-        uint256 pctSum = 0;
-        for (uint256 i = 0; i < len; i++) {
-            allocated += Math.mulDiv(amount, percents[i], 100);
-            pctSum += percents[i];
-        }
-        if (pctSum >= 100) revert MimicHelperInvalidPercent();
-
-        return amount - allocated;
-    }
 }
