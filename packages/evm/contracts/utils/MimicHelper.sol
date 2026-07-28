@@ -21,6 +21,9 @@ import { Math } from '@openzeppelin/contracts/utils/math/Math.sol';
  * @dev Collection of helper functions for the Mimic Protocol
  */
 contract MimicHelper {
+    // Basis points scale
+    uint16 internal constant BPS_SCALE = 10_000;
+
     // Custom byte storage per user and key
     mapping (address => mapping (string => bytes)) internal _customStorage;
 
@@ -30,14 +33,9 @@ contract MimicHelper {
     event StorageSet(address indexed user, string indexed key, bytes indexed data);
 
     /**
-     * @dev A single percent is greater than 100, or a list of percents adds up to 100 or more
+     * @dev A single percent is greater than 10_000 basis points
      */
     error MimicHelperInvalidPercent();
-
-    /**
-     * @dev The percents array is empty
-     */
-    error MimicHelperEmptyPercents();
 
     /**
      * @dev Tells the native token balance of an address
@@ -77,10 +75,10 @@ contract MimicHelper {
     /**
      * @dev Tells a percentage of an amount, rounding down
      * @param amount Amount to compute the percentage of
-     * @param percent Percentage to apply, expressed as an integer between 0 and 100
+     * @param percent Percentage to apply, expressed in basis points. 10_000 = 100%, 50 = 0.5%
      */
-    function pct(uint256 amount, uint8 percent) external pure returns (uint256) {
-        if (percent > 100) revert MimicHelperInvalidPercent();
-        return Math.mulDiv(amount, percent, 100);
+    function pct(uint256 amount, uint16 percent) external pure returns (uint256) {
+        if (percent > BPS_SCALE) revert MimicHelperInvalidPercent();
+        return Math.mulDiv(amount, percent, BPS_SCALE);
     }
 }
