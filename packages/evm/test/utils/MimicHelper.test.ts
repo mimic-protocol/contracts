@@ -118,19 +118,38 @@ describe('MimicHelper', () => {
   })
 
   describe('pct', () => {
-    const amount = 101n
-
     context('when the percent is between 0 and 100', () => {
-      it('returns the percentage rounding down', async () => {
-        expect(await mimicHelper.pct(amount, 0)).to.be.equal(0n)
-        expect(await mimicHelper.pct(amount, 50)).to.be.equal(50n)
-        expect(await mimicHelper.pct(amount, 100)).to.be.equal(amount)
+      context('when amount is not 0', () => {
+        const amount = 101n
+
+        it('returns the percentage rounding down', async () => {
+          expect(await mimicHelper.pct(amount, 0)).to.be.equal(0n)
+          expect(await mimicHelper.pct(amount, 1)).to.be.equal(1n)
+          expect(await mimicHelper.pct(amount, 50)).to.be.equal(50n)
+          expect(await mimicHelper.pct(amount, 100)).to.be.equal(amount)
+        })
+
+        it('always rounds down', async () => {
+          expect(await mimicHelper.pct(1, 99)).to.equal(0n)
+          expect(await mimicHelper.pct(3, 33)).to.equal(0n)
+          expect(await mimicHelper.pct(4, 33)).to.equal(1n)
+          expect(await mimicHelper.pct(99, 33)).to.equal(32n)
+          expect(await mimicHelper.pct(100, 33)).to.equal(33n)
+        })
+      })
+
+      context('when amount is 0', () => {
+        it('returns 0', async () => {
+          expect(await mimicHelper.pct(0, 0)).to.equal(0n)
+          expect(await mimicHelper.pct(0, 50)).to.equal(0n)
+          expect(await mimicHelper.pct(0, 100)).to.equal(0n)
+        })
       })
     })
 
     context('when the percent is greater than 100', () => {
       it('reverts', async () => {
-        await expect(mimicHelper.pct(amount, 101)).to.be.revertedWithCustomError(
+        await expect(mimicHelper.pct(1, 101)).to.be.revertedWithCustomError(
           mimicHelper,
           'MimicHelperInvalidPercent'
         )
