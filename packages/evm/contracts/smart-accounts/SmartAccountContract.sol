@@ -89,7 +89,7 @@ contract SmartAccountContract is ISmartAccountContract, Ownable, SmartAccountBas
      * @param hash Message signed by the account
      * @param signature Signature provided to be verified
      */
-    function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
+    function isValidSignature(bytes32 hash, bytes memory signature) external view virtual override returns (bytes4) {
         (address signer, , ) = ECDSA.tryRecover(hash, signature);
         if (signer != address(0) && (signer == owner() || isSignerAllowed[signer])) return EIP1271_MAGIC_VALUE;
         return EIP1271_INVALID_SIGNATURE;
@@ -115,7 +115,7 @@ contract SmartAccountContract is ISmartAccountContract, Ownable, SmartAccountBas
      * @param accounts List of account addresses
      * @param allowances List of allowed condition per account
      */
-    function setAllowedSigners(address[] memory accounts, bool[] memory allowances) external onlyOwner {
+    function setAllowedSigners(address[] memory accounts, bool[] memory allowances) external virtual onlyOwner {
         if (accounts.length != allowances.length) revert SmartAccountInputInvalidLength();
         for (uint256 i = 0; i < accounts.length; i++) {
             address account = accounts[i];
