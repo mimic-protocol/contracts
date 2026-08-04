@@ -6,7 +6,7 @@
   "Create3SmartAccount7702#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
   "Create3SmartAccount7702#SmartAccount7702": "0x14AE3C251881d2214E376bfa38dD98A4Bd33550c",
   "Create3MimicHelper#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
-  "Create3MimicHelper#MimicHelper": "0x5cf82cBED1110fc2f75B3413d53abac492931804",
+  "Create3MimicHelper#MimicHelper": "0x2Ef71E27560874B932EF1cF9E95d340595a92F44",
   "Create3DynamicCallEncoder#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
   "Create3DynamicCallEncoder#DynamicCallEncoder": "0xb3F0F65FA3f94890B7a5Bd17843a6fdfB9407dbD",
   "Create3Proxy#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
@@ -14,5 +14,7 @@
   "Create3DynamicCallEncoderV1#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
   "Create3DynamicCallEncoderV1#DynamicCallEncoder": "0x183E61BDE23a80f4D1e003653288d4B4551681ed",
   "Create3SettlerV1#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
-  "Create3SettlerV1#Settler": "0x3734D7284f46037688252b13ef6d88E3FFDF5e1B"
+  "Create3SettlerV1#Settler": "0x3734D7284f46037688252b13ef6d88E3FFDF5e1B",
+  "Create3SmartAccountContractPublic#ICreateX": "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed",
+  "Create3SmartAccountContractPublic#SmartAccountContractPublic": "0x2518928fDf52319CC5A9a797354cf159cD2221bB"
 }
