@@ -14,11 +14,16 @@
 
 pragma solidity ^0.8.20;
 
+import { Math } from '@openzeppelin/contracts/utils/math/Math.sol';
+
 /**
  * @title Mimic Helper
  * @dev Collection of helper functions for the Mimic Protocol
  */
 contract MimicHelper {
+    // Basis points scale
+    uint16 internal constant BPS_SCALE = 10_000;
+
     // Custom byte storage per user and key
     mapping (address => mapping (string => bytes)) internal _customStorage;
 
@@ -26,6 +31,11 @@ contract MimicHelper {
      * @dev Emitted every time the storage is set
      */
     event StorageSet(address indexed user, string indexed key, bytes indexed data);
+
+    /**
+     * @dev A single percent is greater than 10_000 basis points
+     */
+    error MimicHelperInvalidPercent();
 
     /**
      * @dev Tells the native token balance of an address
@@ -60,5 +70,15 @@ contract MimicHelper {
     function setStorage(string calldata key, bytes memory data) external {
         _customStorage[msg.sender][key] = data;
         emit StorageSet(msg.sender, key, data);
+    }
+
+    /**
+     * @dev Tells a percentage of an amount, rounding down
+     * @param amount Amount to compute the percentage of
+     * @param percent Percentage to apply, expressed in basis points. 10_000 = 100%, 50 = 0.5%
+     */
+    function pct(uint256 amount, uint16 percent) external pure returns (uint256) {
+        if (percent > BPS_SCALE) revert MimicHelperInvalidPercent();
+        return Math.mulDiv(amount, percent, BPS_SCALE);
     }
 }

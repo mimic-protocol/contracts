@@ -116,4 +116,48 @@ describe('MimicHelper', () => {
       })
     })
   })
+
+  describe('pct', () => {
+    const BPS_SCALE = 10_000
+
+    context('when the percent is between 0 and 10_000', () => {
+      context('when amount is not 0', () => {
+        const amount = 101n
+
+        it('returns the percentage rounding down', async () => {
+          expect(await mimicHelper.pct(amount, 0)).to.be.equal(0n)
+          expect(await mimicHelper.pct(amount, 50)).to.be.equal(0n)
+          expect(await mimicHelper.pct(amount, 100)).to.be.equal(1n)
+          expect(await mimicHelper.pct(amount, 5000)).to.be.equal(50n)
+          expect(await mimicHelper.pct(amount, BPS_SCALE)).to.be.equal(amount)
+        })
+
+        it('always rounds down', async () => {
+          expect(await mimicHelper.pct(1, 9900)).to.equal(0n)
+          expect(await mimicHelper.pct(3, 3333)).to.equal(0n)
+          expect(await mimicHelper.pct(3, 3334)).to.equal(1n)
+          expect(await mimicHelper.pct(4, 3333)).to.equal(1n)
+          expect(await mimicHelper.pct(99, 3300)).to.equal(32n)
+          expect(await mimicHelper.pct(100, 3300)).to.equal(33n)
+        })
+      })
+
+      context('when amount is 0', () => {
+        it('returns 0', async () => {
+          expect(await mimicHelper.pct(0, 0)).to.equal(0n)
+          expect(await mimicHelper.pct(0, 5000)).to.equal(0n)
+          expect(await mimicHelper.pct(0, BPS_SCALE)).to.equal(0n)
+        })
+      })
+    })
+
+    context('when the percent is greater than 10_000', () => {
+      it('reverts', async () => {
+        await expect(mimicHelper.pct(1, BPS_SCALE + 1)).to.be.revertedWithCustomError(
+          mimicHelper,
+          'MimicHelperInvalidPercent'
+        )
+      })
+    })
+  })
 })
