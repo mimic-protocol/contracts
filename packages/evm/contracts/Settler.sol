@@ -42,6 +42,7 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
     using IntentsHelpers for Validation;
+    using SafeguardsHelpers for UserSafeguard;
     using SmartAccountsHandlerHelpers for address;
 
     // Mimic controller reference
@@ -61,6 +62,9 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
 
     // Safeguard config per user
     mapping (address => bytes) internal _userSafeguard;
+
+    // Next safeguard nonce that must be signed by each user
+    mapping (address => uint256) public override getUserSafeguardNonce;
 
     /**
      * @dev Modifier to tag settler functions in order to check if the sender is an allowed solver
@@ -175,6 +179,28 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
      */
     function setSafeguard(bytes memory safeguard) external override {
         _setSafeguard(msg.sender, safeguard);
+    }
+
+    /**
+     * @dev Sets a safeguard on behalf of a user based on the user's signature
+     * @param user Address of the user to set the safeguard for
+     * @param safeguard Safeguard to be set
+     * @param deadline Timestamp until when the signature can be used
+     * @param signature Signature of the user authorizing the safeguard
+     */
+    function setSafeguardWithSignature(address user, bytes memory safeguard, uint256 deadline, bytes memory signature)
+        external
+        override
+    {
+        if (deadline <= block.timestamp) revert SettlerSafeguardPastDeadline(deadline, block.timestamp);
+
+        // Consuming the nonce makes each signature usable only once, no matter who submits it
+        uint256 nonce = getUserSafeguardNonce[user]++;
+        UserSafeguard memory userSafeguard = UserSafeguard(user, safeguard, nonce, deadline);
+        address signer = ECDSA.recover(_hashTypedDataV4(userSafeguard.hash()), signature);
+        if (signer != user) revert SettlerSafeguardInvalidSigner(signer, user);
+
+        _setSafeguard(user, safeguard);
     }
 
     /**

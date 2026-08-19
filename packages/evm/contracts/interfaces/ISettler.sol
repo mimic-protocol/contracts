@@ -145,6 +145,16 @@ interface ISettler {
     error SettlerTooManySafeguards(uint256 lengthRequested);
 
     /**
+     * @dev The safeguard deadline is in the past
+     */
+    error SettlerSafeguardPastDeadline(uint256 deadline, uint256 timestamp);
+
+    /**
+     * @dev The safeguard signature does not belong to the user
+     */
+    error SettlerSafeguardInvalidSigner(address signer, address user);
+
+    /**
      * @dev The chains of a swap operation do not match the swap type (single or cross chain)
      */
     error SettlerOperationChainsMismatch();
@@ -242,6 +252,12 @@ interface ISettler {
     function getUserSafeguard(address user) external view returns (bytes memory);
 
     /**
+     * @dev Tells the next safeguard nonce that must be signed by a user
+     * @param user Address of the user being queried
+     */
+    function getUserSafeguardNonce(address user) external view returns (uint256);
+
+    /**
      * @dev Tells the hash of an intent
      * @param intent Intent to get the hash of
      */
@@ -289,6 +305,16 @@ interface ISettler {
      * @param safeguard Safeguard to be set
      */
     function setSafeguard(bytes memory safeguard) external;
+
+    /**
+     * @dev Sets a safeguard on behalf of a user based on the user's signature
+     * @param user Address of the user to set the safeguard for
+     * @param safeguard Safeguard to be set
+     * @param deadline Timestamp until when the signature can be used
+     * @param signature Signature of the user authorizing the safeguard
+     */
+    function setSafeguardWithSignature(address user, bytes memory safeguard, uint256 deadline, bytes memory signature)
+        external;
 
     /**
      * @dev Executes a proposal to fulfill an intent
