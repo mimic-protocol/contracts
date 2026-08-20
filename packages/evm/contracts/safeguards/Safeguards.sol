@@ -62,7 +62,7 @@ struct Safeguard {
  * @dev EIP-712 typed data struct representing a user's authorization to set its safeguard
  * @param user User the safeguard belongs to
  * @param safeguard Encoded safeguard config to be set for the user
- * @param nonce Sequential value used to prevent replay attacks
+ * @param nonce Unique value chosen by the user to prevent replay attacks
  * @param deadline Timestamp by which the safeguard must be set
  */
 struct UserSafeguard {

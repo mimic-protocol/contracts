@@ -155,6 +155,11 @@ interface ISettler {
     error SettlerSafeguardInvalidSigner(address signer, address user);
 
     /**
+     * @dev The safeguard nonce was already used by the user
+     */
+    error SettlerSafeguardNonceAlreadyUsed(address user, uint256 nonce);
+
+    /**
      * @dev The chains of a swap operation do not match the swap type (single or cross chain)
      */
     error SettlerOperationChainsMismatch();
@@ -252,10 +257,11 @@ interface ISettler {
     function getUserSafeguard(address user) external view returns (bytes memory);
 
     /**
-     * @dev Tells the next safeguard nonce that must be signed by a user
+     * @dev Tells whether a safeguard nonce was already used by a user
      * @param user Address of the user being queried
+     * @param nonce Safeguard nonce being queried
      */
-    function getUserSafeguardNonce(address user) external view returns (uint256);
+    function isUserSafeguardNonceUsed(address user, uint256 nonce) external view returns (bool);
 
     /**
      * @dev Tells the hash of an intent
@@ -310,11 +316,17 @@ interface ISettler {
      * @dev Sets a safeguard on behalf of a user based on the user's signature
      * @param user Address of the user to set the safeguard for
      * @param safeguard Safeguard to be set
+     * @param nonce Unique value chosen by the user to prevent replay attacks
      * @param deadline Timestamp until when the signature can be used
      * @param signature Signature of the user authorizing the safeguard
      */
-    function setSafeguardWithSignature(address user, bytes memory safeguard, uint256 deadline, bytes memory signature)
-        external;
+    function setSafeguardWithSignature(
+        address user,
+        bytes memory safeguard,
+        uint256 nonce,
+        uint256 deadline,
+        bytes memory signature
+    ) external;
 
     /**
      * @dev Executes a proposal to fulfill an intent

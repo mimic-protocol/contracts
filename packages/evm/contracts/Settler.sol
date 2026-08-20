@@ -63,8 +63,8 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
     // Safeguard config per user
     mapping (address => bytes) internal _userSafeguard;
 
-    // Next safeguard nonce that must be signed by each user
-    mapping (address => uint256) public override getUserSafeguardNonce;
+    // Whether a safeguard nonce was already used by a user
+    mapping (address => mapping (uint256 => bool)) public override isUserSafeguardNonceUsed;
 
     /**
      * @dev Modifier to tag settler functions in order to check if the sender is an allowed solver
@@ -185,21 +185,28 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
      * @dev Sets a safeguard on behalf of a user based on the user's signature
      * @param user Address of the user to set the safeguard for
      * @param safeguard Safeguard to be set
+     * @param nonce Unique value chosen by the user to prevent replay attacks
      * @param deadline Timestamp until when the signature can be used
      * @param signature Signature of the user authorizing the safeguard
      */
-    function setSafeguardWithSignature(address user, bytes memory safeguard, uint256 deadline, bytes memory signature)
-        external
-        override
-    {
+    function setSafeguardWithSignature(
+        address user,
+        bytes memory safeguard,
+        uint256 nonce,
+        uint256 deadline,
+        bytes memory signature
+    ) external override {
         if (deadline <= block.timestamp) revert SettlerSafeguardPastDeadline(deadline, block.timestamp);
 
-        // Consuming the nonce makes each signature usable only once, no matter who submits it
-        uint256 nonce = getUserSafeguardNonce[user]++;
+        mapping (uint256 => bool) storage usedNonces = isUserSafeguardNonceUsed[user];
+        if (usedNonces[nonce]) revert SettlerSafeguardNonceAlreadyUsed(user, nonce);
+
         UserSafeguard memory userSafeguard = UserSafeguard(user, safeguard, nonce, deadline);
         address signer = ECDSA.recover(_hashTypedDataV4(userSafeguard.hash()), signature);
         if (signer != user) revert SettlerSafeguardInvalidSigner(signer, user);
 
+        // Consuming the nonce makes each signature usable only once, no matter who submits it
+        usedNonces[nonce] = true;
         _setSafeguard(user, safeguard);
     }
 
@@ -327,7 +334,7 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
                 outputs[i] = abi.encode(amounts[i]);
             }
 
-            _emitOperationEvents(operation, proposal, intent.hash(), index, abi.encode(amounts));
+            _emitOperationEvents(operation, proposal, operationHash, index, abi.encode(amounts));
         }
     }
 
