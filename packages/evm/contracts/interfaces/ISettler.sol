@@ -313,12 +313,14 @@ interface ISettler {
     function setSafeguard(bytes memory safeguard) external;
 
     /**
-     * @dev Sets a safeguard on behalf of a user based on the user's signature
+     * @dev Sets a safeguard on behalf of a user based on a signature authorized by that user. The user can be
+     * an EOA authorizing it with its own ECDSA signature, or a smart account implementing ERC-1271.
      * @param user Address of the user to set the safeguard for
      * @param safeguard Safeguard to be set
      * @param nonce Unique value chosen by the user to prevent replay attacks
      * @param deadline Timestamp until when the signature can be used
-     * @param signature Signature of the user authorizing the safeguard
+     * @param signature EIP-712 signature authorizing the safeguard, verified with ECDSA or ERC-1271. It may be
+     * empty for smart accounts that track approved messages on-chain.
      */
     function setSafeguardWithSignature(
         address user,
