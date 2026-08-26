@@ -1,6 +1,6 @@
 import { BigNumberish, SETTLER_EIP712_DOMAIN } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
-import { AbiCoder, Contract } from 'ethers'
+import { AbiCoder, Contract, TypedDataEncoder } from 'ethers'
 import { network } from 'hardhat'
 
 import { Account, toAddress } from './addresses'
@@ -112,6 +112,19 @@ export function createTreeSafeguard(groups: SafeguardGroup[], leaves: Safeguard[
     [encodedGroups, encodedLeaves]
   )
   return coder.encode(['uint8', 'bytes'], [SafeguardConfigMode.Tree, payload])
+}
+
+export async function hashUserSafeguard(
+  settler: Contract,
+  user: Account,
+  safeguard: string,
+  nonce: BigNumberish,
+  deadline: BigNumberish
+): Promise<string> {
+  const connection = await network.connect()
+  const chainId = connection.networkConfig.chainId
+  const domain = { ...SETTLER_EIP712_DOMAIN, chainId, verifyingContract: settler.target }
+  return TypedDataEncoder.hash(domain, USER_SAFEGUARD_712_TYPE, { user: toAddress(user), safeguard, nonce, deadline })
 }
 
 export async function signUserSafeguard(

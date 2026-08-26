@@ -13,6 +13,8 @@ const config: HardhatUserConfig = {
       default: {
         version: '0.8.28',
         settings: {
+          // The IR pipeline is required to keep Settler under the EIP-170 24576-byte limit
+          viaIR: true,
           optimizer: {
             enabled: true,
             runs: 1000,

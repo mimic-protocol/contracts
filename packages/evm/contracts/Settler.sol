@@ -21,6 +21,7 @@ import '@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
+import '@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol';
 
 import './Intents.sol';
 import './interfaces/IController.sol';
@@ -202,8 +203,8 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
         if (usedNonces[nonce]) revert SettlerSafeguardNonceAlreadyUsed(user, nonce);
 
         UserSafeguard memory userSafeguard = UserSafeguard(user, safeguard, nonce, deadline);
-        address signer = ECDSA.recover(_hashTypedDataV4(userSafeguard.hash()), signature);
-        if (signer != user) revert SettlerSafeguardInvalidSigner(signer, user);
+        bytes32 typedDataHash = _hashTypedDataV4(userSafeguard.hash());
+        if (!_isValidUserSignature(user, typedDataHash, signature)) revert SettlerSafeguardInvalidSignature(user);
 
         // Consuming the nonce makes each signature usable only once, no matter who submits it
         usedNonces[nonce] = true;
@@ -697,6 +698,22 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
         if (newDynamicCallEncoder == address(0)) revert SettlerDynamicCallEncoderZero();
         dynamicCallEncoder = newDynamicCallEncoder;
         emit DynamicCallEncoderSet(newDynamicCallEncoder);
+    }
+
+    /**
+     * @dev Tells whether a signature over a hash was authorized by a user, supporting both EOAs and smart
+     * accounts implementing ERC-1271, such as Safe. ECDSA is attempted first so that EOAs that delegated
+     * their code (EIP-7702) are still verified as EOAs instead of being routed to their delegate.
+     * Note: unlike ECDSA signatures, ERC-1271 signatures are revocable, so validity is evaluated at
+     * execution time and the result may change over time for the same signature.
+     * @param user Address that must have authorized the signature
+     * @param hash Hash that was signed
+     * @param signature Signature to be verified
+     */
+    function _isValidUserSignature(address user, bytes32 hash, bytes memory signature) internal view returns (bool) {
+        (address signer, ECDSA.RecoverError err, ) = ECDSA.tryRecover(hash, signature);
+        if (err == ECDSA.RecoverError.NoError && signer == user) return true;
+        return SignatureChecker.isValidERC1271SignatureNow(user, hash, signature);
     }
 
     /**

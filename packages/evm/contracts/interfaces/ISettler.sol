@@ -150,9 +150,9 @@ interface ISettler {
     error SettlerSafeguardPastDeadline(uint256 deadline, uint256 timestamp);
 
     /**
-     * @dev The safeguard signature does not belong to the user
+     * @dev The safeguard signature is not authorized by the user
      */
-    error SettlerSafeguardInvalidSigner(address signer, address user);
+    error SettlerSafeguardInvalidSignature(address user);
 
     /**
      * @dev The safeguard nonce was already used by the user
