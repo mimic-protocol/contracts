@@ -17,7 +17,7 @@ pragma solidity ^0.8.20;
 import '../Settler.sol';
 
 contract SettlerV2Mock is Settler {
-    function someNewFunction() external pure returns (uint256) {
-        return 42;
+    function someNewFunction() external pure returns (string memory) {
+        return 'Some new function';
     }
 }

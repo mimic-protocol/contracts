@@ -131,7 +131,7 @@ describe('Settler', () => {
       this.initializeArgs = [ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS]
       this.assertUpgrade = async (proxy: Settler) => {
         const upgraded = await ethers.getContractAt('SettlerV2Mock', proxy)
-        expect(await upgraded.someNewFunction()).to.be.equal(42n)
+        expect(await upgraded.someNewFunction()).to.be.equal('Some new function')
         expect(await upgraded.owner()).to.be.equal(owner)
         expect(await upgraded.controller()).to.be.equal(controller)
         expect(await upgraded.operationsValidator()).to.be.equal(ZERO_ADDRESS)
