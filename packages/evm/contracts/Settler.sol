@@ -183,7 +183,6 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
     }
 
     /**
-     * @dev Sets a safeguard on behalf of a user based on the user's signature
      * @dev Sets a safeguard on behalf of a user based on a signature authorized by that user. The user can be
      * an EOA authorizing it with its own ECDSA signature, or a smart account implementing ERC-1271.
      * @param user Address of the user to set the safeguard for
