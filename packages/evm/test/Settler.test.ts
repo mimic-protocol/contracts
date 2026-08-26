@@ -16,7 +16,7 @@ import {
 } from '@mimicprotocol/sdk'
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/types'
 import { expect } from 'chai'
-import { AbiCoder, getBytes, Wallet } from 'ethers'
+import { AbiCoder, ContractTransactionResponse, getBytes, Wallet } from 'ethers'
 import { network } from 'hardhat'
 
 import {
@@ -57,7 +57,6 @@ import {
   DynamicCallOperation,
   hashIntent,
   hashProposal,
-  hashUserSafeguard,
   Intent,
   literal,
   Proposal,
@@ -435,6 +434,22 @@ describe('Settler', () => {
     })
   })
 
+  const itSetsTheSafeguard = (
+    setSafeguard: () => Promise<ContractTransactionResponse>,
+    expected: () => { user: Account; safeguard: string }
+  ) => {
+    it('sets the safeguard', async () => {
+      const tx = await setSafeguard()
+      const { user: expectedUser, safeguard: expectedSafeguard } = expected()
+
+      expect(await settler.getUserSafeguard(expectedUser)).to.be.equal(expectedSafeguard)
+
+      const events = await settler.queryFilter(settler.filters.SafeguardSet(), tx.blockNumber)
+      expect(events).to.have.lengthOf(1)
+      expect(events[0].args.user).to.equal(toAddress(expectedUser))
+    })
+  }
+
   describe('setSafeguard', () => {
     const safeguard = randomHex(64)
 
@@ -443,36 +458,21 @@ describe('Settler', () => {
     })
 
     context('when the user had no safeguards', () => {
-      it('sets the safeguard', async () => {
-        const tx = await settler.setSafeguard(safeguard)
-
-        const currentSafeguard = await settler.getUserSafeguard(user)
-        expect(currentSafeguard).to.be.equal(safeguard)
-
-        const events = await settler.queryFilter(settler.filters.SafeguardSet(), tx.blockNumber)
-        expect(events).to.have.lengthOf(1)
-        expect(events[0].args.user).to.equal(user)
-      })
+      itSetsTheSafeguard(
+        () => settler.setSafeguard(safeguard),
+        () => ({ user, safeguard })
+      )
     })
 
     context('when the user already had safeguards', () => {
-      const previousSafeguard = randomHex(64)
-
       beforeEach('set safeguard', async () => {
-        await settler.setSafeguard(previousSafeguard)
+        await settler.setSafeguard(randomHex(64))
       })
 
-      it('replaces the previous safeguard', async () => {
-        const tx = await settler.setSafeguard(safeguard)
-
-        const currentSafeguard = await settler.getUserSafeguard(user)
-        expect(currentSafeguard).to.be.equal(safeguard)
-        expect(currentSafeguard).to.not.be.equal(previousSafeguard)
-
-        const events = await settler.queryFilter(settler.filters.SafeguardSet(), tx.blockNumber)
-        expect(events).to.have.lengthOf(1)
-        expect(events[0].args.user).to.equal(user)
-      })
+      itSetsTheSafeguard(
+        () => settler.setSafeguard(safeguard),
+        () => ({ user, safeguard })
+      )
     })
   })
 
@@ -484,129 +484,164 @@ describe('Settler', () => {
     beforeEach('set sender', async () => {
       // The safeguard is submitted by an account other than the user to make sure the signer is the one authorizing it
       settler = settler.connect(other)
-      deadline = (await currentTimestamp()) + BigInt(120 * 10)
     })
 
-    it('starts with an unused nonce', async () => {
-      expect(await settler.isUserSafeguardNonceUsed(user, nonce)).to.be.false
-    })
+    const itRevertsWithInvalidSignature = (setSafeguard: () => Promise<ContractTransactionResponse>) => {
+      it('reverts', async () => {
+        await expect(setSafeguard()).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
+      })
+    }
 
     context('when the deadline has not been reached', () => {
+      beforeEach('set deadline', async () => {
+        deadline = (await currentTimestamp()) + BigInt(120 * 10)
+      })
+
       context('when the nonce was not used', () => {
-        context('when the signature belongs to the user', () => {
-          let signature: string
+        context('when the user is an EOA', () => {
+          context('when the signature was signed by the user', () => {
+            context('when the signature was signed for the same user', () => {
+              context('when the signature was signed for the same safeguard', () => {
+                context('when the signature was signed for the same nonce', () => {
+                  context('when the signature was signed for the same deadline', () => {
+                    let signature: string
 
-          beforeEach('sign safeguard', async () => {
-            signature = await signUserSafeguard(settler, user, safeguard, nonce, deadline, user)
-          })
+                    beforeEach('sign safeguard', async () => {
+                      signature = await signUserSafeguard(settler, user, safeguard, nonce, deadline, user)
+                    })
 
-          context('when the user had no safeguards', () => {
-            it('sets the safeguard', async () => {
-              const tx = await settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
+                    context('when the user had no safeguards', () => {
+                      itSetsTheSafeguard(
+                        () => settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature),
+                        () => ({ user, safeguard })
+                      )
 
-              const currentSafeguard = await settler.getUserSafeguard(user)
-              expect(currentSafeguard).to.be.equal(safeguard)
+                      it('consumes the user nonce', async () => {
+                        await settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
 
-              const events = await settler.queryFilter(settler.filters.SafeguardSet(), tx.blockNumber)
-              expect(events).to.have.lengthOf(1)
-              expect(events[0].args.user).to.equal(user)
+                        expect(await settler.isUserSafeguardNonceUsed(user, nonce)).to.be.true
+                        expect(await settler.isUserSafeguardNonceUsed(user, nonce + 1n)).to.be.false
+                        expect(await settler.isUserSafeguardNonceUsed(other, nonce)).to.be.false
+                      })
+                    })
+
+                    context('when the user already had safeguards', () => {
+                      beforeEach('set safeguard', async () => {
+                        await settler.connect(user).setSafeguard(randomHex(64))
+                      })
+
+                      itSetsTheSafeguard(
+                        () => settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature),
+                        () => ({ user, safeguard })
+                      )
+                    })
+
+                    it('allows setting another safeguard using another nonce', async () => {
+                      await settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
+
+                      const anotherSafeguard = randomHex(64)
+                      const anotherNonce = nonce + 1n
+                      const anotherSignature = await signUserSafeguard(
+                        settler,
+                        user,
+                        anotherSafeguard,
+                        anotherNonce,
+                        deadline,
+                        user
+                      )
+                      await settler.setSafeguardWithSignature(
+                        user,
+                        anotherSafeguard,
+                        anotherNonce,
+                        deadline,
+                        anotherSignature
+                      )
+
+                      expect(await settler.getUserSafeguard(user)).to.be.equal(anotherSafeguard)
+                    })
+                  })
+
+                  context('when the signature was signed for another deadline', () => {
+                    itRevertsWithInvalidSignature(async () => {
+                      const signature = await signUserSafeguard(settler, user, safeguard, nonce, deadline + 1n, user)
+                      return settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
+                    })
+                  })
+                })
+
+                context('when the signature was signed for another nonce', () => {
+                  itRevertsWithInvalidSignature(async () => {
+                    const signature = await signUserSafeguard(settler, user, safeguard, nonce + 1n, deadline, user)
+                    return settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
+                  })
+                })
+              })
+
+              context('when the signature was signed for another safeguard', () => {
+                itRevertsWithInvalidSignature(async () => {
+                  const signature = await signUserSafeguard(settler, user, randomHex(64), nonce, deadline, user)
+                  return settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
+                })
+              })
             })
 
-            it('consumes the user nonce', async () => {
-              await settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-
-              expect(await settler.isUserSafeguardNonceUsed(user, nonce)).to.be.true
-              expect(await settler.isUserSafeguardNonceUsed(user, nonce + 1n)).to.be.false
-              expect(await settler.isUserSafeguardNonceUsed(other, nonce)).to.be.false
+            context('when the signature was signed for another user', () => {
+              itRevertsWithInvalidSignature(async () => {
+                const signature = await signUserSafeguard(settler, other, safeguard, nonce, deadline, user)
+                return settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
+              })
             })
           })
 
-          context('when the user already had safeguards', () => {
-            const previousSafeguard = randomHex(64)
-
-            beforeEach('set safeguard', async () => {
-              await settler.connect(user).setSafeguard(previousSafeguard)
-            })
-
-            it('replaces the previous safeguard', async () => {
-              const tx = await settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-
-              const currentSafeguard = await settler.getUserSafeguard(user)
-              expect(currentSafeguard).to.be.equal(safeguard)
-              expect(currentSafeguard).to.not.be.equal(previousSafeguard)
-
-              const events = await settler.queryFilter(settler.filters.SafeguardSet(), tx.blockNumber)
-              expect(events).to.have.lengthOf(1)
-              expect(events[0].args.user).to.equal(user)
+          context('when the signature was signed by another account', () => {
+            itRevertsWithInvalidSignature(async () => {
+              const signature = await signUserSafeguard(settler, user, safeguard, nonce, deadline, other)
+              return settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
             })
           })
-
-          it('allows setting another safeguard using another nonce', async () => {
-            await settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-
-            const anotherSafeguard = randomHex(64)
-            const anotherNonce = nonce + 1n
-            const anotherSignature = await signUserSafeguard(
-              settler,
-              user,
-              anotherSafeguard,
-              anotherNonce,
-              deadline,
-              user
-            )
-            await settler.setSafeguardWithSignature(user, anotherSafeguard, anotherNonce, deadline, anotherSignature)
-
-            expect(await settler.getUserSafeguard(user)).to.be.equal(anotherSafeguard)
-          })
         })
 
-        context('when the signature belongs to another account', () => {
-          it('reverts', async () => {
-            const signature = await signUserSafeguard(settler, user, safeguard, nonce, deadline, other)
+        context('when the user is a smart account', () => {
+          context('when the smart account supports ERC-1271', () => {
+            let smartAccount: SmartAccount
 
-            await expect(
-              settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
+            beforeEach('deploy smart account', async () => {
+              smartAccount = await ethers.deployContract('SmartAccountContract', [settler, user])
+            })
+
+            context('when the signature was signed by an account allowed by the smart account', () => {
+              let signature: string
+
+              beforeEach('sign safeguard', async () => {
+                signature = await signUserSafeguard(settler, smartAccount, safeguard, nonce, deadline, user)
+              })
+
+              itSetsTheSafeguard(
+                () => settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature),
+                () => ({ user: smartAccount, safeguard })
+              )
+
+              it('consumes the user nonce', async () => {
+                await settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature)
+
+                expect(await settler.isUserSafeguardNonceUsed(smartAccount, nonce)).to.be.true
+              })
+            })
+
+            context('when the signature was signed by another account', () => {
+              itRevertsWithInvalidSignature(async () => {
+                const signature = await signUserSafeguard(settler, smartAccount, safeguard, nonce, deadline, other)
+                return settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature)
+              })
+            })
           })
-        })
 
-        context('when the signature was signed for another user', () => {
-          it('reverts', async () => {
-            const signature = await signUserSafeguard(settler, other, safeguard, nonce, deadline, user)
-
-            await expect(
-              settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-          })
-        })
-
-        context('when the signature was signed for another safeguard', () => {
-          it('reverts', async () => {
-            const signature = await signUserSafeguard(settler, user, randomHex(64), nonce, deadline, user)
-
-            await expect(
-              settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-          })
-        })
-
-        context('when the signature was signed for another nonce', () => {
-          it('reverts', async () => {
-            const signature = await signUserSafeguard(settler, user, safeguard, nonce + 1n, deadline, user)
-
-            await expect(
-              settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-          })
-        })
-
-        context('when the signature was signed for another deadline', () => {
-          it('reverts', async () => {
-            const signature = await signUserSafeguard(settler, user, safeguard, nonce, deadline + 1n, user)
-
-            await expect(
-              settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
+          context('when the smart account does not support ERC-1271', () => {
+            itRevertsWithInvalidSignature(async () => {
+              const smartAccount = await ethers.deployContract('CallMock', [])
+              const signature = await signUserSafeguard(settler, smartAccount, safeguard, nonce, deadline, user)
+              return settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature)
+            })
           })
         })
       })
@@ -638,133 +673,6 @@ describe('Settler', () => {
         await expect(
           settler.setSafeguardWithSignature(user, safeguard, nonce, deadline, signature)
         ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardPastDeadline')
-      })
-    })
-
-    context('when the user is a smart account', () => {
-      context('when the smart account is a Mimic smart account', () => {
-        let smartAccount: SmartAccount
-
-        beforeEach('deploy smart account', async () => {
-          smartAccount = await ethers.deployContract('SmartAccountContract', [settler, user])
-        })
-
-        context('when the signature belongs to the smart account owner', () => {
-          it('sets the safeguard', async () => {
-            const signature = await signUserSafeguard(settler, smartAccount, safeguard, nonce, deadline, user)
-
-            await settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature)
-
-            expect(await settler.getUserSafeguard(smartAccount)).to.be.equal(safeguard)
-            expect(await settler.isUserSafeguardNonceUsed(smartAccount, nonce)).to.be.true
-          })
-        })
-
-        context('when the signature belongs to an allowed signer', () => {
-          beforeEach('allow signer', async () => {
-            await smartAccount.connect(user).setAllowedSigners([other], [true])
-          })
-
-          it('sets the safeguard', async () => {
-            const signature = await signUserSafeguard(settler, smartAccount, safeguard, nonce, deadline, other)
-
-            await settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature)
-
-            expect(await settler.getUserSafeguard(smartAccount)).to.be.equal(safeguard)
-          })
-        })
-
-        context('when the signature belongs to an account that is not allowed', () => {
-          it('reverts', async () => {
-            const signature = await signUserSafeguard(settler, smartAccount, safeguard, nonce, deadline, other)
-
-            await expect(
-              settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-          })
-        })
-
-        context('when the signature was signed for the owner instead of the smart account', () => {
-          it('reverts', async () => {
-            const signature = await signUserSafeguard(settler, user, safeguard, nonce, deadline, user)
-
-            await expect(
-              settler.setSafeguardWithSignature(smartAccount, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-          })
-        })
-      })
-
-      context('when the smart account is an arbitrary ERC-1271 account', () => {
-        const AcceptsSignature = 0
-        const RejectsSignature = 1
-        const Reverts = 2
-        const ReturnsShortData = 3
-        const ReturnsNothing = 4
-        const AcceptsApprovedHashOnly = 5
-
-        const deployAccount = (mode: number) => ethers.deployContract('ERC1271Mock', [mode])
-
-        context('when the account accepts the signature', () => {
-          it('sets the safeguard', async () => {
-            const account = await deployAccount(AcceptsSignature)
-            const signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, other)
-
-            await settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature)
-
-            expect(await settler.getUserSafeguard(account)).to.be.equal(safeguard)
-            expect(await settler.isUserSafeguardNonceUsed(account, nonce)).to.be.true
-          })
-        })
-
-        context('when the account approved the hash on-chain', () => {
-          it('accepts an empty signature', async () => {
-            const account = await deployAccount(AcceptsApprovedHashOnly)
-            const hash = await hashUserSafeguard(settler, account, safeguard, nonce, deadline)
-            await account.approveHash(hash)
-
-            await settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, '0x')
-
-            expect(await settler.getUserSafeguard(account)).to.be.equal(safeguard)
-          })
-
-          it('reverts when the hash was not approved', async () => {
-            const account = await deployAccount(AcceptsApprovedHashOnly)
-
-            await expect(
-              settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, '0x')
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-          })
-        })
-
-        const itRevertsForMode = (name: string, mode: number) => {
-          context(`when the account ${name}`, () => {
-            it('reverts', async () => {
-              const account = await deployAccount(mode)
-              const signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, other)
-
-              await expect(
-                settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature)
-              ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-            })
-          })
-        }
-
-        itRevertsForMode('rejects the signature', RejectsSignature)
-        itRevertsForMode('reverts while verifying the signature', Reverts)
-        itRevertsForMode('returns less than 32 bytes', ReturnsShortData)
-        itRevertsForMode('returns no data', ReturnsNothing)
-
-        context('when the account does not implement ERC-1271', () => {
-          it('reverts', async () => {
-            const account = await ethers.deployContract('CallMock', [])
-            const signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, other)
-
-            await expect(
-              settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature)
-            ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
-          })
-        })
       })
     })
   })
