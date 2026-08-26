@@ -189,7 +189,6 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
      * @param safeguard Safeguard to be set
      * @param nonce Unique value chosen by the user to prevent replay attacks
      * @param deadline Timestamp until when the signature can be used
-     * @param signature Signature of the user authorizing the safeguard
      * @param signature EIP-712 signature authorizing the safeguard, verified with ECDSA or ERC-1271. It may be
      * empty for smart accounts that track approved messages on-chain.
      */
