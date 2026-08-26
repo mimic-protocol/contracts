@@ -185,32 +185,27 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
     /**
      * @dev Sets a safeguard on behalf of a user based on a signature authorized by that user. The user can be
      * an EOA authorizing it with its own ECDSA signature, or a smart account implementing ERC-1271.
-     * @param user Address of the user to set the safeguard for
-     * @param safeguard Safeguard to be set
-     * @param nonce Unique value chosen by the user to prevent replay attacks
-     * @param deadline Timestamp until when the signature can be used
+     * @param authorization Safeguard authorization signed by the user
      * @param signature EIP-712 signature authorizing the safeguard, verified with ECDSA or ERC-1271. It may be
      * empty for smart accounts that track approved messages on-chain.
      */
-    function setSafeguardWithSignature(
-        address user,
-        bytes memory safeguard,
-        uint256 nonce,
-        uint256 deadline,
-        bytes memory signature
-    ) external override {
+    function setSafeguardWithSignature(SafeguardAuthorization memory authorization, bytes memory signature)
+        external
+        override
+    {
+        uint256 deadline = authorization.deadline;
         if (deadline <= block.timestamp) revert SettlerSafeguardPastDeadline(deadline, block.timestamp);
 
-        mapping (uint256 => bool) storage usedNonces = isUserSafeguardNonceUsed[user];
-        if (usedNonces[nonce]) revert SettlerSafeguardNonceAlreadyUsed(user, nonce);
+        address user = authorization.user;
+        uint256 nonce = authorization.nonce;
+        if (isUserSafeguardNonceUsed[user][nonce]) revert SettlerSafeguardNonceAlreadyUsed(user, nonce);
 
-        SafeguardAuthorization memory authorization = SafeguardAuthorization(user, safeguard, nonce, deadline);
         bytes32 typedDataHash = _hashTypedDataV4(authorization.hash());
         if (!_isValidUserSignature(user, typedDataHash, signature)) revert SettlerSafeguardInvalidSignature(user);
 
         // Consuming the nonce makes each signature usable only once, no matter who submits it
-        usedNonces[nonce] = true;
-        _setSafeguard(user, safeguard);
+        isUserSafeguardNonceUsed[user][nonce] = true;
+        _setSafeguard(user, authorization.safeguard);
     }
 
     /**

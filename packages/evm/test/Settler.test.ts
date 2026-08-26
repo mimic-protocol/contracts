@@ -479,7 +479,11 @@ describe('Settler', () => {
 
     const itSetsTheSafeguard = () => {
       it('sets the safeguard', async () => {
-        const tx = await settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
+        const tx = await settler.setSafeguardWithSignature(
+          { user: account, safeguard, nonce, deadline },
+          signature,
+          overrides
+        )
 
         expect(await settler.getUserSafeguard(account)).to.be.equal(safeguard)
 
@@ -491,7 +495,7 @@ describe('Settler', () => {
 
     const itConsumesTheUserNonce = () => {
       it('consumes the user nonce', async () => {
-        await settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
+        await settler.setSafeguardWithSignature({ user: account, safeguard, nonce, deadline }, signature, overrides)
 
         expect(await settler.isUserSafeguardNonceUsed(account, nonce)).to.be.true
         expect(await settler.isUserSafeguardNonceUsed(account, nonce + 1n)).to.be.false
@@ -502,7 +506,7 @@ describe('Settler', () => {
     const itRevertsWithInvalidSignature = () => {
       it('reverts', async () => {
         await expect(
-          settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
+          settler.setSafeguardWithSignature({ user: account, safeguard, nonce, deadline }, signature, overrides)
         ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardInvalidSignature')
       })
     }
@@ -622,7 +626,7 @@ describe('Settler', () => {
           })
 
           it('delegates the user code', async () => {
-            await settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
+            await settler.setSafeguardWithSignature({ user: account, safeguard, nonce, deadline }, signature, overrides)
 
             expect(await ethers.provider.getCode(user.address)).to.not.be.equal('0x')
           })
@@ -676,12 +680,12 @@ describe('Settler', () => {
 
         beforeEach('set safeguard', async () => {
           signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, user)
-          await settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
+          await settler.setSafeguardWithSignature({ user: account, safeguard, nonce, deadline }, signature, overrides)
         })
 
         it('reverts', async () => {
           await expect(
-            settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
+            settler.setSafeguardWithSignature({ user: account, safeguard, nonce, deadline }, signature, overrides)
           ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardNonceAlreadyUsed')
         })
       })
@@ -702,7 +706,7 @@ describe('Settler', () => {
 
       it('reverts', async () => {
         await expect(
-          settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
+          settler.setSafeguardWithSignature({ user: account, safeguard, nonce, deadline }, signature, overrides)
         ).to.be.revertedWithCustomError(settler, 'SettlerSafeguardPastDeadline')
       })
     })
