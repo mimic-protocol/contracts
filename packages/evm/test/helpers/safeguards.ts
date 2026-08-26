@@ -8,8 +8,8 @@ import { NAry, toArray } from './arrays'
 
 /* eslint-disable no-unused-vars */
 
-export const USER_SAFEGUARD_712_TYPE = {
-  UserSafeguard: [
+export const SAFEGUARD_AUTHORIZATION_712_TYPE = {
+  SafeguardAuthorization: [
     { name: 'user', type: 'address' },
     { name: 'safeguard', type: 'bytes' },
     { name: 'nonce', type: 'uint256' },
@@ -114,7 +114,7 @@ export function createTreeSafeguard(groups: SafeguardGroup[], leaves: Safeguard[
   return coder.encode(['uint8', 'bytes'], [SafeguardConfigMode.Tree, payload])
 }
 
-export async function signUserSafeguard(
+export async function signSafeguardAuthorization(
   settler: Contract,
   user: Account,
   safeguard: string,
@@ -125,5 +125,10 @@ export async function signUserSafeguard(
   const connection = await network.connect()
   const chainId = connection.networkConfig.chainId
   const domain = { ...SETTLER_EIP712_DOMAIN, chainId, verifyingContract: settler.target }
-  return signer.signTypedData(domain, USER_SAFEGUARD_712_TYPE, { user: toAddress(user), safeguard, nonce, deadline })
+  return signer.signTypedData(domain, SAFEGUARD_AUTHORIZATION_712_TYPE, {
+    user: toAddress(user),
+    safeguard,
+    nonce,
+    deadline,
+  })
 }

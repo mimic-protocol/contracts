@@ -61,7 +61,7 @@ import {
   literal,
   Proposal,
   signProposal,
-  signUserSafeguard,
+  signSafeguardAuthorization,
   SwapOperation,
   SwapProposal,
   toAddress,
@@ -524,7 +524,7 @@ describe('Settler', () => {
                 context('when the signature was signed for the same nonce', () => {
                   context('when the signature was signed for the same deadline', () => {
                     beforeEach('sign safeguard', async () => {
-                      signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, user)
+                      signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, user)
                     })
 
                     context('when the user had no safeguards', () => {
@@ -543,7 +543,14 @@ describe('Settler', () => {
 
                   context('when the signature was signed for another deadline', () => {
                     beforeEach('sign safeguard', async () => {
-                      signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline + 1n, user)
+                      signature = await signSafeguardAuthorization(
+                        settler,
+                        account,
+                        safeguard,
+                        nonce,
+                        deadline + 1n,
+                        user
+                      )
                     })
 
                     itRevertsWithInvalidSignature()
@@ -552,7 +559,14 @@ describe('Settler', () => {
 
                 context('when the signature was signed for another nonce', () => {
                   beforeEach('sign safeguard', async () => {
-                    signature = await signUserSafeguard(settler, account, safeguard, nonce + 1n, deadline, user)
+                    signature = await signSafeguardAuthorization(
+                      settler,
+                      account,
+                      safeguard,
+                      nonce + 1n,
+                      deadline,
+                      user
+                    )
                   })
 
                   itRevertsWithInvalidSignature()
@@ -561,7 +575,7 @@ describe('Settler', () => {
 
               context('when the signature was signed for another safeguard', () => {
                 beforeEach('sign safeguard', async () => {
-                  signature = await signUserSafeguard(settler, account, randomHex(64), nonce, deadline, user)
+                  signature = await signSafeguardAuthorization(settler, account, randomHex(64), nonce, deadline, user)
                 })
 
                 itRevertsWithInvalidSignature()
@@ -570,7 +584,7 @@ describe('Settler', () => {
 
             context('when the signature was signed for another user', () => {
               beforeEach('sign safeguard', async () => {
-                signature = await signUserSafeguard(settler, other, safeguard, nonce, deadline, user)
+                signature = await signSafeguardAuthorization(settler, other, safeguard, nonce, deadline, user)
               })
 
               itRevertsWithInvalidSignature()
@@ -579,7 +593,7 @@ describe('Settler', () => {
 
           context('when the signature was signed by another account', () => {
             beforeEach('sign safeguard', async () => {
-              signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, other)
+              signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, other)
             })
 
             itRevertsWithInvalidSignature()
@@ -598,7 +612,7 @@ describe('Settler', () => {
           })
 
           beforeEach('sign safeguard', async () => {
-            signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, user)
+            signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, user)
           })
 
           afterEach('reset the user delegation', async () => {
@@ -625,7 +639,7 @@ describe('Settler', () => {
 
             context('when the signature was signed by an account allowed by the smart account', () => {
               beforeEach('sign safeguard', async () => {
-                signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, user)
+                signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, user)
               })
 
               itSetsTheSafeguard()
@@ -634,7 +648,7 @@ describe('Settler', () => {
 
             context('when the signature was signed by another account', () => {
               beforeEach('sign safeguard', async () => {
-                signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, other)
+                signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, other)
               })
 
               itRevertsWithInvalidSignature()
@@ -647,7 +661,7 @@ describe('Settler', () => {
             })
 
             beforeEach('sign safeguard', async () => {
-              signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, user)
+              signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, user)
             })
 
             itRevertsWithInvalidSignature()
@@ -661,7 +675,7 @@ describe('Settler', () => {
         })
 
         beforeEach('set safeguard', async () => {
-          signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, user)
+          signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, user)
           await settler.setSafeguardWithSignature(account, safeguard, nonce, deadline, signature, overrides)
         })
 
@@ -683,7 +697,7 @@ describe('Settler', () => {
       })
 
       beforeEach('sign safeguard', async () => {
-        signature = await signUserSafeguard(settler, account, safeguard, nonce, deadline, user)
+        signature = await signSafeguardAuthorization(settler, account, safeguard, nonce, deadline, user)
       })
 
       it('reverts', async () => {

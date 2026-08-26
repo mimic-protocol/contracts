@@ -43,7 +43,7 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
     using IntentsHelpers for Intent;
     using IntentsHelpers for Proposal;
     using IntentsHelpers for Validation;
-    using SafeguardsHelpers for UserSafeguard;
+    using SafeguardsHelpers for SafeguardAuthorization;
     using SmartAccountsHandlerHelpers for address;
 
     // Mimic controller reference
@@ -204,8 +204,8 @@ contract Settler is ISettler, Initializable, OwnableUpgradeable, ReentrancyGuard
         mapping (uint256 => bool) storage usedNonces = isUserSafeguardNonceUsed[user];
         if (usedNonces[nonce]) revert SettlerSafeguardNonceAlreadyUsed(user, nonce);
 
-        UserSafeguard memory userSafeguard = UserSafeguard(user, safeguard, nonce, deadline);
-        bytes32 typedDataHash = _hashTypedDataV4(userSafeguard.hash());
+        SafeguardAuthorization memory authorization = SafeguardAuthorization(user, safeguard, nonce, deadline);
+        bytes32 typedDataHash = _hashTypedDataV4(authorization.hash());
         if (!_isValidUserSignature(user, typedDataHash, signature)) revert SettlerSafeguardInvalidSignature(user);
 
         // Consuming the nonce makes each signature usable only once, no matter who submits it

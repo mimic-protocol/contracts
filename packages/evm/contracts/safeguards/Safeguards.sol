@@ -65,7 +65,7 @@ struct Safeguard {
  * @param nonce Unique value chosen by the user to prevent replay attacks
  * @param deadline Timestamp by which the safeguard must be set
  */
-struct UserSafeguard {
+struct SafeguardAuthorization {
     address user;
     bytes safeguard;
     uint256 nonce;
@@ -73,18 +73,18 @@ struct UserSafeguard {
 }
 
 library SafeguardsHelpers {
-    bytes32 internal constant USER_SAFEGUARD_TYPE_HASH =
-        keccak256('UserSafeguard(address user,bytes safeguard,uint256 nonce,uint256 deadline)');
+    bytes32 internal constant SAFEGUARD_AUTHORIZATION_TYPE_HASH =
+        keccak256('SafeguardAuthorization(address user,bytes safeguard,uint256 nonce,uint256 deadline)');
 
-    function hash(UserSafeguard memory userSafeguard) internal pure returns (bytes32) {
+    function hash(SafeguardAuthorization memory authorization) internal pure returns (bytes32) {
         return
             keccak256(
                 abi.encode(
-                    USER_SAFEGUARD_TYPE_HASH,
-                    userSafeguard.user,
-                    keccak256(userSafeguard.safeguard),
-                    userSafeguard.nonce,
-                    userSafeguard.deadline
+                    SAFEGUARD_AUTHORIZATION_TYPE_HASH,
+                    authorization.user,
+                    keccak256(authorization.safeguard),
+                    authorization.nonce,
+                    authorization.deadline
                 )
             );
     }
