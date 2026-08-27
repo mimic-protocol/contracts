@@ -145,6 +145,21 @@ interface ISettler {
     error SettlerTooManySafeguards(uint256 lengthRequested);
 
     /**
+     * @dev The safeguard deadline is in the past
+     */
+    error SettlerSafeguardPastDeadline(uint256 deadline, uint256 timestamp);
+
+    /**
+     * @dev The safeguard signature is not authorized by the user
+     */
+    error SettlerSafeguardInvalidSignature(address user);
+
+    /**
+     * @dev The safeguard nonce was already used by the user
+     */
+    error SettlerSafeguardNonceAlreadyUsed(address user, uint256 nonce);
+
+    /**
      * @dev The chains of a swap operation do not match the swap type (single or cross chain)
      */
     error SettlerOperationChainsMismatch();
@@ -242,6 +257,13 @@ interface ISettler {
     function getUserSafeguard(address user) external view returns (bytes memory);
 
     /**
+     * @dev Tells whether a safeguard nonce was already used by a user
+     * @param user Address of the user being queried
+     * @param nonce Safeguard nonce being queried
+     */
+    function isUserSafeguardNonceUsed(address user, uint256 nonce) external view returns (bool);
+
+    /**
      * @dev Tells the hash of an intent
      * @param intent Intent to get the hash of
      */
@@ -289,6 +311,15 @@ interface ISettler {
      * @param safeguard Safeguard to be set
      */
     function setSafeguard(bytes memory safeguard) external;
+
+    /**
+     * @dev Sets a safeguard on behalf of a user based on a signature authorized by that user. The user can be
+     * an EOA authorizing it with its own ECDSA signature, or a smart account implementing ERC-1271.
+     * @param authorization Safeguard authorization signed by the user
+     * @param signature EIP-712 signature authorizing the safeguard, verified with ECDSA or ERC-1271. It may be
+     * empty for smart accounts that track approved messages on-chain.
+     */
+    function setSafeguardWithSignature(SafeguardAuthorization memory authorization, bytes memory signature) external;
 
     /**
      * @dev Executes a proposal to fulfill an intent

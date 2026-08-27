@@ -57,3 +57,35 @@ struct Safeguard {
     uint8 mode;
     bytes config;
 }
+
+/**
+ * @dev EIP-712 typed data struct representing a user's authorization to set its safeguard
+ * @param user User the safeguard belongs to
+ * @param safeguard Encoded safeguard config to be set for the user
+ * @param nonce Unique value chosen by the user to prevent replay attacks
+ * @param deadline Timestamp by which the safeguard must be set
+ */
+struct SafeguardAuthorization {
+    address user;
+    bytes safeguard;
+    uint256 nonce;
+    uint256 deadline;
+}
+
+library SafeguardsHelpers {
+    bytes32 internal constant SAFEGUARD_AUTHORIZATION_TYPE_HASH =
+        keccak256('SafeguardAuthorization(address user,bytes safeguard,uint256 nonce,uint256 deadline)');
+
+    function hash(SafeguardAuthorization memory authorization) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    SAFEGUARD_AUTHORIZATION_TYPE_HASH,
+                    authorization.user,
+                    keccak256(authorization.safeguard),
+                    authorization.nonce,
+                    authorization.deadline
+                )
+            );
+    }
+}
