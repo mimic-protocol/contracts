@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     throw Error(`Expected owner ${expectedOwner} does not match ProxyAdmin owner ${proxyAdminOwner}`)
   }
 
-  const implementation = await deployCreate3(SettlerArtifact, [], '0x04302605', 'V1')
+  const implementation = await deployCreate3(SettlerArtifact, [], '0x27082605', 'V2')
 
   if (safeAddress) {
     const { chainId } = await ethers.provider.getNetwork()
